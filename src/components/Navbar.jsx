@@ -14,8 +14,12 @@ import {
   ChevronDown,
   ShieldCheck,
   Briefcase,
+  DollarSign,
+  FileCheck,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useMarketplace } from "@/context/MarketplaceContext";
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -23,6 +27,12 @@ export default function Navbar() {
   const dropdownRef = useRef(null);
 
   const { user, openAuthModal, logout } = useAuth();
+  const {
+    setIsCustomerDashboardOpen,
+    setIsProDashboardOpen,
+    bookings,
+    proVendorState,
+  } = useMarketplace();
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -38,11 +48,11 @@ export default function Navbar() {
   // Exact navigation links from header
   const navLinks = [
     { label: "Home", href: "/" },
-    { label: "Find a Professional", href: "#find" },
-    { label: "Categories", href: "#categories" },
-    { label: "How It Works", href: "#how-it-works" },
-    { label: "About", href: "#about" },
-    { label: "Contact", href: "#contact" },
+    { label: "Find a Professional", href: "/professionals" },
+    { label: "Categories", href: "/#categories" },
+    { label: "How It Works", href: "/#how-it-works" },
+    { label: "About", href: "/about" },
+    { label: "Contact", href: "/contact" },
   ];
 
   return (
@@ -74,7 +84,16 @@ export default function Navbar() {
         </nav>
 
         {/* Desktop Action Buttons / Authenticated User Profile */}
-        <div className="hidden sm:flex items-center gap-3">
+        <div className="hidden sm:flex items-center gap-2.5">
+          {/* Become a Pro / Vendor Portal Quick Button */}
+          <Link
+            href="/vendor"
+            className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Pro Vendor Portal</span>
+          </Link>
+
           {user ? (
             <div className="relative" ref={dropdownRef}>
               <button
@@ -106,29 +125,40 @@ export default function Navbar() {
 
               {/* Profile Dropdown Menu */}
               {profileDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-xl bg-surface border border-border shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-2 w-64 rounded-xl bg-surface border border-border shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-4 py-2 border-b border-border">
                     <p className="text-xs font-semibold text-dark-900">{user.name}</p>
                     <p className="text-[11px] text-dark-500 truncate">{user.email}</p>
                   </div>
 
                   <div className="py-1">
-                    <a
-                      href="#bookings"
+                    <Link
+                      href="/dashboard"
                       onClick={() => setProfileDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-dark-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                      className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-dark-700 hover:bg-primary-50 hover:text-primary-600 transition-colors text-left"
                     >
-                      <Calendar className="h-4 w-4 text-dark-400" />
-                      <span>My Bookings</span>
-                    </a>
-                    <a
-                      href="#profile"
+                      <div className="flex items-center gap-2.5">
+                        <Calendar className="h-4 w-4 text-dark-400" />
+                        <span>My Bookings & Profile</span>
+                      </div>
+                      <span className="text-[10px] bg-primary-100 text-primary-700 font-bold px-1.5 py-0.2 rounded-full">
+                        {bookings.length}
+                      </span>
+                    </Link>
+
+                    <Link
+                      href="/vendor"
                       onClick={() => setProfileDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-dark-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                      className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-dark-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors text-left"
                     >
-                      <Settings className="h-4 w-4 text-dark-400" />
-                      <span>Account Settings</span>
-                    </a>
+                      <div className="flex items-center gap-2.5">
+                        <DollarSign className="h-4 w-4 text-emerald-600" />
+                        <span>Vendor Earnings & Schedule</span>
+                      </div>
+                      <span className="text-[10px] text-emerald-700 font-bold">
+                        €{proVendorState.availablePayout}
+                      </span>
+                    </Link>
                   </div>
 
                   <div className="pt-1 border-t border-border">
@@ -149,22 +179,18 @@ export default function Navbar() {
             </div>
           ) : (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => openAuthModal("login", "customer")}
-                className="px-5 py-2 rounded-[5px] outline-none text-primary-600 border-primary-500 hover:bg-primary-50 font-semibold"
+              <Link
+                href="/login"
+                className="px-5 py-2 rounded-[6px] outline-none text-primary-600 border border-primary-500 hover:bg-primary-50 font-semibold text-xs transition-colors"
               >
                 Login
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => openAuthModal("signup", "customer")}
-                className="px-5 py-2 rounded-[5px] outline-none font-semibold shadow-button"
+              </Link>
+              <Link
+                href="/register"
+                className="px-5 py-2 rounded-[6px] outline-none bg-primary-500 hover:bg-primary-600 text-white font-semibold text-xs shadow-button transition-colors"
               >
                 Sign Up
-              </Button>
+              </Link>
             </>
           )}
         </div>
@@ -172,20 +198,17 @@ export default function Navbar() {
         {/* Mobile Hamburger & Actions */}
         <div className="flex lg:hidden items-center gap-2">
           {!user && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => openAuthModal("login", "customer")}
-              className="sm:hidden px-2 py-1.5 text-xs text-primary-600 border-primary-500"
+            <Link
+              href="/login"
+              className="sm:hidden px-2.5 py-1.5 text-xs font-semibold text-primary-600 border border-primary-500 rounded-lg"
             >
               Login
-            </Button>
+            </Link>
           )}
 
           {user && (
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            <Link
+              href="/dashboard"
               className="sm:hidden flex items-center gap-1.5 p-1 rounded-full border border-border"
             >
               {user.avatar ? (
@@ -199,7 +222,7 @@ export default function Navbar() {
                   {user.name?.charAt(0).toUpperCase()}
                 </div>
               )}
-            </button>
+            </Link>
           )}
 
           <button
@@ -250,9 +273,27 @@ export default function Navbar() {
                       <p className="text-xs text-dark-500">{user.email}</p>
                     </div>
                   </div>
+                  <div className="flex flex-col gap-2 pt-1">
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-primary-300 text-xs font-semibold text-primary-600 bg-primary-50/50"
+                    >
+                      <Calendar className="h-4 w-4 mr-2" />
+                      My Bookings & Profile ({bookings.length})
+                    </Link>
+                    <Link
+                      href="/vendor"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-emerald-300 text-xs font-semibold text-emerald-700 bg-emerald-50/50"
+                    >
+                      <ShieldCheck className="h-4 w-4 mr-2 text-emerald-600" />
+                      Pro Vendor Portal (€{proVendorState.availablePayout})
+                    </Link>
+                  </div>
                   <Button
                     variant="outline"
-                    className="w-full justify-center text-red-600 border-red-200 hover:bg-red-50"
+                    className="w-full justify-center text-red-600 border-red-200 hover:bg-red-50 mt-1"
                     onClick={() => {
                       setMobileMenuOpen(false);
                       logout();
@@ -264,26 +305,28 @@ export default function Navbar() {
                 </div>
               ) : (
                 <>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-center text-primary-600 border-primary-500"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      openAuthModal("login", "customer");
-                    }}
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-primary-500 text-xs font-semibold text-primary-600 text-center"
                   >
                     Login
-                  </Button>
-                  <Button
-                    variant="primary"
-                    className="w-full justify-center"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      openAuthModal("signup", "customer");
-                    }}
+                  </Link>
+                  <Link
+                    href="/register"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl bg-primary-500 text-white text-xs font-semibold shadow-button text-center"
                   >
                     Sign Up
-                  </Button>
+                  </Link>
+                  <Link
+                    href="/vendor"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-700 text-center"
+                  >
+                    <ShieldCheck className="h-4 w-4 mr-1.5 text-emerald-600" />
+                    Pro Vendor Portal
+                  </Link>
                 </>
               )}
             </div>

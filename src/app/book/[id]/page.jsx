@@ -1,0 +1,736 @@
+"use client";
+
+import React, { useState, useEffect, use } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import Button from "@/components/Button";
+import { useMarketplace } from "@/context/MarketplaceContext";
+import { useAuth } from "@/context/AuthContext";
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  CreditCard,
+  ShieldCheck,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
+  Lock,
+  User,
+  Phone,
+  Mail,
+  FileText,
+  Sparkles,
+  AlertCircle,
+  Download,
+  ChevronRight,
+  Check,
+} from "lucide-react";
+
+export default function BookingPage({ params }) {
+  const unwrappedParams = use(params);
+  const proId = unwrappedParams.id;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const preselectedServiceId = searchParams.get("service");
+
+  const { professionals, createBooking, customerProfile } = useMarketplace();
+  const { user } = useAuth();
+
+  // Find pro
+  const pro =
+    professionals.find((p) => p.id === proId) ||
+    professionals.find((p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(proId)) ||
+    professionals[0];
+
+  // Wizard Step: 1 = Service, 2 = Date/Slot, 3 = Address, 4 = Payment, 5 = Confirmation
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [confirmedBookingData, setConfirmedBookingData] = useState(null);
+
+  // Form State
+  const [selectedService, setSelectedService] = useState(
+    (preselectedServiceId && pro.services?.find((s) => s.id === preselectedServiceId)) ||
+      (pro.services && pro.services[0]) ||
+      null
+  );
+  const [selectedDate, setSelectedDate] = useState("2026-09-22");
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState("10:30 AM");
+  const [addressDetails, setAddressDetails] = useState({
+    name: customerProfile.name || "Alex Morgan",
+    email: customerProfile.email || "alex.morgan@example.com",
+    phone: customerProfile.phone || "+49 152 1234567",
+    street: "Friedrichstraße 45",
+    city: "Berlin",
+    postalCode: "10117",
+    notes: "Please call upon arrival at the main intercom.",
+  });
+
+  // Payment method
+  const [paymentMethod, setPaymentMethod] = useState("card"); // "card" | "paypal" | "applepay" | "sepa"
+  const [cardDetails, setCardDetails] = useState({
+    number: "4242 •••• •••• 4242",
+    expiry: "12/28",
+    cvc: "888",
+    cardholder: "Alex Morgan",
+  });
+
+  const next7Days = [
+    { label: "Today", date: "2026-09-18", day: "Fri", num: "18" },
+    { label: "Tomorrow", date: "2026-09-19", day: "Sat", num: "19" },
+    { label: "Sun", date: "2026-09-20", day: "Sun", num: "20" },
+    { label: "Mon", date: "2026-09-21", day: "Mon", num: "21" },
+    { label: "Tue", date: "2026-09-22", day: "Tue", num: "22" },
+    { label: "Wed", date: "2026-09-23", day: "Wed", num: "23" },
+    { label: "Thu", date: "2026-09-24", day: "Thu", num: "24" },
+  ];
+
+  const timeSlots = [
+    { time: "09:00 AM", period: "Morning" },
+    { time: "10:30 AM", period: "Morning" },
+    { time: "11:30 AM", period: "Morning" },
+    { time: "01:30 PM", period: "Afternoon" },
+    { time: "03:00 PM", period: "Afternoon" },
+    { time: "05:00 PM", period: "Evening" },
+    { time: "06:30 PM", period: "Evening" },
+  ];
+
+  const handlePayAndConfirm = () => {
+    setIsProcessingPayment(true);
+    setTimeout(() => {
+      setIsProcessingPayment(false);
+      const newBooking = createBooking({
+        pro,
+        service: selectedService || { title: pro.role, price: pro.price },
+        date: selectedDate,
+        timeSlot: selectedTimeSlot,
+        address: `${addressDetails.street}, ${addressDetails.postalCode} ${addressDetails.city}`,
+        notes: addressDetails.notes,
+        customerName: addressDetails.name,
+        customerEmail: addressDetails.email,
+        customerPhone: addressDetails.phone,
+        paymentMethod:
+          paymentMethod === "card"
+            ? "Visa ending in •••• 4242"
+            : paymentMethod === "paypal"
+            ? "PayPal (Instant)"
+            : paymentMethod === "applepay"
+            ? "Apple Pay"
+            : "SEPA Direct Debit",
+      });
+      setConfirmedBookingData(newBooking);
+      setCurrentStep(5);
+    }, 1200);
+  };
+
+  const servicePrice = selectedService ? selectedService.price : pro.price;
+  const platformFee = 0;
+  const totalAmount = servicePrice + platformFee;
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background text-dark-800">
+      <Navbar />
+
+      {/* BREADCRUMBS */}
+      <div className="bg-surface border-b border-border py-3">
+        <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 text-xs text-dark-500 font-medium">
+            <Link href="/" className="hover:text-primary-600 transition-colors">
+              Home
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-dark-400" />
+            <Link href="/professionals" className="hover:text-primary-600 transition-colors">
+              Professionals
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-dark-400" />
+            <Link href={`/professionals/${pro.id}`} className="hover:text-primary-600 transition-colors">
+              {pro.name}
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-dark-400" />
+            <span className="text-dark-900 font-semibold">Book Appointment</span>
+          </div>
+        </div>
+      </div>
+
+      <main className="flex-1 py-8 sm:py-12">
+        <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+          {/* STEPPER PROGRESS HEADER */}
+          {currentStep < 5 && (
+            <div className="mb-8 max-w-2xl mx-auto">
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { step: 1, label: "1. Service" },
+                  { step: 2, label: "2. Schedule" },
+                  { step: 3, label: "3. Address" },
+                  { step: 4, label: "4. Payment" },
+                ].map((s) => (
+                  <div key={s.step} className="flex flex-col gap-1.5">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        currentStep >= s.step ? "bg-primary-500" : "bg-dark-200"
+                      }`}
+                    />
+                    <span
+                      className={`text-xs font-semibold text-center truncate ${
+                        currentStep === s.step ? "text-primary-600 font-bold" : "text-dark-400"
+                      }`}
+                    >
+                      {s.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TWO COLUMN WORKFLOW LAYOUT */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            {/* Main Booking Form Column */}
+            <div className="lg:col-span-2">
+              <div className="bg-surface rounded-2xl border border-border p-6 sm:p-8 shadow-card space-y-6">
+                {/* STEP 1: SELECT SERVICE PACKAGE */}
+                {currentStep === 1 && (
+                  <div className="space-y-5">
+                    <div>
+                      <h2 className="font-heading text-xl font-bold text-dark-900">
+                        Step 1: Choose Service Package
+                      </h2>
+                      <p className="text-xs text-dark-500 mt-1">
+                        Select the exact service or consultation requirement with {pro.name}.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      {pro.services?.map((srv) => {
+                        const isSelected = selectedService?.id === srv.id;
+                        return (
+                          <div
+                            key={srv.id}
+                            onClick={() => setSelectedService(srv)}
+                            className={`p-5 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-4 ${
+                              isSelected
+                                ? "border-primary-500 bg-primary-50/30 ring-2 ring-primary-500/20 shadow-xs"
+                                : "border-border bg-surface hover:border-primary-200 hover:bg-dark-50/50"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3.5">
+                              <div
+                                className={`w-5 h-5 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
+                                  isSelected
+                                    ? "border-primary-500 bg-primary-500 text-white"
+                                    : "border-dark-300 bg-white"
+                                }`}
+                              >
+                                {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-heading text-sm sm:text-base font-bold text-dark-900">
+                                    {srv.title}
+                                  </h3>
+                                  <span className="text-[11px] font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded">
+                                    {srv.duration}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-dark-600 mt-1 leading-relaxed">
+                                  {srv.description}
+                                </p>
+                              </div>
+                            </div>
+
+                            <span className="font-heading text-lg font-bold text-dark-900 shrink-0">
+                              €{srv.price}.00
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 2: SELECT DATE & TIME SLOT */}
+                {currentStep === 2 && (
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="font-heading text-xl font-bold text-dark-900">
+                        Step 2: Choose Date & Time Slot
+                      </h2>
+                      <p className="text-xs text-dark-500 mt-1">
+                        Select a date and available appointment slot synced with {pro.name}'s calendar.
+                      </p>
+                    </div>
+
+                    {/* 7 Days Selector */}
+                    <div>
+                      <label className="block text-xs font-semibold text-dark-700 mb-2">
+                        Select Appointment Date
+                      </label>
+                      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                        {next7Days.map((d) => {
+                          const isSelected = selectedDate === d.date;
+                          return (
+                            <button
+                              key={d.date}
+                              type="button"
+                              onClick={() => setSelectedDate(d.date)}
+                              className={`p-3 rounded-xl border text-center transition-all ${
+                                isSelected
+                                  ? "bg-primary-500 text-white border-primary-500 shadow-button"
+                                  : "bg-surface border-border text-dark-700 hover:bg-dark-50"
+                              }`}
+                            >
+                              <span className="block text-[10px] font-medium uppercase opacity-80">
+                                {d.day}
+                              </span>
+                              <span className="block font-heading text-lg font-bold my-0.5">
+                                {d.num}
+                              </span>
+                              <span className="block text-[10px] opacity-75 truncate">{d.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Time Slots Grid */}
+                    <div>
+                      <label className="block text-xs font-semibold text-dark-700 mb-2">
+                        Select Available Time
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        {timeSlots.map((slot) => {
+                          const isSelected = selectedTimeSlot === slot.time;
+                          return (
+                            <button
+                              key={slot.time}
+                              type="button"
+                              onClick={() => setSelectedTimeSlot(slot.time)}
+                              className={`py-3 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                                isSelected
+                                  ? "bg-primary-50 border-primary-500 text-primary-700 ring-2 ring-primary-500/20 shadow-xs"
+                                  : "bg-surface border-border text-dark-800 hover:bg-dark-50"
+                              }`}
+                            >
+                              <Clock className="w-3.5 h-3.5 text-primary-500" />
+                              <span>{slot.time}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-800 font-medium">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        Instant Confirmation Guarantee: Your time slot is reserved immediately upon booking.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 3: ADDRESS & SERVICE DETAILS */}
+                {currentStep === 3 && (
+                  <div className="space-y-5">
+                    <div>
+                      <h2 className="font-heading text-xl font-bold text-dark-900">
+                        Step 3: Service Location & Contact
+                      </h2>
+                      <p className="text-xs text-dark-500 mt-1">
+                        Where should {pro.name} provide this service or arrive?
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1">
+                          Contact Full Name
+                        </label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
+                          <input
+                            type="text"
+                            value={addressDetails.name}
+                            onChange={(e) =>
+                              setAddressDetails({ ...addressDetails, name: e.target.value })
+                            }
+                            className="w-full pl-9 pr-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1">
+                          Phone Number (for SMS & Intercom)
+                        </label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
+                          <input
+                            type="tel"
+                            value={addressDetails.phone}
+                            onChange={(e) =>
+                              setAddressDetails({ ...addressDetails, phone: e.target.value })
+                            }
+                            className="w-full pl-9 pr-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-dark-700 mb-1">
+                          Street Address & Apartment / Unit
+                        </label>
+                        <div className="relative">
+                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
+                          <input
+                            type="text"
+                            value={addressDetails.street}
+                            onChange={(e) =>
+                              setAddressDetails({ ...addressDetails, street: e.target.value })
+                            }
+                            className="w-full pl-9 pr-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          value={addressDetails.city}
+                          onChange={(e) =>
+                            setAddressDetails({ ...addressDetails, city: e.target.value })
+                          }
+                          className="w-full px-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1">
+                          Postal Code
+                        </label>
+                        <input
+                          type="text"
+                          value={addressDetails.postalCode}
+                          onChange={(e) =>
+                            setAddressDetails({ ...addressDetails, postalCode: e.target.value })
+                          }
+                          className="w-full px-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-dark-700 mb-1">
+                          Special Instructions / Notes for Professional
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={addressDetails.notes}
+                          onChange={(e) =>
+                            setAddressDetails({ ...addressDetails, notes: e.target.value })
+                          }
+                          placeholder="E.g. Building entrance code, parking info, specific symptoms or problem details..."
+                          className="w-full p-3 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 4: SECURE PAYMENT GATEWAY */}
+                {currentStep === 4 && (
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="font-heading text-xl font-bold text-dark-900">
+                        Step 4: Secure Escrow Payment
+                      </h2>
+                      <p className="text-xs text-dark-500 mt-1">
+                        Your payment is held in escrow and released only after service fulfillment.
+                      </p>
+                    </div>
+
+                    {/* Payment Method Selector */}
+                    <div>
+                      <label className="block text-xs font-semibold text-dark-700 mb-2">
+                        Select Payment Method
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+                        {[
+                          { id: "card", label: "Credit Card" },
+                          { id: "paypal", label: "PayPal" },
+                          { id: "applepay", label: "Apple Pay" },
+                          { id: "sepa", label: "SEPA Bank" },
+                        ].map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setPaymentMethod(m.id)}
+                            className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all text-center ${
+                              paymentMethod === m.id
+                                ? "bg-primary-50 border-primary-500 text-primary-700 ring-2 ring-primary-500/20 shadow-xs"
+                                : "bg-surface border-border text-dark-700 hover:bg-dark-50"
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Card Details Form */}
+                      {paymentMethod === "card" && (
+                        <div className="space-y-3 p-4 bg-dark-50/50 border border-border rounded-xl">
+                          <div>
+                            <label className="block text-xs font-semibold text-dark-700 mb-1">
+                              Card Number
+                            </label>
+                            <div className="relative">
+                              <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
+                              <input
+                                type="text"
+                                value={cardDetails.number}
+                                onChange={(e) =>
+                                  setCardDetails({ ...cardDetails, number: e.target.value })
+                                }
+                                className="w-full pl-9 pr-3 py-2.5 bg-white border border-border rounded-lg text-xs text-dark-900 font-mono focus:outline-none focus:border-primary-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-dark-700 mb-1">
+                                Expiry Date
+                              </label>
+                              <input
+                                type="text"
+                                value={cardDetails.expiry}
+                                onChange={(e) =>
+                                  setCardDetails({ ...cardDetails, expiry: e.target.value })
+                                }
+                                className="w-full px-3 py-2.5 bg-white border border-border rounded-lg text-xs text-dark-900 font-mono focus:outline-none focus:border-primary-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-dark-700 mb-1">
+                                CVC / CVV
+                              </label>
+                              <input
+                                type="password"
+                                maxLength={4}
+                                value={cardDetails.cvc}
+                                onChange={(e) =>
+                                  setCardDetails({ ...cardDetails, cvc: e.target.value })
+                                }
+                                className="w-full px-3 py-2.5 bg-white border border-border rounded-lg text-xs text-dark-900 font-mono focus:outline-none focus:border-primary-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-dark-500 font-medium">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>256-bit SSL encrypted • 100% Escrow Protection Guarantee</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 5: BOOKING CONFIRMATION */}
+                {currentStep === 5 && confirmedBookingData && (
+                  <div className="text-center py-6 space-y-5 animate-in zoom-in-95">
+                    <div className="mx-auto w-18 h-18 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-soft">
+                      <CheckCircle2 className="w-12 h-12" />
+                    </div>
+
+                    <div>
+                      <span className="inline-block bg-emerald-50 text-emerald-700 text-xs font-bold px-3.5 py-1 rounded-full mb-2 border border-emerald-200">
+                        Booking Confirmed #{confirmedBookingData.id}
+                      </span>
+                      <h2 className="font-heading text-2xl font-bold text-dark-900">
+                        Appointment Successfully Scheduled!
+                      </h2>
+                      <p className="text-xs sm:text-sm text-dark-600 max-w-md mx-auto mt-1">
+                        We've sent your appointment confirmation to{" "}
+                        <strong className="text-dark-900">{confirmedBookingData.customerEmail}</strong>.
+                      </p>
+                    </div>
+
+                    {/* Summary Details Box */}
+                    <div className="bg-dark-50 p-5 rounded-2xl border border-border text-left space-y-2.5 text-xs max-w-lg mx-auto">
+                      <div className="flex justify-between border-b border-border pb-2">
+                        <span className="text-dark-500">Professional:</span>
+                        <span className="font-bold text-dark-900">{confirmedBookingData.proName}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-border pb-2">
+                        <span className="text-dark-500">Service:</span>
+                        <span className="font-semibold text-dark-900">
+                          {confirmedBookingData.serviceTitle}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b border-border pb-2">
+                        <span className="text-dark-500">Date & Time:</span>
+                        <span className="font-semibold text-primary-600">
+                          {confirmedBookingData.date} at {confirmedBookingData.timeSlot}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b border-border pb-2">
+                        <span className="text-dark-500">Service Location:</span>
+                        <span className="font-semibold text-dark-900 truncate max-w-[240px]">
+                          {confirmedBookingData.address}
+                        </span>
+                      </div>
+                      <div className="flex justify-between pt-1">
+                        <span className="text-dark-500">Total Paid:</span>
+                        <span className="font-bold text-dark-900">
+                          €{confirmedBookingData.totalPaid}.00 (via {confirmedBookingData.paymentMethod})
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4 max-w-md mx-auto">
+                      <Link
+                        href="/dashboard"
+                        className="w-full sm:w-auto flex-1 py-3 px-6 rounded-xl bg-primary-500 hover:bg-primary-600 text-white font-semibold text-xs shadow-button text-center transition-colors"
+                      >
+                        View in My Bookings
+                      </Link>
+                      <Link
+                        href="/professionals"
+                        className="w-full sm:w-auto flex-1 py-3 px-6 rounded-xl border border-border bg-surface hover:bg-dark-50 text-dark-700 font-semibold text-xs text-center transition-colors"
+                      >
+                        Browse Other Experts
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bottom Step Actions */}
+                {currentStep < 5 && (
+                  <div className="pt-6 border-t border-border flex items-center justify-between gap-3">
+                    {currentStep > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(currentStep - 1)}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-dark-700 hover:text-dark-900 py-2.5 px-4 rounded-xl border border-border hover:bg-dark-50 transition-colors"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Previous Step</span>
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/professionals/${pro.id}`}
+                        className="text-xs text-dark-500 hover:text-primary-600 font-medium"
+                      >
+                        ← Back to Profile
+                      </Link>
+                    )}
+
+                    {currentStep < 4 ? (
+                      <Button
+                        variant="primary"
+                        size="md"
+                        onClick={() => setCurrentStep(currentStep + 1)}
+                        className="text-xs font-semibold py-3 px-6 shadow-button"
+                      >
+                        <span>Next Step</span>
+                        <ArrowRight className="w-4 h-4 ml-1.5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        size="md"
+                        disabled={isProcessingPayment}
+                        onClick={handlePayAndConfirm}
+                        className="text-xs font-semibold py-3 px-7 shadow-button"
+                      >
+                        {isProcessingPayment ? (
+                          <div className="flex items-center gap-2">
+                            <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Securing Escrow Payment...</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <Lock className="w-4 h-4" />
+                            <span>Pay €{totalAmount}.00 & Confirm</span>
+                          </div>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Sticky Summary Sidebar */}
+            <div className="lg:col-span-1 space-y-5">
+              <div className="bg-surface rounded-2xl border border-border p-6 shadow-card sticky top-24 space-y-4">
+                <h3 className="font-heading text-sm font-bold text-dark-900 border-b border-border pb-3">
+                  Appointment Summary
+                </h3>
+
+                {/* Pro Avatar & Specialty */}
+                <div className="flex items-center gap-3">
+                  <img
+                    src={pro.image}
+                    alt={pro.name}
+                    className="w-12 h-12 rounded-xl object-cover border border-border bg-dark-100 shrink-0"
+                  />
+                  <div>
+                    <h4 className="font-heading text-sm font-bold text-dark-900">{pro.name}</h4>
+                    <p className="text-xs text-primary-600 font-medium">{pro.role}</p>
+                    <span className="text-[11px] text-dark-400">{pro.location}</span>
+                  </div>
+                </div>
+
+                {/* Selected Details */}
+                <div className="p-3.5 bg-dark-50 rounded-xl space-y-2 text-xs border border-border">
+                  <div className="flex justify-between">
+                    <span className="text-dark-500">Service:</span>
+                    <span className="font-semibold text-dark-900 truncate max-w-[150px]">
+                      {selectedService?.title || pro.role}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-dark-500">Date:</span>
+                    <span className="font-semibold text-dark-900">{selectedDate}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-dark-500">Time:</span>
+                    <span className="font-semibold text-primary-600">{selectedTimeSlot}</span>
+                  </div>
+                </div>
+
+                {/* Price Breakdown */}
+                <div className="space-y-2 pt-2 border-t border-border text-xs">
+                  <div className="flex justify-between text-dark-600">
+                    <span>Service Fee</span>
+                    <span className="font-semibold text-dark-900">€{servicePrice}.00</span>
+                  </div>
+                  <div className="flex justify-between text-dark-600">
+                    <span>Platform & Escrow Fee</span>
+                    <span className="text-emerald-600 font-semibold">FREE</span>
+                  </div>
+                  <div className="flex justify-between text-dark-600">
+                    <span>Taxes</span>
+                    <span>Included</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold text-dark-900 pt-2 border-t border-border">
+                    <span>Total Amount</span>
+                    <span className="font-heading text-lg text-primary-600">€{totalAmount}.00</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-800 leading-relaxed">
+                  ✓ Protected by Escrow. Money is held securely until you confirm the work is completed.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

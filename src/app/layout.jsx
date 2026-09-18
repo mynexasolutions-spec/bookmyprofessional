@@ -1,7 +1,7 @@
 import { Inter, Poppins, Caveat } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import AuthModal from "@/components/AuthModal";
+import { MarketplaceProvider } from "@/context/MarketplaceContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -41,8 +41,9 @@ export default function RootLayout({ children }) {
       </head>
       <body className="min-h-screen bg-background font-sans text-dark-800 selection:bg-primary-100 selection:text-primary-800">
         <AuthProvider>
-          {children}
-          <AuthModal />
+          <MarketplaceProvider>
+            {children}
+          </MarketplaceProvider>
         </AuthProvider>
       </body>
     </html>

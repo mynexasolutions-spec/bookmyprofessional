@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
+import MarketplaceDirectory from "@/components/MarketplaceDirectory";
 import { useAuth } from "@/context/AuthContext";
+import { useMarketplace } from "@/context/MarketplaceContext";
 import {
   ShieldCheck,
   Zap,
@@ -45,8 +48,38 @@ import {
 
 export default function HomePage() {
   const { openAuthModal, user, showToast } = useAuth();
+  const {
+    setSearchQuery,
+    setSelectedLocation,
+    setSelectedCategory,
+    startBooking,
+    openProDetail,
+    professionals: marketplacePros,
+    setIsProDashboardOpen,
+  } = useMarketplace();
+
+  const [heroLocation, setHeroLocation] = useState("");
+  const [heroService, setHeroService] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [testimonialIndex, setTestimonialIndex] = useState(0);
+
+  const handleHeroSearch = (e) => {
+    if (e) e.preventDefault();
+    if (heroService) setSearchQuery(heroService);
+    if (heroLocation) setSelectedLocation(heroLocation);
+    const element = document.getElementById("find");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const handleCategoryClick = (catTitle) => {
+    setSelectedCategory(catTitle);
+    const element = document.getElementById("find");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   const testimonials = [
     {
@@ -316,7 +349,7 @@ export default function HomePage() {
               </p>
 
               {/* Unified Two-Part Search Bar */}
-              <div className="mt-8 max-w-xl">
+              <form onSubmit={handleHeroSearch} className="mt-8 max-w-xl">
                 <div className="flex flex-col sm:flex-row items-stretch bg-surface rounded-card border border-border shadow-soft p-1.5 gap-1.5 sm:gap-0">
                   {/* Location Input */}
                   <div className="flex items-center gap-2.5 px-3.5 py-2.5 sm:w-[38%] border-b sm:border-b-0 sm:border-r border-border">
@@ -324,6 +357,8 @@ export default function HomePage() {
                     <input
                       type="text"
                       placeholder="Your Location"
+                      value={heroLocation}
+                      onChange={(e) => setHeroLocation(e.target.value)}
                       className="w-full bg-transparent text-sm text-dark-900 placeholder:text-muted focus:outline-none"
                     />
                   </div>
@@ -334,15 +369,18 @@ export default function HomePage() {
                     <input
                       type="text"
                       placeholder="Search for a service (e.g. Plumber, Tutor, Doctor...)"
+                      value={heroService}
+                      onChange={(e) => setHeroService(e.target.value)}
                       className="w-full bg-transparent text-xs sm:text-sm text-dark-900 placeholder:text-muted focus:outline-none"
                     />
                   </div>
 
                   {/* Search Button */}
                   <Button
+                    type="submit"
                     variant="primary"
                     size="md"
-                    className="rounded-[8px] px-6 py-2.5 font-semibold text-sm whitespace-nowrap shadow-button sm:self-center"
+                    className="rounded-[8px] px-6 py-2.5 font-semibold text-sm whitespace-nowrap shadow-button sm:self-center cursor-pointer"
                   >
                     <Search className="h-4 w-4 mr-1.5" />
                     Search
@@ -365,19 +403,20 @@ export default function HomePage() {
                     <button
                       key={service}
                       type="button"
-                      className="rounded-full border border-border bg-surface/90 px-3 py-1 text-xs text-dark-700 hover:border-primary-300 hover:text-primary-600 hover:bg-primary-50/50 shadow-xs transition-colors"
+                      onClick={() => handleCategoryClick(service)}
+                      className="rounded-full border border-border bg-surface/90 px-3 py-1 text-xs text-dark-700 hover:border-primary-300 hover:text-primary-600 hover:bg-primary-50/50 shadow-xs transition-colors cursor-pointer"
                     >
                       {service}
                     </button>
                   ))}
                 </div>
-              </div>
+              </form>
             </div>
           </div>
         </section>
 
         {/* EXPLORE OUR TOP CATEGORIES SECTION */}
-        <section className="py-12 sm:py-14 bg-surface border-b border-border">
+        <section id="categories" className="py-12 sm:py-14 bg-surface border-b border-border scroll-mt-14">
           <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8">
             {/* Header: Title + Subtitle + View All Link */}
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
@@ -390,7 +429,7 @@ export default function HomePage() {
                 </p>
               </div>
               <a
-                href="#categories"
+                href="#find"
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-500 hover:text-primary-600 transition-colors group shrink-0"
               >
                 <span>View All Categories</span>
@@ -403,6 +442,7 @@ export default function HomePage() {
               {topCategories.map((cat, idx) => (
                 <div
                   key={idx}
+                  onClick={() => handleCategoryClick(cat.title)}
                   className={`group relative flex flex-col items-center text-center rounded-[14px] border ${cat.cardBg} p-2.5 sm:p-3 transition-all duration-200 hover:-translate-y-1 hover:shadow-card cursor-pointer`}
                 >
                   {/* Image Container with Soft Pastel Background */}
@@ -572,7 +612,7 @@ export default function HomePage() {
          {/* FEATURED PROFESSIONALS PREVIEW */}
         <section
           id="experts"
-          className="bg-surface py-14 sm:py-16 border-b border-border"
+          className="bg-surface py-14 sm:py-16 border-b border-border scroll-mt-14"
         >
           <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8">
             {/* Header: Title + Subtitle + View All Professionals Link */}
@@ -586,7 +626,7 @@ export default function HomePage() {
                 </p>
               </div>
               <a
-                href="#all-professionals"
+                href="#find"
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-500 hover:text-primary-600 transition-colors group shrink-0"
               >
                 <span>View All Professionals</span>
@@ -596,102 +636,109 @@ export default function HomePage() {
 
             {/* 5 Cards Grid: 1 col on mobile, 2 cols on sm, 3 cols on md, 5 cols on xl */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {professionals.map((pro, index) => (
-                <div
-                  key={index}
-                  className="group bg-surface rounded-card border border-border shadow-card hover:shadow-soft hover:border-primary-200 transition-all duration-200 overflow-hidden flex flex-col justify-between"
-                >
-                  <div>
-                    {/* Image Container with Badges */}
-                    <div className="relative aspect-square w-full bg-dark-100 overflow-hidden">
-                      <img
-                        src={pro.image}
-                        alt={pro.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                      />
+              {professionals.map((pro, index) => {
+                const targetPro =
+                  marketplacePros.find((p) =>
+                    p.name.toLowerCase().includes(pro.name.toLowerCase())
+                  ) || marketplacePros[index % marketplacePros.length];
 
-                      {/* Top Left Verified Badge (Pink/Purple pill) for Doctor or standard */}
-                      <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-white/90 backdrop-blur-xs rounded-full px-2 py-0.5 shadow-xs">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-primary-500" />
-                        <span className="text-[10px] font-bold text-dark-800">Verified</span>
-                      </div>
+                return (
+                  <div
+                    key={index}
+                    className="group bg-surface rounded-card border border-border shadow-card hover:shadow-soft hover:border-primary-200 transition-all duration-200 overflow-hidden flex flex-col justify-between"
+                  >
+                    <Link href={`/professionals/${targetPro.id}`} className="block">
+                      {/* Image Container with Badges */}
+                      <div className="relative aspect-square w-full bg-dark-100 overflow-hidden">
+                        <img
+                          src={pro.image}
+                          alt={pro.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
 
-                      {/* Top Right Heart Wishlist Button */}
-                      <button
-                        type="button"
-                        aria-label="Save professional"
-                        className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center text-dark-500 hover:text-danger hover:bg-white transition-colors shadow-xs"
-                      >
-                        <Heart className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Content Section */}
-                    <div className="p-3.5">
-                      {/* Name with Verified Checkmark */}
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="font-heading font-bold text-sm text-dark-900 leading-tight truncate">
-                          {pro.name}
-                        </h3>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-primary-500 shrink-0" />
-                      </div>
-
-                      {/* Profession / Role */}
-                      <p className="text-xs text-dark-600 font-medium mt-0.5">
-                        {pro.role}
-                      </p>
-
-                      {/* Rating & Reviews */}
-                      <div className="flex items-center gap-1 mt-2 text-xs font-semibold text-dark-800">
-                        <Star className="w-3.5 h-3.5 fill-warning text-warning" />
-                        <span>{pro.rating}</span>
-                        <span className="text-muted font-normal">({pro.reviews} reviews)</span>
-                      </div>
-
-                      {/* Location */}
-                      <div className="flex items-center gap-1 mt-1 text-[11px] text-muted">
-                        <MapPin className="w-3 h-3 text-muted shrink-0" />
-                        <span className="truncate">{pro.location}</span>
-                      </div>
-
-                      {/* Pricing */}
-                      <div className="mt-3 flex items-baseline gap-2 pt-2 border-t border-border">
-                        <div className="flex items-baseline gap-1">
-                          <span className="font-heading font-bold text-sm text-dark-900">
-                            {pro.price}
-                          </span>
-                          <span className="text-[11px] text-muted">/{pro.unit}</span>
+                        {/* Top Left Verified Badge */}
+                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-white/90 backdrop-blur-xs rounded-full px-2 py-0.5 shadow-xs">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-500" />
+                          <span className="text-[10px] font-bold text-dark-800">Verified</span>
                         </div>
-                        <span className="text-[11px] text-muted line-through">
-                          {pro.originalPrice}/{pro.unit}
-                        </span>
+
+                        {/* Top Right Heart Wishlist Button */}
+                        <button
+                          type="button"
+                          aria-label="Save professional"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            showToast(`${pro.name} saved to your favorites!`);
+                          }}
+                          className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center text-dark-500 hover:text-danger hover:bg-white transition-colors shadow-xs"
+                        >
+                          <Heart className="w-3.5 h-3.5" />
+                        </button>
                       </div>
+
+                      {/* Content Section */}
+                      <div className="p-3.5">
+                        {/* Name with Verified Checkmark */}
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-heading font-bold text-sm text-dark-900 leading-tight truncate group-hover:text-primary-600 transition-colors">
+                            {pro.name}
+                          </h3>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+                        </div>
+
+                        {/* Profession / Role */}
+                        <p className="text-xs text-dark-600 font-medium mt-0.5">
+                          {pro.role}
+                        </p>
+
+                        {/* Rating & Reviews */}
+                        <div className="flex items-center gap-1 mt-2 text-xs font-semibold text-dark-800">
+                          <Star className="w-3.5 h-3.5 fill-warning text-warning" />
+                          <span>{pro.rating}</span>
+                          <span className="text-muted font-normal">({pro.reviews} reviews)</span>
+                        </div>
+
+                        {/* Location */}
+                        <div className="flex items-center gap-1 mt-1 text-[11px] text-muted">
+                          <MapPin className="w-3 h-3 text-muted shrink-0" />
+                          <span className="truncate">{pro.location}</span>
+                        </div>
+
+                        {/* Pricing */}
+                        <div className="mt-3 flex items-baseline gap-2 pt-2 border-t border-border">
+                          <div className="flex items-baseline gap-1">
+                            <span className="font-heading font-bold text-sm text-dark-900">
+                              {pro.price}
+                            </span>
+                            <span className="text-[11px] text-muted">/{pro.unit}</span>
+                          </div>
+                          <span className="text-[11px] text-muted line-through">
+                            {pro.originalPrice}/{pro.unit}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+
+                    {/* Bottom Action Button */}
+                    <div className="p-3.5 pt-0">
+                      <Link
+                        href={`/book/${targetPro.id}`}
+                        className="w-full inline-flex items-center justify-center rounded-[6px] py-2 text-xs font-semibold shadow-button bg-primary-500 hover:bg-primary-600 text-white transition-colors"
+                      >
+                        Book Now
+                      </Link>
                     </div>
                   </div>
-
-                  {/* Bottom Action Button */}
-                  <div className="p-3.5 pt-0">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => {
-                        if (!user) {
-                          openAuthModal("login", "customer");
-                        } else {
-                          showToast(`Booking request submitted for ${pro.name}!`);
-                        }
-                      }}
-                      className="w-full rounded-[6px] py-2 text-xs font-semibold shadow-button hover:bg-primary-600"
-                    >
-                      Book Now
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
+
+        {/* FULL INTERACTIVE MARKETPLACE DIRECTORY & SEARCH */}
+        <MarketplaceDirectory />
 
         {/* COMMUNITY STATS BANNER WITH STEPS.PNG BACKGROUND */}
         <section
@@ -1205,19 +1252,18 @@ export default function HomePage() {
 
               {/* CTA Buttons */}
               <div className="mt-7 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto">
-                <a
-                  href="#experts"
+                <Link
+                  href="/professionals"
                   className="w-full sm:w-auto inline-flex items-center justify-center px-7 py-3 sm:py-3.5 text-sm sm:text-base font-semibold text-white bg-[#0070F3] hover:bg-[#0060df] rounded-xl shadow-md transition-all duration-200"
                 >
                   Find a Professional
-                </a>
-                <button
-                  type="button"
-                  onClick={() => openAuthModal("signup", "professional")}
-                  className="w-full sm:w-auto inline-flex items-center justify-center px-7 py-3 sm:py-3.5 text-sm sm:text-base font-semibold text-white bg-black/40 hover:bg-black/55 border border-white/80 hover:border-white rounded-xl backdrop-blur-xs transition-all duration-200 cursor-pointer"
+                </Link>
+                <Link
+                  href="/register?role=professional"
+                  className="w-full sm:w-auto inline-flex items-center justify-center px-7 py-3 sm:py-3.5 text-sm sm:text-base font-semibold text-white bg-black/40 hover:bg-black/55 border border-white/80 hover:border-white rounded-xl backdrop-blur-xs transition-all duration-200"
                 >
                   Join as a Professional
-                </button>
+                </Link>
               </div>
 
               {/* Mobile version of handwritten note */}
@@ -1297,14 +1343,14 @@ export default function HomePage() {
               </h4>
               <ul className="space-y-2.5 text-xs sm:text-sm text-white/75 font-normal">
                 <li>
-                  <a href="#" className="hover:text-white transition-colors">
+                  <Link href="/" className="hover:text-white transition-colors">
                     Home
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#categories" className="hover:text-white transition-colors">
+                  <Link href="/professionals" className="hover:text-white transition-colors">
                     Categories
-                  </a>
+                  </Link>
                 </li>
                 <li>
                   <a href="#how-it-works" className="hover:text-white transition-colors">
@@ -1312,14 +1358,14 @@ export default function HomePage() {
                   </a>
                 </li>
                 <li>
-                  <a href="#about" className="hover:text-white transition-colors">
+                  <Link href="/about" className="hover:text-white transition-colors">
                     About Us
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#contact" className="hover:text-white transition-colors">
+                  <Link href="/contact" className="hover:text-white transition-colors">
                     Contact
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
@@ -1331,27 +1377,25 @@ export default function HomePage() {
               </h4>
               <ul className="space-y-2.5 text-xs sm:text-sm text-white/75 font-normal">
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => openAuthModal("signup", "professional")}
-                    className="hover:text-white transition-colors text-left"
+                  <Link
+                    href="/register?role=professional"
+                    className="hover:text-white transition-colors text-left inline-block"
                   >
                     Join as a Professional
-                  </button>
+                  </Link>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => openAuthModal("login", "professional")}
-                    className="hover:text-white transition-colors text-left"
+                  <Link
+                    href="/login?role=professional"
+                    className="hover:text-white transition-colors text-left inline-block"
                   >
                     Professional Login
-                  </button>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#resources" className="hover:text-white transition-colors">
-                    Resources
-                  </a>
+                  <Link href="/vendor" className="hover:text-white transition-colors">
+                    Vendor Portal
+                  </Link>
                 </li>
                 <li>
                   <a href="#support" className="hover:text-white transition-colors">
@@ -1368,18 +1412,20 @@ export default function HomePage() {
               </h4>
               <ul className="space-y-2.5 text-xs sm:text-sm text-white/75 font-normal">
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => openAuthModal("login", "customer")}
-                    className="hover:text-white transition-colors text-left"
+                  <Link
+                    href="/login?role=customer"
+                    className="hover:text-white transition-colors text-left inline-block"
                   >
                     Customer Login
-                  </button>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#faq" className="hover:text-white transition-colors">
-                    FAQ
-                  </a>
+                  <Link
+                    href="/dashboard"
+                    className="hover:text-white transition-colors text-left inline-block"
+                  >
+                    My Bookings
+                  </Link>
                 </li>
                 <li>
                   <a href="#trust" className="hover:text-white transition-colors">
