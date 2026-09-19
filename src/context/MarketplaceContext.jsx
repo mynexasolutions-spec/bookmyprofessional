@@ -575,7 +575,291 @@ export const INITIAL_BOOKINGS = [
     reviewRating: 5,
     reviewText: "Quick diagnostic and repaired right away.",
   },
+  {
+    id: "BMP-91823",
+    proId: "pro-2",
+    proName: "Rohit Sharma",
+    proRole: "Senior Mathematics & Physics Tutor",
+    proAvatar: "/images/pro_tutor.jpg",
+    serviceTitle: "1-on-1 High School Mathematics",
+    servicePrice: 30,
+    platformFee: 3.0,
+    totalPaid: 30,
+    date: "2026-09-24",
+    timeSlot: "04:00 PM",
+    address: "Schönhauser Allee 88, 10439 Berlin",
+    customerNotes: "Preparing for upcoming physics midterm test.",
+    customerName: "Elena Rossi",
+    customerEmail: "elena.rossi@example.com",
+    customerPhone: "+49 176 8812345",
+    status: "upcoming",
+    paymentStatus: "paid",
+    paymentMethod: "Apple Pay",
+    createdAt: "2026-09-17T11:20:00Z",
+    hasReview: false,
+  },
+  {
+    id: "BMP-60412",
+    proId: "pro-4",
+    proName: "Sara Khan",
+    proRole: "Professional Salon & Aesthetician",
+    proAvatar: "/images/pro_beautician.jpg",
+    serviceTitle: "Bridal & Event Hair Styling",
+    servicePrice: 65,
+    platformFee: 4.5,
+    totalPaid: 65,
+    date: "2026-09-12",
+    timeSlot: "11:00 AM",
+    address: "Kurfürstendamm 182, 10707 Berlin",
+    customerNotes: "Event hair styling for wedding evening.",
+    customerName: "Tobias Lang",
+    customerEmail: "tobias.lang@example.com",
+    customerPhone: "+49 160 5543210",
+    status: "completed",
+    paymentStatus: "paid",
+    paymentMethod: "Visa ending in •••• 8821",
+    createdAt: "2026-09-09T16:00:00Z",
+    hasReview: true,
+    reviewRating: 5,
+    reviewText: "Stunning look, lasted all evening! Highly recommended.",
+  },
 ];
+
+// Initial Customers Dataset
+export const INITIAL_CUSTOMERS = [
+  {
+    id: "cust-1",
+    name: "Alex Morgan",
+    email: "alex.morgan@example.com",
+    phone: "+49 152 9876543",
+    city: "Berlin",
+    joinedDate: "12 Jan 2024",
+    totalBookings: 6,
+    totalSpent: 320,
+    status: "active",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
+  },
+  {
+    id: "cust-2",
+    name: "Elena Rossi",
+    email: "elena.rossi@example.com",
+    phone: "+49 176 8812345",
+    city: "Munich",
+    joinedDate: "05 Mar 2024",
+    totalBookings: 4,
+    totalSpent: 210,
+    status: "active",
+    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80",
+  },
+  {
+    id: "cust-3",
+    name: "Tobias Lang",
+    email: "tobias.lang@example.com",
+    phone: "+49 160 5543210",
+    city: "Frankfurt",
+    joinedDate: "18 Feb 2024",
+    totalBookings: 9,
+    totalSpent: 680,
+    status: "active",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80",
+  },
+  {
+    id: "cust-4",
+    name: "Sophie Weber",
+    email: "sophie.w@example.com",
+    phone: "+49 151 2233445",
+    city: "Hamburg",
+    joinedDate: "22 Apr 2024",
+    totalBookings: 2,
+    totalSpent: 95,
+    status: "suspended",
+    avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120&auto=format&fit=crop&q=80",
+  },
+];
+
+// Initial Categories & Catalog Dataset
+export const INITIAL_CATEGORIES_DATA = [
+  {
+    id: "cat-1",
+    name: "Doctors",
+    title: "Doctors & Healthcare",
+    icon: "Stethoscope",
+    description: "Certified medical practitioners, teleconsultants, and wellness advisors.",
+    proCount: 18,
+    activeServices: 42,
+    baseCommission: 10,
+    status: "active",
+  },
+  {
+    id: "cat-2",
+    name: "Tutors",
+    title: "Tutors & Academics",
+    icon: "GraduationCap",
+    description: "STEM instructors, language coaches, test preparation, and music teachers.",
+    proCount: 32,
+    activeServices: 65,
+    baseCommission: 8,
+    status: "active",
+  },
+  {
+    id: "cat-3",
+    name: "Electricians",
+    title: "Certified Electricians",
+    icon: "Zap",
+    description: "Licensed master electricians, rewiring, breaker repair, and EV chargers.",
+    proCount: 24,
+    activeServices: 38,
+    baseCommission: 12,
+    status: "active",
+  },
+  {
+    id: "cat-4",
+    name: "Plumbers",
+    title: "Expert Plumbers",
+    icon: "Wrench",
+    description: "Emergency pipe fixes, bathroom installation, heating systems, and drains.",
+    proCount: 20,
+    activeServices: 34,
+    baseCommission: 12,
+    status: "active",
+  },
+  {
+    id: "cat-5",
+    name: "Beauticians",
+    title: "Beauticians & Salon",
+    icon: "Sparkles",
+    description: "Hair styling, makeup artists, skincare therapists, and bridal beauty.",
+    proCount: 28,
+    activeServices: 52,
+    baseCommission: 10,
+    status: "active",
+  },
+  {
+    id: "cat-6",
+    name: "Cleaners",
+    title: "Cleaners & Maid Services",
+    icon: "Home",
+    description: "Deep home cleaning, office sanitization, move-in/out, and window care.",
+    proCount: 35,
+    activeServices: 40,
+    baseCommission: 10,
+    status: "active",
+  },
+  {
+    id: "cat-7",
+    name: "IT Professionals",
+    title: "IT & Tech Support",
+    icon: "Laptop",
+    description: "Hardware diagnostics, WiFi networking, software setup, and data recovery.",
+    proCount: 22,
+    activeServices: 45,
+    baseCommission: 12,
+    status: "active",
+  },
+  {
+    id: "cat-8",
+    name: "Consultants",
+    title: "Consultants & Tax",
+    icon: "Briefcase",
+    description: "Financial advisors, freelancer tax setup, legal consultation, and business plans.",
+    proCount: 16,
+    activeServices: 28,
+    baseCommission: 15,
+    status: "active",
+  },
+];
+
+// Initial Pending Document Verifications Queue
+export const INITIAL_PENDING_VERIFICATIONS = [
+  {
+    id: "verif-101",
+    proId: "pro-5",
+    proName: "Daniel Weber",
+    proRole: "Certified Master Plumber",
+    category: "Plumbers",
+    docName: "German_Master_Plumber_Handwerkskarte_2024.pdf",
+    docType: "Trade Master License (Handwerkskammer)",
+    submittedDate: "Today, 09:40 AM",
+    status: "pending",
+    certificateNumber: "HWK-BLN-998241",
+    issuer: "Handwerkskammer Berlin",
+    previewUrl: "/images/cat_plumber.jpg",
+  },
+  {
+    id: "verif-102",
+    proId: "pro-6",
+    proName: "Lukas Richter",
+    proRole: "Senior IT Systems & Network Engineer",
+    category: "IT Professionals",
+    docName: "Cisco_CCNA_Enterprise_Network_Certificate.pdf",
+    docType: "Technical Certification",
+    submittedDate: "Yesterday, 03:15 PM",
+    status: "pending",
+    certificateNumber: "CSCO-1488921",
+    issuer: "Cisco Systems Germany",
+    previewUrl: "/images/cat_it_pro.jpg",
+  },
+  {
+    id: "verif-103",
+    proId: "pro-7",
+    proName: "Clara Schumann",
+    proRole: "Professional Housekeeper & Deep Cleaning Lead",
+    category: "Cleaners",
+    docName: "Police_Clearance_Fuehrungszeugnis_2024.pdf",
+    docType: "Criminal Background Clearance",
+    submittedDate: "2 days ago",
+    status: "pending",
+    certificateNumber: "BJR-FZ-2024-819",
+    issuer: "Bundesamt für Justiz",
+    previewUrl: "/images/cat_cleaner.jpg",
+  },
+];
+
+// Initial Payout Requests Queue
+export const INITIAL_PAYOUT_REQUESTS = [
+  {
+    id: "payout-req-1",
+    proId: "pro-1",
+    proName: "Dr. Ayesha Khan",
+    category: "Doctors",
+    amount: 665,
+    method: "SEPA Bank Transfer (DE89 1005 0000 0123 4401 00)",
+    bankName: "Berliner Sparkasse",
+    requestedDate: "Today, 11:20 AM",
+    status: "pending_approval",
+  },
+  {
+    id: "payout-req-2",
+    proId: "pro-3",
+    proName: "Ahmed Ali",
+    category: "Electricians",
+    amount: 360,
+    method: "SEPA Bank Transfer (DE44 2004 0000 0987 9921 00)",
+    bankName: "Commerzbank AG",
+    requestedDate: "Yesterday, 04:45 PM",
+    status: "pending_approval",
+  },
+];
+
+// Initial Platform Settings
+export const INITIAL_PLATFORM_SETTINGS = {
+  globalCommission: 10, // 10%
+  escrowHoldHours: 24,
+  minPayoutAmount: 50,
+  autoVerification: false,
+  supportHotline: "+49 (0) 30 8920 4400",
+  payoutProcessingDays: "1-2 Business Days",
+  categoryCommissions: {
+    Doctors: 10,
+    Tutors: 8,
+    Electricians: 12,
+    Plumbers: 12,
+    Beauticians: 10,
+    Cleaners: 10,
+    "IT Professionals": 12,
+    Consultants: 15,
+  },
+};
 
 export function MarketplaceProvider({ children }) {
   const { user, showToast } = useAuth();
@@ -628,6 +912,13 @@ export function MarketplaceProvider({ children }) {
       { name: "Medical_Board_License_2024.pdf", type: "Professional License", date: "12 Jan 2024", verified: true },
     ],
   });
+
+  // Admin States
+  const [customers, setCustomers] = useState(INITIAL_CUSTOMERS);
+  const [categoriesList, setCategoriesList] = useState(INITIAL_CATEGORIES_DATA);
+  const [pendingVerifications, setPendingVerifications] = useState(INITIAL_PENDING_VERIFICATIONS);
+  const [payoutRequests, setPayoutRequests] = useState(INITIAL_PAYOUT_REQUESTS);
+  const [platformSettings, setPlatformSettings] = useState(INITIAL_PLATFORM_SETTINGS);
 
   // Sync logged in user info with customer profile if available
   useEffect(() => {
@@ -692,7 +983,7 @@ export function MarketplaceProvider({ children }) {
     // Update Pro Earnings
     setProVendorState((prev) => {
       const addedGross = bookingData.service.price;
-      const commission = addedGross * prev.commissionRate;
+      const commission = addedGross * (platformSettings.globalCommission / 100);
       const net = addedGross - commission;
       return {
         ...prev,
@@ -812,6 +1103,151 @@ export function MarketplaceProvider({ children }) {
     showToast(`${docType} uploaded and verified successfully!`, "success");
   };
 
+  // ================= ADMIN FUNCTIONS =================
+
+  // 1. Customer Management
+  const updateCustomerStatus = (customerId, newStatus) => {
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === customerId ? { ...c, status: newStatus } : c))
+    );
+    showToast(`Customer account status changed to ${newStatus.toUpperCase()}.`, "success");
+  };
+
+  // 2. Professional / Vendor Management
+  const updateProStatus = (proId, verifiedStatus, activeStatus = "active") => {
+    setProfessionals((prev) =>
+      prev.map((p) => (p.id === proId ? { ...p, verified: verifiedStatus, status: activeStatus } : p))
+    );
+    showToast(`Professional status updated successfully.`, "success");
+  };
+
+  // 3. Document Verification Approval
+  const approveDocumentVerification = (docId, proId) => {
+    setPendingVerifications((prev) => prev.filter((v) => v.id !== docId));
+    setProfessionals((prev) =>
+      prev.map((p) => (p.id === proId ? { ...p, verified: true } : p))
+    );
+    showToast(`Document approved! Verified badge granted to professional.`, "success");
+  };
+
+  // 4. Document Verification Rejection
+  const rejectDocumentVerification = (docId, proId, reason = "Unclear document scan") => {
+    setPendingVerifications((prev) => prev.filter((v) => v.id !== docId));
+    showToast(`Document rejected. Feedback sent to vendor: "${reason}"`, "info");
+  };
+
+  // 5. Category Management
+  const addCategory = (categoryData) => {
+    const newCat = {
+      id: `cat-${Date.now()}`,
+      name: categoryData.name,
+      title: categoryData.title || categoryData.name,
+      icon: categoryData.icon || "Sparkles",
+      description: categoryData.description || "Certified service category.",
+      proCount: 0,
+      activeServices: 0,
+      baseCommission: categoryData.baseCommission || platformSettings.globalCommission,
+      status: "active",
+    };
+    setCategoriesList((prev) => [...prev, newCat]);
+    showToast(`Category "${newCat.title}" created successfully!`, "success");
+  };
+
+  const updateCategory = (catId, updatedData) => {
+    setCategoriesList((prev) =>
+      prev.map((c) => (c.id === catId ? { ...c, ...updatedData } : c))
+    );
+    showToast(`Category updated successfully.`, "success");
+  };
+
+  const deleteCategory = (catId) => {
+    setCategoriesList((prev) => prev.filter((c) => c.id !== catId));
+    showToast(`Category removed from catalog.`, "info");
+  };
+
+  // 6. Booking Management Override
+  const adminOverrideBooking = (bookingId, newStatus, shouldRefund = false) => {
+    setBookings((prev) =>
+      prev.map((b) => {
+        if (b.id === bookingId) {
+          return {
+            ...b,
+            status: newStatus,
+            paymentStatus: shouldRefund ? "refunded" : b.paymentStatus,
+          };
+        }
+        return b;
+      })
+    );
+    showToast(
+      `Booking ${bookingId} overridden to ${newStatus.toUpperCase()}${shouldRefund ? " and Escrow Refunded" : ""}.`,
+      "success"
+    );
+  };
+
+  // 7. Commission Settings
+  const updatePlatformCommission = (globalRate, categoryOverrides = {}) => {
+    setPlatformSettings((prev) => ({
+      ...prev,
+      globalCommission: parseFloat(globalRate),
+      categoryCommissions: {
+        ...prev.categoryCommissions,
+        ...categoryOverrides,
+      },
+    }));
+    showToast(`Platform commission updated to ${globalRate}%.`, "success");
+  };
+
+  // 8. Review Moderation
+  const moderateReview = (proId, reviewId, action, adminReply = "") => {
+    setProfessionals((prev) =>
+      prev.map((p) => {
+        if (p.id === proId) {
+          let updatedReviews = [...p.reviews];
+          if (action === "delete") {
+            updatedReviews = updatedReviews.filter((r) => r.id !== reviewId);
+          } else if (action === "flag") {
+            updatedReviews = updatedReviews.map((r) =>
+              r.id === reviewId ? { ...r, flagged: true } : r
+            );
+          } else if (action === "approve") {
+            updatedReviews = updatedReviews.map((r) =>
+              r.id === reviewId ? { ...r, flagged: false, approved: true } : r
+            );
+          } else if (action === "reply") {
+            updatedReviews = updatedReviews.map((r) =>
+              r.id === reviewId ? { ...r, adminReply } : r
+            );
+          }
+          const avg =
+            updatedReviews.length > 0
+              ? (updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length).toFixed(1)
+              : 5.0;
+
+          return {
+            ...p,
+            rating: parseFloat(avg),
+            reviewCount: updatedReviews.length,
+            reviews: updatedReviews,
+          };
+        }
+        return p;
+      })
+    );
+    showToast(`Review action "${action}" completed.`, "success");
+  };
+
+  // 9. Vendor Payout Authorization
+  const approveVendorPayout = (payoutId) => {
+    setPayoutRequests((prev) => prev.filter((p) => p.id !== payoutId));
+    showToast(`SEPA Payout ${payoutId} approved and transferred successfully.`, "success");
+  };
+
+  // 10. Reports Exporter
+  const exportReport = (reportType) => {
+    showToast(`Exporting ${reportType.replace("_", " ").toUpperCase()} report... Download ready!`, "success");
+  };
+
   // Filtered Professionals Computation
   const filteredProfessionals = professionals
     .filter((pro) => {
@@ -871,6 +1307,12 @@ export function MarketplaceProvider({ children }) {
         bookings,
         customerProfile,
         proVendorState,
+        // Admin Datasets
+        customers,
+        categoriesList,
+        pendingVerifications,
+        payoutRequests,
+        platformSettings,
         // Directory Filters
         searchQuery,
         setSearchQuery,
@@ -898,7 +1340,7 @@ export function MarketplaceProvider({ children }) {
         setIsCustomerDashboardOpen,
         isProDashboardOpen,
         setIsProDashboardOpen,
-        // Actions
+        // Customer & Pro Actions
         createBooking,
         cancelBooking,
         updateBookingStatus,
@@ -906,6 +1348,19 @@ export function MarketplaceProvider({ children }) {
         setCustomerProfile,
         requestPayout,
         uploadDocument,
+        // Admin Actions
+        updateCustomerStatus,
+        updateProStatus,
+        approveDocumentVerification,
+        rejectDocumentVerification,
+        addCategory,
+        updateCategory,
+        deleteCategory,
+        adminOverrideBooking,
+        updatePlatformCommission,
+        moderateReview,
+        approveVendorPayout,
+        exportReport,
       }}
     >
       {children}

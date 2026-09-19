@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, use, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -28,7 +28,7 @@ import {
   Check,
 } from "lucide-react";
 
-export default function BookingPage({ params }) {
+function BookingPageContent({ params }) {
   const unwrappedParams = use(params);
   const proId = unwrappedParams.id;
   const router = useRouter();
@@ -732,5 +732,19 @@ export default function BookingPage({ params }) {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function BookingPage({ params }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background text-dark-500 text-sm">
+          Loading booking workflow...
+        </div>
+      }
+    >
+      <BookingPageContent params={params} />
+    </Suspense>
   );
 }

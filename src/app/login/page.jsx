@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
   Mail,
@@ -13,16 +13,21 @@ import {
   Briefcase,
   ArrowRight,
   ShieldCheck,
-  CheckCircle2,
   Sparkles,
+  Shield,
 } from "lucide-react";
 import Button from "@/components/Button";
 
-export default function LoginPage() {
+function LoginFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialRoleParam = searchParams.get("role");
   const { login } = useAuth();
 
-  const [authRole, setAuthRole] = useState("customer"); // "customer" | "professional"
+  const [authRole, setAuthRole] = useState(
+    initialRoleParam === "professional" ? "professional" : "customer"
+  ); // "customer" | "professional"
+
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -32,6 +37,24 @@ export default function LoginPage() {
     password: "••••••••",
     rememberMe: true,
   });
+
+  const handleRoleChange = (role) => {
+    setAuthRole(role);
+    setErrorMessage("");
+    if (role === "professional") {
+      setForm({
+        identifier: "dr.ayesha@example.com",
+        password: "••••••••",
+        rememberMe: true,
+      });
+    } else {
+      setForm({
+        identifier: "alex.morgan@example.com",
+        password: "••••••••",
+        rememberMe: true,
+      });
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -50,7 +73,7 @@ export default function LoginPage() {
     setTimeout(() => {
       setIsLoading(false);
       login({
-        name: form.identifier.split("@")[0] || "Alex Morgan",
+        name: form.identifier.split("@")[0] || (authRole === "professional" ? "Dr. Ayesha Khan" : "Alex Morgan"),
         email: form.identifier,
         role: authRole,
         avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
@@ -60,7 +83,7 @@ export default function LoginPage() {
       } else {
         router.push("/dashboard");
       }
-    }, 600);
+    }, 500);
   };
 
   const handleSocialAuth = (provider) => {
@@ -127,7 +150,7 @@ export default function LoginPage() {
       {/* Right Column: Login Form */}
       <div className="md:w-1/2 flex items-center justify-center p-6 sm:p-12 lg:p-16">
         <div className="w-full max-w-md space-y-6">
-          <div>
+          <div className="text-center">
             <h1 className="font-heading text-2xl sm:text-3xl font-bold text-dark-900">
               Welcome Back
             </h1>
@@ -136,12 +159,12 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Role Switcher */}
+          {/* Role Switcher (Customer vs Professional vs Admin) */}
           <div className="bg-dark-50 p-1.5 rounded-2xl border border-border flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setAuthRole("customer")}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+              onClick={() => handleRoleChange("customer")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
                 authRole === "customer"
                   ? "bg-surface text-primary-600 shadow-sm border border-border/80"
                   : "text-dark-600 hover:text-dark-900"
@@ -152,8 +175,8 @@ export default function LoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => setAuthRole("professional")}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+              onClick={() => handleRoleChange("professional")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
                 authRole === "professional"
                   ? "bg-surface text-primary-600 shadow-sm border border-border/80"
                   : "text-dark-600 hover:text-dark-900"
@@ -162,7 +185,21 @@ export default function LoginPage() {
               <Briefcase className="h-4 w-4" />
               <span>Professional</span>
             </button>
+            <Link
+              href="/admin/login"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all text-primary-700 bg-primary-50/60 hover:bg-primary-100/90 border border-primary-200/80 hover:border-primary-300 shadow-xs"
+              title="Redirect to Admin Security Portal"
+            >
+              <Shield className="h-4 w-4 text-primary-600" />
+              <span>Admin</span>
+            </Link>
           </div>
+
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 font-medium animate-in fade-in duration-150">
+              {errorMessage}
+            </div>
+          )}
 
           {/* Social Logins */}
           <div className="grid grid-cols-3 gap-2.5">
@@ -217,9 +254,10 @@ export default function LoginPage() {
 
           <div className="relative flex items-center justify-center">
             <div className="border-t border-border w-full" />
-            <span className="bg-background px-3 text-[11px] font-medium text-dark-400 uppercase tracking-wider">
-              Or with email
+            <span className="bg-background px-3 text-[11px] font-medium text-dark-400 uppercase tracking-wider text-center">
+              Or with credentials
             </span>
+             <div className="border-t border-border w-full" />
           </div>
 
           {/* Form */}
@@ -297,5 +335,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background text-dark-500 text-sm">
+          Loading authentication portal...
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </Suspense>
   );
 }

@@ -17,6 +17,7 @@ import {
   DollarSign,
   FileCheck,
   Sparkles,
+  LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useMarketplace } from "@/context/MarketplaceContext";
@@ -85,6 +86,7 @@ export default function Navbar() {
 
         {/* Desktop Action Buttons / Authenticated User Profile */}
         <div className="hidden sm:flex items-center gap-2.5">
+         
           {/* Become a Pro / Vendor Portal Quick Button */}
           <Link
             href="/vendor"
@@ -159,6 +161,23 @@ export default function Navbar() {
                         €{proVendorState.availablePayout}
                       </span>
                     </Link>
+
+                    {/* Only show Admin Console if user is an authenticated Admin */}
+                    {user.role === "admin" && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-primary-700 hover:bg-primary-50 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <LayoutDashboard className="h-4 w-4 text-primary-600" />
+                          <span>Admin Console</span>
+                        </div>
+                        <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-1.5 py-0.2 rounded-full">
+                          Admin
+                        </span>
+                      </Link>
+                    )}
                   </div>
 
                   <div className="pt-1 border-t border-border">
@@ -290,6 +309,16 @@ export default function Navbar() {
                       <ShieldCheck className="h-4 w-4 mr-2 text-emerald-600" />
                       Pro Vendor Portal (€{proVendorState.availablePayout})
                     </Link>
+                    {user.role === "admin" && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-primary-300 text-xs font-semibold text-primary-700 bg-primary-50/70"
+                      >
+                        <LayoutDashboard className="h-4 w-4 mr-2 text-primary-600" />
+                        Admin Console
+                      </Link>
+                    )}
                   </div>
                   <Button
                     variant="outline"

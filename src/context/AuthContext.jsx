@@ -9,7 +9,24 @@ export function AuthProvider({ children }) {
   const [authModalTab, setAuthModalTab] = useState("login"); // "login" | "signup"
   const [authRole, setAuthRole] = useState("customer"); // "customer" | "professional"
   const [user, setUser] = useState(null); // { name, email, role, avatar }
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Restore user session from localStorage on initial load
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const storedUser = localStorage.getItem("bookmypro_auth_user");
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to restore user session:", error);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  }, []);
 
   // Auto-hide toast after 4 seconds
   useEffect(() => {
@@ -37,18 +54,39 @@ export function AuthProvider({ children }) {
 
   const login = (userData) => {
     setUser(userData);
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("bookmypro_auth_user", JSON.stringify(userData));
+      }
+    } catch (error) {
+      console.error("Failed to persist user session:", error);
+    }
     closeAuthModal();
     showToast(`Welcome back, ${userData.name || "User"}! You are now logged in.`);
   };
 
   const signup = (userData) => {
     setUser(userData);
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("bookmypro_auth_user", JSON.stringify(userData));
+      }
+    } catch (error) {
+      console.error("Failed to persist user session:", error);
+    }
     closeAuthModal();
     showToast(`Welcome to BookMyProfessional, ${userData.name}! Your account was created successfully.`);
   };
 
   const logout = () => {
     setUser(null);
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("bookmypro_auth_user");
+      }
+    } catch (error) {
+      console.error("Failed to clear user session:", error);
+    }
     showToast("You have been signed out successfully.", "info");
   };
 
@@ -59,6 +97,7 @@ export function AuthProvider({ children }) {
         authModalTab,
         authRole,
         user,
+        isAuthLoading,
         toastMessage,
         setAuthModalTab,
         setAuthRole,
