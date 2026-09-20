@@ -44,52 +44,52 @@ export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState(null);
   const [expandedFaq, setExpandedFaq] = useState(0);
-  const [selectedCity, setSelectedCity] = useState("berlin");
+  const [selectedCity, setSelectedCity] = useState("mumbai");
 
   const cityHubs = [
     {
-      id: "berlin",
-      name: "Berlin (Main Headquarters)",
-      address: "Friedrichstraße 123, 10117 Berlin, Germany",
-      mapQuery: "Friedrichstraße+123,+10117+Berlin,+Germany",
-      phone: "+49 (0) 30 8920 4400",
-      email: "berlin-hq@bookmyprofessional.com",
-      transit: "U-Bahn Friedrichstraße (U6) – 2 min walk",
-      parking: "Underground parking garage available at Dorotheenstraße 30",
-      hours: "Mon – Fri: 08:00 – 20:00 CET",
+      id: "mumbai",
+      name: "Mumbai (Main Headquarters)",
+      address: "Bandra Kurla Complex, Mumbai 400051, India",
+      mapQuery: "Bandra+Kurla+Complex,+Mumbai,+India",
+      phone: "+91 22 4000 4400",
+      email: "mumbai-hq@bookmyprofessional.com",
+      transit: "Metro Bandra Kurla Complex (Line 3) – 2 min walk",
+      parking: "Basement parking available at BKC",
+      hours: "Mon – Fri: 09:00 – 20:00 IST",
     },
     {
-      id: "munich",
-      name: "Munich Regional Hub",
-      address: "Maximilianstraße 35, 80539 München, Germany",
-      mapQuery: "Maximilianstraße+35,+80539+München,+Germany",
-      phone: "+49 (0) 89 4510 8820",
-      email: "munich@bookmyprofessional.com",
-      transit: "S-Bahn / Tram Maxmonument – 3 min walk",
-      parking: "Parkhaus Hofbräuhaus (5 min walk)",
-      hours: "Mon – Fri: 09:00 – 18:00 CET",
+      id: "delhi",
+      name: "Delhi Regional Hub",
+      address: "Connaught Place, New Delhi 110001, India",
+      mapQuery: "Connaught+Place,+New+Delhi,+India",
+      phone: "+91 11 4000 8820",
+      email: "delhi@bookmyprofessional.com",
+      transit: "Metro Connaught Place (Blue Line) – 3 min walk",
+      parking: "Paid parking at Palika Parking (5 min walk)",
+      hours: "Mon – Fri: 09:00 – 18:00 IST",
     },
     {
-      id: "frankfurt",
-      name: "Frankfurt Financial Hub",
-      address: "Taunusanlage 8, 60329 Frankfurt am Main, Germany",
-      mapQuery: "Taunusanlage+8,+60329+Frankfurt+am+Main,+Germany",
-      phone: "+49 (0) 69 7720 1190",
-      email: "frankfurt@bookmyprofessional.com",
-      transit: "S-Bahn Taunusanlage – Direct station exit",
-      parking: "Trianon Parkhaus Taunusanlage",
-      hours: "Mon – Fri: 08:30 – 18:30 CET",
+      id: "hyderabad",
+      name: "Hyderabad Financial Hub",
+      address: "Banjara Hills, Hyderabad 500034, India",
+      mapQuery: "Banjara+Hills,+Hyderabad,+India",
+      phone: "+91 40 4000 1190",
+      email: "hyderabad@bookmyprofessional.com",
+      transit: "Metro Banjara Hills (Line 1) – direct station exit",
+      parking: "Basement parking, Banjara Hills",
+      hours: "Mon – Fri: 09:30 – 18:30 IST",
     },
     {
-      id: "hamburg",
-      name: "Hamburg Northern Hub",
-      address: "Neuer Wall 50, 20354 Hamburg, Germany",
-      mapQuery: "Neuer+Wall+50,+20354+Hamburg,+Germany",
-      phone: "+49 (0) 40 3340 5500",
-      email: "hamburg@bookmyprofessional.com",
-      transit: "U-Bahn / S-Bahn Jungfernstieg – 4 min walk",
-      parking: "Parkhaus Bleichenhof",
-      hours: "Mon – Fri: 09:00 – 18:00 CET",
+      id: "bangalore",
+      name: "Bangalore Southern Hub",
+      address: "MG Road, Bangalore 560001, India",
+      mapQuery: "MG+Road,+Bangalore,+India",
+      phone: "+91 80 4000 5500",
+      email: "bangalore@bookmyprofessional.com",
+      transit: "Metro MG Road (Purple Line) – 4 min walk",
+      parking: "Paid parking, MG Road",
+      hours: "Mon – Fri: 09:00 – 18:00 IST",
     },
   ];
 
@@ -99,11 +99,11 @@ export default function ContactPage() {
     {
       icon: Phone,
       title: "Direct Phone & WhatsApp",
-      details: "+49 (0) 30 8920 4400",
-      subtext: "Mon – Sat, 8:00 AM – 8:00 PM CET",
+      details: "+91 22 4000 4400",
+      subtext: "Mon – Sat, 8:00 AM – 8:00 PM IST",
       badge: "Quick Response",
       actionText: "Call Now",
-      href: "tel:+493089204400",
+      href: "tel:+912240004400",
     },
     {
       icon: Mail,
@@ -116,12 +116,12 @@ export default function ContactPage() {
     },
     {
       icon: MapPin,
-      title: "European Headquarters",
-      details: "Friedrichstraße 123, 10117 Berlin",
-      subtext: "Germany (Visits by appointment)",
+      title: "India Headquarters",
+      details: "Bandra Kurla Complex, Mumbai 400051",
+      subtext: "India (Visits by appointment)",
       badge: "HQ Office",
       actionText: "Get Directions",
-      href: "https://maps.google.com/?q=Friedrichstraße+123+Berlin",
+      href: "https://maps.google.com/?q=Bandra+Kurla+Complex+Mumbai",
     },
   ];
 
@@ -340,7 +340,7 @@ export default function ContactPage() {
                             type="tel"
                             value={form.phone}
                             onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                            placeholder="+49 170 1234567"
+                            placeholder="+91 98200 12345"
                             className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-dark-50/70 border border-border rounded-xl text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                           />
                         </div>
@@ -432,11 +432,11 @@ export default function ContactPage() {
                   <div className="space-y-2.5 text-xs text-dark-700 pt-2 border-t border-border">
                     <div className="flex justify-between">
                       <span className="font-medium">Monday – Friday</span>
-                      <span className="font-semibold text-dark-900">08:00 – 20:00 CET</span>
+                      <span className="font-semibold text-dark-900">09:00 – 20:00 IST</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium">Saturday</span>
-                      <span className="font-semibold text-dark-900">09:00 – 18:00 CET</span>
+                      <span className="font-semibold text-dark-900">09:00 – 18:00 IST</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium">Sunday & Public Holidays</span>
@@ -457,7 +457,7 @@ export default function ContactPage() {
                     </div>
                   </div>
                   <p className="text-xs text-dark-600 leading-relaxed">
-                    All financial transactions are protected by European escrow regulations. If a service provider does not arrive or work doesn't match standards, your payment is promptly refunded.
+                    All financial transactions are protected by Indian escrow regulations. If a service provider does not arrive or work doesn't match standards, your payment is promptly refunded.
                   </p>
                 </div>
 
@@ -763,7 +763,7 @@ export default function ContactPage() {
                 Emergency Support Line:
               </p>
               <p className="text-xs font-semibold text-primary-400">
-                +49 (0) 30 8920 4400
+                +91 22 4000 4400
               </p>
             </div>
           </div>

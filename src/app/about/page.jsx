@@ -81,7 +81,7 @@ export default function AboutPage() {
 
   const leaders = [
     {
-      name: "Sophia Hartmann",
+      name: "Shreya Nair",
       role: "Co-Founder & Chief Executive Officer",
       bio: "Former marketplace operations director with 14+ years scaling tech and service marketplaces across EMEA.",
       image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",

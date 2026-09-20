@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMarketplace } from "@/context/MarketplaceContext";
+import { listCategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
+import { ikImage } from "@/lib/imagekit";
 import {
   Search,
   MapPin,
@@ -21,10 +23,27 @@ import {
   Award,
 } from "lucide-react";
 import Button from "./Button";
+import { formatMoney } from "@/lib/money";
+
+const CATEGORY_LABELS = {
+  Doctors: "Doctors & Health",
+  Tutors: "Tutors & Academics",
+  Electricians: "Electricians",
+  Plumbers: "Plumbers",
+  Beauticians: "Beauticians & Salon",
+  Cleaners: "Cleaners & Maid",
+  "IT Professionals": "IT & Tech Support",
+  Consultants: "Consultants & Tax",
+};
+
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function MarketplaceDirectory() {
   const {
+    professionals,
     filteredProfessionals,
+    locations,
+    isLoadingProfessionals,
     searchQuery,
     setSearchQuery,
     selectedCategory,
@@ -33,43 +52,67 @@ export default function MarketplaceDirectory() {
     setSelectedLocation,
     minRating,
     setMinRating,
+    minExperience,
+    setMinExperience,
     priceRange,
     setPriceRange,
+    availabilityDay,
+    setAvailabilityDay,
+    availabilitySlot,
+    setAvailabilitySlot,
     sortBy,
     setSortBy,
+    page,
+    pageSize,
+    total,
+    setPage,
     openProDetail,
     startBooking,
   } = useMarketplace();
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [categoryIds, setCategoryIds] = useState(DEFAULT_CATEGORIES);
 
-  const categories = [
-    { id: "all", label: "All Categories" },
-    { id: "Doctors", label: "Doctors & Health" },
-    { id: "Tutors", label: "Tutors & Academics" },
-    { id: "Electricians", label: "Electricians" },
-    { id: "Plumbers", label: "Plumbers" },
-    { id: "Beauticians", label: "Beauticians & Salon" },
-    { id: "Cleaners", label: "Cleaners & Maid" },
-    { id: "IT Professionals", label: "IT & Tech Support" },
-    { id: "Consultants", label: "Consultants & Tax" },
-  ];
+  useEffect(() => {
+    let active = true;
+    listCategories().then((cats) => {
+      if (active) setCategoryIds(cats);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  const locations = [
-    { id: "all", label: "All Locations" },
-    { id: "Berlin", label: "Berlin, Germany" },
-    { id: "Munich", label: "Munich, Germany" },
-    { id: "Hamburg", label: "Hamburg, Germany" },
-    { id: "Frankfurt", label: "Frankfurt, Germany" },
-    { id: "Cologne", label: "Cologne, Germany" },
-  ];
+  const categories = useMemo(
+    () => [
+      { id: "all", label: "All Categories" },
+      ...categoryIds.map((id) => ({ id, label: CATEGORY_LABELS[id] || id })),
+    ],
+    [categoryIds]
+  );
+
+  const locationOptions = useMemo(
+    () => [{ id: "all", label: "All Locations" }, ...locations.map((loc) => ({ id: loc.id, label: loc.label }))],
+    [locations]
+  );
+
+  const slotOptions = useMemo(() => {
+    const slots = new Set();
+    professionals.forEach((pro) => {
+      (pro.availability?.slots || []).forEach((slot) => slots.add(slot));
+    });
+    return [...slots];
+  }, [professionals]);
 
   const resetFilters = () => {
     setSearchQuery("");
     setSelectedCategory("all");
     setSelectedLocation("all");
     setMinRating(0);
+    setMinExperience(0);
     setPriceRange("all");
+    setAvailabilityDay("all");
+    setAvailabilitySlot("all");
     setSortBy("featured");
   };
 
@@ -78,7 +121,14 @@ export default function MarketplaceDirectory() {
     selectedCategory !== "all" ||
     selectedLocation !== "all" ||
     minRating > 0 ||
-    priceRange !== "all";
+    minExperience > 0 ||
+    priceRange !== "all" ||
+    availabilityDay !== "all" ||
+    availabilitySlot !== "all";
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, total);
 
   return (
     <section id="find" className="py-14 sm:py-18 bg-background border-b border-border scroll-mt-14">
@@ -104,7 +154,7 @@ export default function MarketplaceDirectory() {
           <div className="hidden lg:flex items-center gap-4 bg-surface py-2.5 px-4 rounded-xl border border-border shadow-xs">
             <div className="text-right">
               <span className="block text-xs font-semibold text-dark-900">
-                {filteredProfessionals.length} Experts Available
+                {isLoadingProfessionals ? "Loading experts…" : `${total} Experts Available`}
               </span>
               <span className="block text-[11px] text-emerald-600 font-medium">
                 ● 100% Background Verified
@@ -145,11 +195,15 @@ export default function MarketplaceDirectory() {
                 onChange={(e) => setSelectedLocation(e.target.value)}
                 className="w-full pl-10 pr-8 py-2.5 bg-dark-50/70 border border-border rounded-xl text-xs sm:text-sm text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all cursor-pointer appearance-none"
               >
-                {locations.map((loc) => (
+                {locationOptions.map((loc) => (
                   <option key={loc.id} value={loc.id}>
                     {loc.label}
                   </option>
                 ))}
+                {selectedLocation !== "all" &&
+                  !locationOptions.some((loc) => loc.id === selectedLocation) && (
+                    <option value={selectedLocation}>{selectedLocation}</option>
+                  )}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400 pointer-events-none" />
             </div>
@@ -164,8 +218,8 @@ export default function MarketplaceDirectory() {
                 <option value="featured">✨ Featured</option>
                 <option value="rating">★ Highest Rated</option>
                 <option value="reviews">💬 Most Reviews</option>
-                <option value="price-asc">€ Price: Low to High</option>
-                <option value="price-desc">€ Price: High to Low</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
               </select>
             </div>
 
@@ -248,6 +302,33 @@ export default function MarketplaceDirectory() {
                 </div>
               </div>
 
+              {/* Experience Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1">
+                  Minimum Experience
+                </label>
+                <div className="flex items-center gap-1.5">
+                  {[
+                    { val: 0, label: "All" },
+                    { val: 5, label: "5+ yrs" },
+                    { val: 10, label: "10+ yrs" },
+                  ].map((e) => (
+                    <button
+                      key={e.val}
+                      type="button"
+                      onClick={() => setMinExperience(e.val)}
+                      className={`flex-1 py-1.5 text-xs font-medium rounded-lg border text-center transition-all ${
+                        minExperience === e.val
+                          ? "bg-primary-50 border-primary-300 text-primary-700 font-semibold"
+                          : "bg-white border-border text-dark-700 hover:bg-dark-50"
+                      }`}
+                    >
+                      {e.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Price Filter */}
               <div>
                 <label className="block text-xs font-semibold text-dark-700 mb-1">
@@ -256,9 +337,9 @@ export default function MarketplaceDirectory() {
                 <div className="flex items-center gap-1.5">
                   {[
                     { val: "all", label: "Any" },
-                    { val: "under-40", label: "< €40" },
-                    { val: "40-70", label: "€40-€70" },
-                    { val: "above-70", label: "€70+" },
+                    { val: "under-40", label: `< ${formatMoney(40, 0)}` },
+                    { val: "40-70", label: `${formatMoney(40, 0)}-${formatMoney(70, 0)}` },
+                    { val: "above-70", label: `> ${formatMoney(70, 0)}` },
                   ].map((p) => (
                     <button
                       key={p.val}
@@ -274,6 +355,44 @@ export default function MarketplaceDirectory() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Availability Day Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1">
+                  Available Day
+                </label>
+                <select
+                  value={availabilityDay}
+                  onChange={(e) => setAvailabilityDay(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-border rounded-lg text-xs text-dark-900 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all cursor-pointer"
+                >
+                  <option value="all">Any day</option>
+                  {WEEKDAYS.map((day) => (
+                    <option key={day} value={day}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Availability Time-slot Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1">
+                  Time Slot
+                </label>
+                <select
+                  value={availabilitySlot}
+                  onChange={(e) => setAvailabilitySlot(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-border rounded-lg text-xs text-dark-900 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all cursor-pointer"
+                >
+                  <option value="all">Any time</option>
+                  {slotOptions.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {slot}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Reset shortcut */}
@@ -318,7 +437,7 @@ export default function MarketplaceDirectory() {
                 <div className="relative">
                   <div className="w-full h-44 sm:h-48 overflow-hidden bg-dark-100">
                     <img
-                      src={pro.image}
+                      src={ikImage(pro.image)}
                       alt={pro.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
@@ -356,9 +475,17 @@ export default function MarketplaceDirectory() {
                     {/* Rating & Experience */}
                     <div className="flex items-center justify-between gap-2 mb-1.5 text-xs">
                       <div className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <span className="font-bold text-dark-900">{pro.rating}</span>
-                        <span className="text-dark-500 font-normal">({pro.reviewCount})</span>
+                        {pro.reviewCount > 0 ? (
+                          <>
+                            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                            <span className="font-bold text-dark-900">{pro.rating}</span>
+                            <span className="text-dark-500 font-normal">({pro.reviewCount})</span>
+                          </>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full">
+                            New
+                          </span>
+                        )}
                       </div>
                       <span className="text-[11px] font-medium text-dark-600 bg-dark-50 px-2 py-0.5 rounded-full">
                         {pro.experienceYears}+ yrs exp
@@ -394,11 +521,11 @@ export default function MarketplaceDirectory() {
                         </span>
                         <div className="flex items-baseline gap-1.5">
                           <span className="font-heading text-lg font-bold text-dark-900">
-                            €{pro.price}
+                            {formatMoney(pro.price, 0)}
                           </span>
                           {pro.originalPrice && (
                             <span className="text-xs text-dark-400 line-through">
-                              €{pro.originalPrice}
+                              {formatMoney(pro.originalPrice, 0)}
                             </span>
                           )}
                           <span className="text-[11px] text-dark-500">/{pro.unit}</span>
@@ -431,6 +558,38 @@ export default function MarketplaceDirectory() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* PAGINATION */}
+        {total > 0 && (
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span className="text-xs text-dark-500">
+              Showing {rangeStart}–{rangeEnd} of {total}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1 || isLoadingProfessionals}
+                  onClick={() => setPage(page - 1)}
+                >
+                  Prev
+                </Button>
+                <span className="text-xs font-semibold text-dark-700">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages || isLoadingProfessionals}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -45,6 +45,7 @@ import {
   Linkedin,
   Youtube,
 } from "lucide-react";
+import { formatMoney } from "@/lib/money";
 
 export default function HomePage() {
   const { openAuthModal, user, showToast } = useAuth();
@@ -84,39 +85,39 @@ export default function HomePage() {
   const testimonials = [
     {
       name: "Priya S.",
-      location: "Berlin, Germany",
+      location: "Mumbai, India",
       avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
       rating: 5,
       comment:
         "“Found an amazing tutor for my daughter. The booking process was so simple!”",
     },
     {
-      name: "Mark T.",
-      location: "Munich, Germany",
+      name: "Karan M.",
+      location: "Delhi, India",
       avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
       rating: 5,
       comment:
         "“The electrician arrived on time and fixed everything perfectly. Great service!”",
     },
     {
-      name: "Fatima A.",
-      location: "Hamburg, Germany",
+      name: "Aisha S.",
+      location: "Bangalore, India",
       avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
       rating: 5,
       comment:
         "“I regularly book a cleaner through BookMyProfessional. Very reliable!”",
     },
     {
-      name: "Lucas Meyer",
-      location: "Frankfurt, Germany",
+      name: "Rohan Mehta",
+      location: "Hyderabad, India",
       avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
       rating: 5,
       comment:
         "“Outstanding platform! Hired a tax consultant within an hour and got all my queries resolved.”",
     },
     {
-      name: "Elena Rossi",
-      location: "Cologne, Germany",
+      name: "Ananya Iyer",
+      location: "Pune, India",
       avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
       rating: 5,
       comment:
@@ -235,9 +236,9 @@ export default function HomePage() {
       role: "General Physician",
       rating: "4.9",
       reviews: "120",
-      location: "Berlin, Germany",
-      price: "€50",
-      originalPrice: "€60",
+      location: "Mumbai, India",
+      price: formatMoney(50, 0),
+      originalPrice: formatMoney(60, 0),
       unit: "session",
       image: "/images/pro_doctor.jpg",
       verified: true,
@@ -247,9 +248,9 @@ export default function HomePage() {
       role: "Math Tutor",
       rating: "4.8",
       reviews: "98",
-      location: "Berlin, Germany",
-      price: "€30",
-      originalPrice: "€40",
+      location: "Mumbai, India",
+      price: formatMoney(30, 0),
+      originalPrice: formatMoney(40, 0),
       unit: "hour",
       image: "/images/pro_tutor.jpg",
       verified: true,
@@ -259,9 +260,9 @@ export default function HomePage() {
       role: "Electrician",
       rating: "4.7",
       reviews: "86",
-      location: "Berlin, Germany",
-      price: "€40",
-      originalPrice: "€60",
+      location: "Mumbai, India",
+      price: formatMoney(40, 0),
+      originalPrice: formatMoney(60, 0),
       unit: "hour",
       image: "/images/pro_electrician.jpg",
       verified: true,
@@ -271,21 +272,21 @@ export default function HomePage() {
       role: "Beautician",
       rating: "4.9",
       reviews: "112",
-      location: "Berlin, Germany",
-      price: "€35",
-      originalPrice: "€50",
+      location: "Mumbai, India",
+      price: formatMoney(35, 0),
+      originalPrice: formatMoney(50, 0),
       unit: "session",
       image: "/images/pro_beautician.jpg",
       verified: true,
     },
     {
-      name: "Daniel Weber",
+      name: "Ramesh Kumar",
       role: "Plumber",
       rating: "4.8",
       reviews: "74",
-      location: "Berlin, Germany",
-      price: "€45",
-      originalPrice: "€65",
+      location: "Mumbai, India",
+      price: formatMoney(45, 0),
+      originalPrice: formatMoney(65, 0),
       unit: "hour",
       image: "/images/pro_plumber.jpg",
       verified: true,
@@ -393,12 +394,12 @@ export default function HomePage() {
                     Popular:
                   </span>
                   {[
-                    "Electrician",
-                    "Plumber",
-                    "Tutor",
-                    "Doctor",
-                    "Beautician",
-                    "Cleaner",
+                    "Electricians",
+                    "Plumbers",
+                    "Tutors",
+                    "Doctors",
+                    "Beauticians",
+                    "Cleaners",
                   ].map((service) => (
                     <button
                       key={service}

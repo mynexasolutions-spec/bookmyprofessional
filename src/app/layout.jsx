@@ -2,6 +2,7 @@ import { Inter, Poppins, Caveat } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { MarketplaceProvider } from "@/context/MarketplaceContext";
+import AuthModal from "@/components/AuthModal";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,11 +25,47 @@ const caveat = Caveat({
   weight: ["600", "700"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional.com";
+
+const SITE_NAME = "Book My Professional";
+const SITE_TITLE = "Book My Professional | Connect with Top Experts Instantly";
+const SITE_DESCRIPTION =
+  "Hire verified, experienced professionals for your projects, business, and personal needs with fast scheduling and guaranteed quality.";
+
 export const metadata = {
-  title: "Book My Professional | Connect with Top Experts Instantly",
-  description:
-    "Hire verified, experienced professionals for your projects, business, and personal needs with fast scheduling and guaranteed quality.",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
   keywords: "professionals, book expert, hire consultants, verified services",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+    {
+      "@type": "WebSite",
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+  ],
 };
 
 export default function RootLayout({ children }) {
@@ -40,9 +77,14 @@ export default function RootLayout({ children }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className="min-h-screen bg-background font-sans text-dark-800 selection:bg-primary-100 selection:text-primary-800">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <AuthProvider>
           <MarketplaceProvider>
             {children}
+            <AuthModal />
           </MarketplaceProvider>
         </AuthProvider>
       </body>

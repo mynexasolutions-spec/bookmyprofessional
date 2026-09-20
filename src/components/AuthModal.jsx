@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, DEMO_MODE } from "@/context/AuthContext";
+import { createClient } from "@/lib/supabase/client";
 import {
   X,
   Mail,
@@ -32,6 +33,7 @@ export default function AuthModal() {
     closeAuthModal,
     login,
     signup,
+    showToast,
     toastMessage,
   } = useAuth();
 
@@ -57,7 +59,7 @@ export default function AuthModal() {
     password: "",
     confirmPassword: "",
     category: "Doctors",
-    city: "Berlin",
+    city: "Mumbai",
     agreeTerms: true,
   });
 
@@ -94,7 +96,7 @@ export default function AuthModal() {
 
   if (!isAuthModalOpen) return <ToastNotification toastMessage={toastMessage} />;
 
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage("");
 
@@ -108,18 +110,16 @@ export default function AuthModal() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      await login({ identifier: loginForm.identifier, password: loginForm.password, role: authRole });
+    } catch (error) {
+      setErrorMessage(error?.message || "Unable to sign in. Please try again.");
+    } finally {
       setIsLoading(false);
-      login({
-        name: loginForm.identifier.split("@")[0] || "Alex Morgan",
-        email: loginForm.identifier,
-        role: authRole,
-        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
-      });
-    }, 600);
+    }
   };
 
-  const handleSignupSubmit = (e) => {
+  const handleSignupSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage("");
 
@@ -145,44 +145,51 @@ export default function AuthModal() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      signup({
-        name: signupForm.fullName,
+    try {
+      await signup({
+        fullName: signupForm.fullName,
         email: signupForm.email,
         phone: signupForm.phone,
+        password: signupForm.password,
         role: authRole,
         category: authRole === "professional" ? signupForm.category : undefined,
         city: authRole === "professional" ? signupForm.city : undefined,
-        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
       });
-    }, 700);
+    } catch (error) {
+      setErrorMessage(error?.message || "Unable to create your account. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleForgotPasswordSubmit = (e) => {
+  const handleForgotPasswordSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage("");
+
     if (!forgotEmail.trim() || !forgotEmail.includes("@")) {
       setErrorMessage("Please enter a valid email address");
       return;
     }
+
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+      if (error) throw error;
       setForgotPasswordSubmitted(true);
-    }, 600);
+    } catch (error) {
+      setErrorMessage(error?.message || "Unable to send reset instructions. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  // ponytail: OAuth providers need dashboard config + credentials before they can work.
+  // Wire supabase.auth.signInWithOAuth per provider when those exist.
   const handleSocialAuth = (provider) => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      login({
-        name: `${provider} User`,
-        email: `user@${provider.toLowerCase()}.com`,
-        role: authRole,
-        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
-      });
-    }, 500);
+    showToast(`${provider} sign-in is not enabled yet. Please use email and password.`, "info");
   };
 
   const categories = [
@@ -255,6 +262,12 @@ export default function AuthModal() {
               <div className="mb-4 flex items-center gap-2 p-3 text-xs sm:text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg animate-in fade-in">
                 <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
                 <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {DEMO_MODE && viewMode !== "forgot-password" && (
+              <div className="mb-4 p-3 text-[11px] font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg">
+                Demo mode — any email and password works.
               </div>
             )}
 
@@ -621,7 +634,7 @@ export default function AuthModal() {
                             onChange={(e) =>
                               setSignupForm({ ...signupForm, phone: e.target.value })
                             }
-                            placeholder="+49 152 1234567"
+                            placeholder="+91 98200 12345"
                             className="w-full pl-10 pr-3 py-2 bg-dark-50 border border-border rounded-lg text-xs sm:text-sm text-dark-900 placeholder:text-dark-400 focus:bg-white focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
                           />
                         </div>
@@ -661,7 +674,7 @@ export default function AuthModal() {
                               onChange={(e) =>
                                 setSignupForm({ ...signupForm, city: e.target.value })
                               }
-                              placeholder="Berlin, Munich..."
+                              placeholder="Mumbai, Delhi..."
                               className="w-full pl-8 pr-2.5 py-2 bg-white border border-primary-200 rounded-lg text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                             />
                           </div>

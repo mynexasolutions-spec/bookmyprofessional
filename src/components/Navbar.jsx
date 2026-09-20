@@ -3,13 +3,13 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Button from "./Button";
+import NotificationsMenu from "./NotificationsMenu";
 import {
   Menu,
   X,
   ChevronRight,
   User,
   LogOut,
-  Settings,
   Calendar,
   ChevronDown,
   ShieldCheck,
@@ -17,9 +17,11 @@ import {
   DollarSign,
   FileCheck,
   Sparkles,
+  MessageSquare,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useMarketplace } from "@/context/MarketplaceContext";
+import { formatMoney } from "@/lib/money";
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -95,7 +97,9 @@ export default function Navbar() {
           </Link>
 
           {user ? (
-            <div className="relative" ref={dropdownRef}>
+            <>
+              <NotificationsMenu />
+              <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
@@ -156,8 +160,17 @@ export default function Navbar() {
                         <span>Vendor Earnings & Schedule</span>
                       </div>
                       <span className="text-[10px] text-emerald-700 font-bold">
-                        €{proVendorState.availablePayout}
+                        {formatMoney(proVendorState.availablePayout, 0)}
                       </span>
+                    </Link>
+
+                    <Link
+                      href="/messages"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-dark-700 hover:bg-primary-50 hover:text-primary-600 transition-colors text-left"
+                    >
+                      <MessageSquare className="h-4 w-4 text-dark-400" />
+                      <span>Messages</span>
                     </Link>
                   </div>
 
@@ -177,6 +190,7 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+            </>
           ) : (
             <>
               <Link
@@ -195,7 +209,7 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Mobile Hamburger & Actions */}
+        {/* Mobile Bangaloreer & Actions */}
         <div className="flex lg:hidden items-center gap-2">
           {!user && (
             <Link
@@ -204,6 +218,12 @@ export default function Navbar() {
             >
               Login
             </Link>
+          )}
+
+          {user && (
+            <div className="sm:hidden">
+              <NotificationsMenu />
+            </div>
           )}
 
           {user && (
@@ -288,7 +308,15 @@ export default function Navbar() {
                       className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-emerald-300 text-xs font-semibold text-emerald-700 bg-emerald-50/50"
                     >
                       <ShieldCheck className="h-4 w-4 mr-2 text-emerald-600" />
-                      Pro Vendor Portal (€{proVendorState.availablePayout})
+                      Pro Vendor Portal ({formatMoney(proVendorState.availablePayout, 0)})
+                    </Link>
+                    <Link
+                      href="/messages"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-border text-xs font-semibold text-dark-700 bg-dark-50/50"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-2 text-dark-400" />
+                      Messages
                     </Link>
                   </div>
                   <Button

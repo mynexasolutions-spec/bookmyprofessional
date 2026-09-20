@@ -6,6 +6,8 @@ import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
 import { useMarketplace } from "@/context/MarketplaceContext";
 import { useAuth } from "@/context/AuthContext";
+import { getNotificationPrefs, updateNotificationPrefs } from "@/lib/data/notifications";
+import { getProfile, updateProfile } from "@/lib/data/profiles";
 import {
   Calendar,
   Clock,
@@ -25,7 +27,9 @@ import {
   Sparkles,
   ChevronRight,
   ArrowRight,
+  MessageSquare,
 } from "lucide-react";
+import { formatMoney } from "@/lib/money";
 
 export default function CustomerDashboardPage() {
   const {
@@ -39,13 +43,68 @@ export default function CustomerDashboardPage() {
   const [activeTab, setActiveTab] = useState("bookings"); // "bookings" | "profile" | "invoices"
   const [bookingFilter, setBookingFilter] = useState("all"); // "all" | "upcoming" | "in_progress" | "completed" | "cancelled"
   const [profileForm, setProfileForm] = useState(customerProfile);
+  const [prefs, setPrefs] = useState(null);
 
   useEffect(() => {
     setProfileForm(customerProfile);
   }, [customerProfile]);
 
-  const handleProfileSave = (e) => {
+  // Load the real profile row for signed-in (non-demo) users so edits round-trip to Supabase.
+  useEffect(() => {
+    if (!user?.id || user.demo) return;
+    let active = true;
+    getProfile(user.id).then((p) => {
+      if (!active || !p) return;
+      setCustomerProfile((prev) => ({
+        ...prev,
+        name: p.full_name || prev.name,
+        email: p.email || prev.email,
+        phone: p.phone || prev.phone,
+        city: p.city || prev.city,
+        address: p.address || prev.address,
+      }));
+    });
+    return () => {
+      active = false;
+    };
+  }, [user?.id, user?.demo, setCustomerProfile]);
+
+  useEffect(() => {
+    getNotificationPrefs().then(setPrefs);
+  }, []);
+
+  const handlePrefToggle = async (key) => {
+    if (!prefs) return;
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    const saved = await updateNotificationPrefs({ [key]: next[key] });
+    if (saved) {
+      setPrefs(saved);
+      showToast("Notification preferences updated.", "success");
+    } else {
+      showToast("Unable to save preferences right now.", "error");
+    }
+  };
+
+  const handleProfileSave = async (e) => {
     e.preventDefault();
+
+    // Persist to Supabase for real sessions; demo mode keeps the local-only mock.
+    if (user?.id && !user.demo) {
+      try {
+        await updateProfile(user.id, {
+          full_name: profileForm.name,
+          email: profileForm.email,
+          phone: profileForm.phone,
+          city: profileForm.city,
+          address: profileForm.address,
+        });
+      } catch (err) {
+        showToast(err?.message || "Could not save your profile right now.", "error");
+        return;
+      }
+    }
+
     setCustomerProfile(profileForm);
     showToast("Profile details updated successfully!", "success");
   };
@@ -88,6 +147,25 @@ export default function CustomerDashboardPage() {
 
   const handleDownloadReceipt = (booking) => {
     showToast(`Downloading Receipt_${booking.id}.pdf ...`, "info");
+  };
+
+  const handleCancel = async (bookingId) => {
+    try {
+      await cancelBooking(bookingId);
+    } catch (err) {
+      showToast(err?.message || "Unable to cancel this booking.", "error");
+    }
+  };
+
+  // Prefer the real UTC instant when present; fall back to the display date + slot.
+  const formatWhen = (b) => {
+    if (b.startsAt) {
+      const d = new Date(b.startsAt);
+      if (!Number.isNaN(d.getTime())) {
+        return d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+      }
+    }
+    return `${b.date} at ${b.timeSlot}`;
   };
 
   return (
@@ -230,7 +308,7 @@ export default function CustomerDashboardPage() {
                               </span>
                               <span className="text-dark-300">•</span>
                               <span className="text-xs text-dark-500">
-                                Booked on {new Date(b.createdAt).toLocaleDateString()}
+                                Booked on {new Date(b.createdAt).toLocaleDateString("en-IN")}
                               </span>
                             </div>
                             <div>{getStatusBadge(b.status)}</div>
@@ -254,7 +332,7 @@ export default function CustomerDashboardPage() {
                                 <div className="flex flex-wrap items-center gap-4 text-xs text-dark-500 mt-1.5">
                                   <span className="flex items-center gap-1 font-semibold text-dark-900">
                                     <Calendar className="w-3.5 h-3.5 text-primary-500" />
-                                    {b.date} at {b.timeSlot}
+                                    {formatWhen(b)}
                                   </span>
                                   <span className="flex items-center gap-1">
                                     <MapPin className="w-3.5 h-3.5 text-dark-400" />
@@ -270,10 +348,12 @@ export default function CustomerDashboardPage() {
                                 Total Amount
                               </span>
                               <span className="text-xl font-bold font-heading text-dark-900">
-                                €{b.totalPaid}.00
+                                {formatMoney(b.totalPaid)}
                               </span>
                               <span className="block text-[11px] text-emerald-600 font-medium mt-0.5">
-                                Paid via {b.paymentMethod}
+                                {b.paymentStatus === "refunded"
+                                  ? "Refunded"
+                                  : `Paid via ${b.paymentMethod || "—"}`}
                               </span>
                             </div>
                           </div>
@@ -289,7 +369,7 @@ export default function CustomerDashboardPage() {
                               {b.status === "upcoming" && (
                                 <button
                                   type="button"
-                                  onClick={() => cancelBooking(b.id)}
+                                  onClick={() => handleCancel(b.id)}
                                   className="py-2 px-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
                                 >
                                   Cancel Booking
@@ -312,6 +392,14 @@ export default function CustomerDashboardPage() {
                                   Reviewed ({b.reviewRating}★)
                                 </span>
                               )}
+
+                              <Link
+                                href={`/messages?booking=${b.id}`}
+                                className="py-2 px-3.5 rounded-xl border border-border hover:bg-dark-50 text-dark-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Message</span>
+                              </Link>
 
                               <button
                                 type="button"
@@ -339,6 +427,7 @@ export default function CustomerDashboardPage() {
 
               {/* TAB 2: MY PROFILE */}
               {activeTab === "profile" && (
+                <>
                 <form onSubmit={handleProfileSave} className="space-y-6 max-w-xl">
                   <div>
                     <h3 className="font-heading text-lg font-bold text-dark-900">
@@ -439,6 +528,62 @@ export default function CustomerDashboardPage() {
                     Save Profile Changes
                   </Button>
                 </form>
+
+                <div className="mt-8 pt-8 border-t border-border max-w-xl space-y-4">
+                  <div>
+                    <h3 className="font-heading text-lg font-bold text-dark-900">
+                      Notification Preferences
+                    </h3>
+                    <p className="text-xs text-dark-500 mt-1">
+                      Choose which updates you want to hear about.
+                    </p>
+                  </div>
+
+                  {!prefs ? (
+                    <p className="text-xs text-dark-400">Loading preferences…</p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {[
+                        {
+                          key: "bookings",
+                          label: "Booking updates",
+                          hint: "Confirmations, status changes and cancellations.",
+                        },
+                        {
+                          key: "reviewReplies",
+                          label: "Review replies",
+                          hint: "When a professional responds to your review.",
+                        },
+                        {
+                          key: "announcements",
+                          label: "Announcements",
+                          hint: "Platform news and important notices.",
+                        },
+                      ].map((row) => (
+                        <label
+                          key={row.key}
+                          className="flex items-start justify-between gap-4 p-4 rounded-xl border border-border bg-dark-50/50 cursor-pointer"
+                        >
+                          <span>
+                            <span className="block text-xs font-semibold text-dark-900">
+                              {row.label}
+                            </span>
+                            <span className="block text-[11px] text-dark-500 mt-0.5">
+                              {row.hint}
+                            </span>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={!!prefs[row.key]}
+                            onChange={() => handlePrefToggle(row.key)}
+                            className="mt-0.5 rounded text-primary-500 focus:ring-primary-500 h-4 w-4 shrink-0"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                </>
               )}
 
               {/* TAB 3: INVOICES */}
@@ -471,16 +616,31 @@ export default function CustomerDashboardPage() {
                           <tr key={b.id} className="hover:bg-dark-50/50 transition-colors">
                             <td className="p-4 font-mono font-bold text-dark-900">INV-{b.id}</td>
                             <td className="p-4 text-dark-600">
-                              {new Date(b.createdAt).toLocaleDateString()}
+                              {new Date(b.createdAt).toLocaleDateString("en-IN")}
                             </td>
                             <td className="p-4 font-semibold text-dark-900">{b.proName}</td>
                             <td className="p-4 text-dark-600 max-w-[160px] truncate">
                               {b.serviceTitle}
                             </td>
-                            <td className="p-4 font-bold text-dark-900">€{b.totalPaid}.00</td>
+                            <td className="p-4 font-bold text-dark-900">{formatMoney(b.totalPaid)}</td>
                             <td className="p-4">
-                              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md">
-                                {b.paymentStatus === "paid" ? "Paid (Escrow)" : "Refunded"}
+                              <span className="block font-semibold text-dark-900">
+                                {b.paymentMethod || "—"}
+                              </span>
+                              <span
+                                className={`inline-block mt-1 text-[11px] font-semibold px-2.5 py-1 rounded-md ${
+                                  b.paymentStatus === "paid"
+                                    ? "text-emerald-700 bg-emerald-50"
+                                    : b.paymentStatus === "refunded"
+                                    ? "text-red-700 bg-red-50"
+                                    : "text-amber-700 bg-amber-50"
+                                }`}
+                              >
+                                {b.paymentStatus === "paid"
+                                  ? "Paid (Escrow)"
+                                  : b.paymentStatus === "refunded"
+                                  ? "Refunded"
+                                  : "Unpaid"}
                               </span>
                             </td>
                             <td className="p-4 text-right">

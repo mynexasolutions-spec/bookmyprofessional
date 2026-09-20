@@ -27,6 +27,8 @@ import {
   ChevronRight,
   Check,
 } from "lucide-react";
+import { formatMoney } from "@/lib/money";
+import { getAvailableSlots, nextBookingDates } from "@/lib/data/bookings";
 
 export default function BookingPage({ params }) {
   const unwrappedParams = use(params);
@@ -35,14 +37,14 @@ export default function BookingPage({ params }) {
   const searchParams = useSearchParams();
   const preselectedServiceId = searchParams.get("service");
 
-  const { professionals, createBooking, customerProfile } = useMarketplace();
+  const { professionals, createBooking, customerProfile, isLoadingProfessionals } = useMarketplace();
   const { user } = useAuth();
 
-  // Find pro
-  const pro =
+  // Find the requested pro. `pro` keeps a safe fallback for the hooks below; `matchedPro` gates rendering.
+  const matchedPro =
     professionals.find((p) => p.id === proId) ||
-    professionals.find((p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(proId)) ||
-    professionals[0];
+    professionals.find((p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(proId));
+  const pro = matchedPro || professionals[0];
 
   // Wizard Step: 1 = Service, 2 = Date/Slot, 3 = Address, 4 = Payment, 5 = Confirmation
   const [currentStep, setCurrentStep] = useState(1);
@@ -55,14 +57,16 @@ export default function BookingPage({ params }) {
       (pro.services && pro.services[0]) ||
       null
   );
-  const [selectedDate, setSelectedDate] = useState("2026-09-22");
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState("10:30 AM");
+  const [selectedDate, setSelectedDate] = useState(() => nextBookingDates(14)[0].date);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [addressDetails, setAddressDetails] = useState({
     name: customerProfile.name || "Alex Morgan",
     email: customerProfile.email || "alex.morgan@example.com",
-    phone: customerProfile.phone || "+49 152 1234567",
-    street: "Friedrichstraße 45",
-    city: "Berlin",
+    phone: customerProfile.phone || "+91 98200 12345",
+    street: "Bandra Kurla Complex",
+    city: "Mumbai",
     postalCode: "10117",
     notes: "Please call upon arrival at the main intercom.",
   });
@@ -76,27 +80,26 @@ export default function BookingPage({ params }) {
     cardholder: "Alex Morgan",
   });
 
-  const next7Days = [
-    { label: "Today", date: "2026-09-18", day: "Fri", num: "18" },
-    { label: "Tomorrow", date: "2026-09-19", day: "Sat", num: "19" },
-    { label: "Sun", date: "2026-09-20", day: "Sun", num: "20" },
-    { label: "Mon", date: "2026-09-21", day: "Mon", num: "21" },
-    { label: "Tue", date: "2026-09-22", day: "Tue", num: "22" },
-    { label: "Wed", date: "2026-09-23", day: "Wed", num: "23" },
-    { label: "Thu", date: "2026-09-24", day: "Thu", num: "24" },
-  ];
+  const nextDays = nextBookingDates(14);
 
-  const timeSlots = [
-    { time: "09:00 AM", period: "Morning" },
-    { time: "10:30 AM", period: "Morning" },
-    { time: "11:30 AM", period: "Morning" },
-    { time: "01:30 PM", period: "Afternoon" },
-    { time: "03:00 PM", period: "Afternoon" },
-    { time: "05:00 PM", period: "Evening" },
-    { time: "06:30 PM", period: "Evening" },
-  ];
+  // Reload real availability whenever the pro or selected date changes.
+  useEffect(() => {
+    if (!matchedPro) return;
+    let active = true;
+    setIsLoadingSlots(true);
+    getAvailableSlots(matchedPro.id, selectedDate, matchedPro.availability).then((slots) => {
+      if (!active) return;
+      setAvailableSlots(slots);
+      setSelectedTimeSlot((prev) => (slots.includes(prev) ? prev : slots[0] || ""));
+      setIsLoadingSlots(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [matchedPro, selectedDate]);
 
   const handlePayAndConfirm = () => {
+    if (!selectedTimeSlot) return;
     setIsProcessingPayment(true);
     setTimeout(() => {
       setIsProcessingPayment(false);
@@ -127,6 +130,30 @@ export default function BookingPage({ params }) {
   const servicePrice = selectedService ? selectedService.price : pro.price;
   const platformFee = 0;
   const totalAmount = servicePrice + platformFee;
+
+  if (!matchedPro && !isLoadingProfessionals) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background text-dark-800">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-8 text-center">
+          <div>
+            <h1 className="font-heading text-2xl font-bold text-dark-900">
+              Professional not found
+            </h1>
+            <p className="text-sm text-dark-500 mt-2">
+              This professional may have been removed or is no longer available to book.
+            </p>
+            <Link
+              href="/professionals"
+              className="inline-flex items-center justify-center mt-5 px-5 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold shadow-button transition-colors"
+            >
+              Browse Professionals
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-dark-800">
@@ -240,7 +267,7 @@ export default function BookingPage({ params }) {
                             </div>
 
                             <span className="font-heading text-lg font-bold text-dark-900 shrink-0">
-                              €{srv.price}.00
+                              {formatMoney(srv.price)}
                             </span>
                           </div>
                         );
@@ -267,7 +294,7 @@ export default function BookingPage({ params }) {
                         Select Appointment Date
                       </label>
                       <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-                        {next7Days.map((d) => {
+                        {nextDays.map((d) => {
                           const isSelected = selectedDate === d.date;
                           return (
                             <button
@@ -299,24 +326,35 @@ export default function BookingPage({ params }) {
                         Select Available Time
                       </label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                        {timeSlots.map((slot) => {
-                          const isSelected = selectedTimeSlot === slot.time;
-                          return (
-                            <button
-                              key={slot.time}
-                              type="button"
-                              onClick={() => setSelectedTimeSlot(slot.time)}
-                              className={`py-3 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                                isSelected
-                                  ? "bg-primary-50 border-primary-500 text-primary-700 ring-2 ring-primary-500/20 shadow-xs"
-                                  : "bg-surface border-border text-dark-800 hover:bg-dark-50"
-                              }`}
-                            >
-                              <Clock className="w-3.5 h-3.5 text-primary-500" />
-                              <span>{slot.time}</span>
-                            </button>
-                          );
-                        })}
+                        {isLoadingSlots ? (
+                          <div className="col-span-full flex items-center justify-center py-4 text-xs text-dark-400">
+                            <div className="h-4 w-4 border-2 border-primary-400 border-t-transparent rounded-full animate-spin mr-2" />
+                            Checking availability…
+                          </div>
+                        ) : availableSlots.length === 0 ? (
+                          <div className="col-span-full p-4 text-center text-xs text-dark-500 bg-dark-50 border border-dashed border-border rounded-xl">
+                            No slots available for this date. Please pick another day.
+                          </div>
+                        ) : (
+                          availableSlots.map((time) => {
+                            const isSelected = selectedTimeSlot === time;
+                            return (
+                              <button
+                                key={time}
+                                type="button"
+                                onClick={() => setSelectedTimeSlot(time)}
+                                className={`py-3 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                                  isSelected
+                                    ? "bg-primary-50 border-primary-500 text-primary-700 ring-2 ring-primary-500/20 shadow-xs"
+                                    : "bg-surface border-border text-dark-800 hover:bg-dark-50"
+                                }`}
+                              >
+                                <Clock className="w-3.5 h-3.5 text-primary-500" />
+                                <span>{time}</span>
+                              </button>
+                            );
+                          })
+                        )}
                       </div>
                     </div>
 
@@ -585,7 +623,7 @@ export default function BookingPage({ params }) {
                       <div className="flex justify-between pt-1">
                         <span className="text-dark-500">Total Paid:</span>
                         <span className="font-bold text-dark-900">
-                          €{confirmedBookingData.totalPaid}.00 (via {confirmedBookingData.paymentMethod})
+                          {formatMoney(confirmedBookingData.totalPaid)} (via {confirmedBookingData.paymentMethod})
                         </span>
                       </div>
                     </div>
@@ -632,6 +670,7 @@ export default function BookingPage({ params }) {
                       <Button
                         variant="primary"
                         size="md"
+                        disabled={currentStep === 2 && !selectedTimeSlot}
                         onClick={() => setCurrentStep(currentStep + 1)}
                         className="text-xs font-semibold py-3 px-6 shadow-button"
                       >
@@ -654,7 +693,7 @@ export default function BookingPage({ params }) {
                         ) : (
                           <div className="flex items-center gap-1.5">
                             <Lock className="w-4 h-4" />
-                            <span>Pay €{totalAmount}.00 & Confirm</span>
+                            <span>Pay {formatMoney(totalAmount)} & Confirm</span>
                           </div>
                         )}
                       </Button>
@@ -707,7 +746,7 @@ export default function BookingPage({ params }) {
                 <div className="space-y-2 pt-2 border-t border-border text-xs">
                   <div className="flex justify-between text-dark-600">
                     <span>Service Fee</span>
-                    <span className="font-semibold text-dark-900">€{servicePrice}.00</span>
+                    <span className="font-semibold text-dark-900">{formatMoney(servicePrice)}</span>
                   </div>
                   <div className="flex justify-between text-dark-600">
                     <span>Platform & Escrow Fee</span>
@@ -719,7 +758,7 @@ export default function BookingPage({ params }) {
                   </div>
                   <div className="flex justify-between text-sm font-bold text-dark-900 pt-2 border-t border-border">
                     <span>Total Amount</span>
-                    <span className="font-heading text-lg text-primary-600">€{totalAmount}.00</span>
+                    <span className="font-heading text-lg text-primary-600">{formatMoney(totalAmount)}</span>
                   </div>
                 </div>
 

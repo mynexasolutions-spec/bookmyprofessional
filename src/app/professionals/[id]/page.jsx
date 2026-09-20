@@ -5,6 +5,9 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
 import { useMarketplace } from "@/context/MarketplaceContext";
+import { useAuth } from "@/context/AuthContext";
+import { reportReview } from "@/lib/data/reviews";
+import { ikImage } from "@/lib/imagekit";
 import {
   Star,
   ShieldCheck,
@@ -26,21 +29,62 @@ import {
   Mail,
   Shield,
   Zap,
+  Flag,
 } from "lucide-react";
+import { formatMoney } from "@/lib/money";
 
 export default function ProfessionalDetailPage({ params }) {
   const unwrappedParams = use(params);
   const proId = unwrappedParams.id;
-  const { professionals, startBooking } = useMarketplace();
+  const { professionals, startBooking, isLoadingProfessionals } = useMarketplace();
+  const { showToast } = useAuth();
 
   const [activeTab, setActiveTab] = useState("services"); // "services" | "about" | "credentials" | "reviews" | "schedule"
   const [isSaved, setIsSaved] = useState(false);
+  const [reported, setReported] = useState({});
 
-  // Find professional by id or fallback to first
+  const handleReport = async (review) => {
+    try {
+      await reportReview(review.id);
+      setReported((prev) => ({ ...prev, [review.id]: true }));
+      showToast("Review reported. Thanks for helping keep the marketplace safe.", "success");
+    } catch {
+      showToast("Unable to report this review right now.", "error");
+    }
+  };
+
+  // Find professional by id or slug. No silent fallback: an unknown id must not render someone else.
   const pro =
     professionals.find((p) => p.id === proId) ||
-    professionals.find((p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(proId)) ||
-    professionals[0];
+    professionals.find((p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(proId));
+
+  if (!pro) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background text-dark-800">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-8 text-center">
+          <div>
+            <h1 className="font-heading text-2xl font-bold text-dark-900">
+              {isLoadingProfessionals ? "Loading professional…" : "Professional not found"}
+            </h1>
+            {!isLoadingProfessionals && (
+              <>
+                <p className="text-sm text-dark-500 mt-2">
+                  This professional may have been removed or is no longer available.
+                </p>
+                <Link
+                  href="/professionals"
+                  className="inline-flex items-center justify-center mt-5 px-5 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold shadow-button transition-colors"
+                >
+                  Browse Professionals
+                </Link>
+              </>
+            )}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-dark-800">
@@ -94,7 +138,7 @@ export default function ProfessionalDetailPage({ params }) {
                 <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                   <div className="relative shrink-0">
                     <img
-                      src={pro.image}
+                      src={ikImage(pro.image)}
                       alt={pro.name}
                       className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-surface shadow-xl bg-dark-100"
                     />
@@ -148,12 +192,18 @@ export default function ProfessionalDetailPage({ params }) {
                   <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-3.5 py-1.5 rounded-xl">
                     <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
                     <div>
-                      <span className="font-heading font-bold text-base text-dark-900">
-                        {pro.rating}
-                      </span>
-                      <span className="text-xs text-dark-500 ml-1 font-normal">
-                        ({pro.reviewCount} reviews)
-                      </span>
+                      {pro.reviewCount > 0 ? (
+                        <>
+                          <span className="font-heading font-bold text-base text-dark-900">
+                            {pro.rating}
+                          </span>
+                          <span className="text-xs text-dark-500 ml-1 font-normal">
+                            ({pro.reviewCount} reviews)
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-xs font-bold text-primary-700">New professional</span>
+                      )}
                     </div>
                   </div>
 
@@ -162,7 +212,7 @@ export default function ProfessionalDetailPage({ params }) {
                       Starting from
                     </span>
                     <span className="font-heading text-2xl font-bold text-dark-900">
-                      €{pro.price}
+                      {formatMoney(pro.price, 0)}
                     </span>
                     <span className="text-xs text-dark-500">/{pro.unit}</span>
                   </div>
@@ -233,7 +283,7 @@ export default function ProfessionalDetailPage({ params }) {
 
                         <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2.5 shrink-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-border">
                           <span className="font-heading text-xl font-bold text-dark-900">
-                            €{srv.price}.00
+                            {formatMoney(srv.price)}
                           </span>
                           <Link
                             href={`/book/${pro.id}?service=${srv.id}`}
@@ -278,7 +328,7 @@ export default function ProfessionalDetailPage({ params }) {
                     <div className="p-4 bg-dark-50 rounded-xl border border-border col-span-2 sm:col-span-1">
                       <span className="block text-xs text-dark-400 font-medium">Satisfaction</span>
                       <span className="block text-base font-bold text-dark-900 mt-1">
-                        {pro.rating} / 5.0 Star Rating
+                        {pro.reviewCount > 0 ? `${pro.rating} / 5.0 Star Rating` : "No ratings yet"}
                       </span>
                     </div>
                   </div>
@@ -346,7 +396,7 @@ export default function ProfessionalDetailPage({ params }) {
                   <div className="flex flex-col sm:flex-row items-center gap-6 p-5 bg-dark-50 rounded-xl border border-border">
                     <div className="text-center sm:text-left shrink-0">
                       <div className="font-heading text-4xl font-extrabold text-dark-900">
-                        {pro.rating}
+                        {pro.reviewCount > 0 ? pro.rating : "—"}
                       </div>
                       <div className="flex items-center justify-center sm:justify-start gap-1 my-1.5">
                         {[...Array(5)].map((_, i) => (
@@ -365,24 +415,43 @@ export default function ProfessionalDetailPage({ params }) {
                       </span>
                     </div>
 
-                    <div className="border-t sm:border-t-0 sm:border-l border-border pt-4 sm:pt-0 sm:pl-6 flex-1 w-full space-y-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-dark-600 font-medium">Service Quality</span>
-                        <span className="font-bold text-dark-900">4.9 / 5.0</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-dark-600 font-medium">Punctuality</span>
-                        <span className="font-bold text-dark-900">5.0 / 5.0</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-dark-600 font-medium">Communication & Value</span>
-                        <span className="font-bold text-dark-900">4.8 / 5.0</span>
-                      </div>
-                    </div>
+                    {/* Sub-scores averaged from real review breakdown data (hidden until any exists) */}
+                    {(() => {
+                      const rows = (pro.reviews || []).filter(
+                        (r) => r.breakdown && Object.keys(r.breakdown).length
+                      );
+                      if (!rows.length) return null;
+                      const keys = [...new Set(rows.flatMap((r) => Object.keys(r.breakdown)))];
+                      return (
+                        <div className="border-t sm:border-t-0 sm:border-l border-border pt-4 sm:pt-0 sm:pl-6 flex-1 w-full space-y-2 text-xs">
+                          {keys.map((k) => {
+                            const vals = rows
+                              .map((r) => Number(r.breakdown[k]))
+                              .filter((n) => Number.isFinite(n));
+                            if (!vals.length) return null;
+                            const avg = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+                            return (
+                              <div key={k} className="flex items-center justify-between">
+                                <span className="text-dark-600 font-medium capitalize">{k}</span>
+                                <span className="font-bold text-dark-900">{avg} / 5.0</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Reviews List */}
                   <div className="space-y-3.5">
+                    {(!pro.reviews || pro.reviews.length === 0) && (
+                      <div className="p-8 text-center bg-dark-50 rounded-2xl border border-dashed border-border">
+                        <p className="text-sm font-semibold text-dark-900">No reviews yet</p>
+                        <p className="text-xs text-dark-500 mt-1">
+                          Be the first to book {pro.name} and share your experience.
+                        </p>
+                      </div>
+                    )}
                     {pro.reviews?.map((rev) => (
                       <div
                         key={rev.id}
@@ -410,13 +479,26 @@ export default function ProfessionalDetailPage({ params }) {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-0.5">
-                            {[...Array(rev.rating)].map((_, idx) => (
-                              <Star
-                                key={idx}
-                                className="w-3.5 h-3.5 fill-amber-400 text-amber-400"
-                              />
-                            ))}
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-0.5">
+                              {[...Array(rev.rating)].map((_, idx) => (
+                                <Star
+                                  key={idx}
+                                  className="w-3.5 h-3.5 fill-amber-400 text-amber-400"
+                                />
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              disabled={reported[rev.id]}
+                              onClick={() => handleReport(rev)}
+                              title="Report this review"
+                              aria-label="Report this review"
+                              className="inline-flex items-center gap-1 rounded text-[10px] font-semibold text-dark-400 transition-colors hover:text-red-600 disabled:cursor-default disabled:text-dark-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            >
+                              <Flag className="w-3 h-3" />
+                              {reported[rev.id] ? "Reported" : "Report"}
+                            </button>
                           </div>
                         </div>
 
@@ -488,7 +570,7 @@ export default function ProfessionalDetailPage({ params }) {
                   </span>
                   <div className="flex items-baseline justify-between">
                     <span className="font-heading text-2xl font-bold text-dark-900">
-                      €{pro.price}.00
+                      {formatMoney(pro.price)}
                     </span>
                     <span className="text-xs text-dark-500 font-medium">/{pro.unit}</span>
                   </div>

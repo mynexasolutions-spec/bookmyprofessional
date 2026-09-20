@@ -2,7 +2,6 @@
 
 import React, { useState, use } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
 import { useMarketplace } from "@/context/MarketplaceContext";
@@ -15,16 +14,16 @@ import {
   MessageSquare,
   ArrowLeft,
   ChevronRight,
+  AlertCircle,
 } from "lucide-react";
 
 export default function ReviewBookingPage({ params }) {
   const unwrappedParams = use(params);
   const bookingId = unwrappedParams.id;
-  const router = useRouter();
   const { bookings, submitReview } = useMarketplace();
 
-  // Find target booking
-  const booking = bookings.find((b) => b.id === bookingId) || bookings[0];
+  // Find target booking. No fallback: an unknown id must show "Booking not found", not someone else's.
+  const booking = bookings.find((b) => b.id === bookingId);
 
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
@@ -33,6 +32,8 @@ export default function ReviewBookingPage({ params }) {
   const [qualityScore, setQualityScore] = useState(5);
   const [punctualityScore, setPunctualityScore] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
 
   const ratingDescriptions = {
     1: "Poor - Did not meet expectations",
@@ -42,23 +43,77 @@ export default function ReviewBookingPage({ params }) {
     5: "Exceptional! - Exceeded all expectations",
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!comment.trim()) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      submitReview(
+    setError(null);
+    try {
+      await submitReview(
         booking.id,
         booking.proId,
         rating,
         comment,
         { quality: qualityScore, punctuality: punctualityScore }
       );
-      router.push("/dashboard");
-    }, 600);
+      setSuccess(true);
+    } catch (err) {
+      setError(err?.message || "Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (!booking) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background text-dark-800">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center py-12 px-4">
+          <div className="w-full max-w-md bg-surface rounded-2xl border border-border p-8 text-center shadow-card">
+            <div className="w-14 h-14 mx-auto rounded-full bg-dark-50 text-dark-500 flex items-center justify-center">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <h1 className="mt-4 font-heading text-lg font-bold text-dark-900">Booking not found</h1>
+            <p className="mt-1 text-xs text-dark-500">
+              We couldn&apos;t find that booking. It may have been removed or you may not have access to it.
+            </p>
+            <Link
+              href="/dashboard"
+              className="mt-5 inline-flex items-center justify-center py-2.5 px-5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold shadow-button transition-colors"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background text-dark-800">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center py-12 px-4">
+          <div className="w-full max-w-md bg-surface rounded-2xl border border-border p-8 text-center shadow-card">
+            <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-7 h-7" />
+            </div>
+            <h1 className="mt-4 font-heading text-lg font-bold text-dark-900">Review submitted</h1>
+            <p className="mt-1 text-xs text-dark-500">
+              Thanks for your feedback. It will appear on the profile once it passes moderation.
+            </p>
+            <Link
+              href="/dashboard"
+              className="mt-5 inline-flex items-center justify-center py-2.5 px-5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold shadow-button transition-colors"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-dark-800">
@@ -211,9 +266,20 @@ export default function ReviewBookingPage({ params }) {
                   className="rounded text-primary-500 focus:ring-primary-500 h-4 w-4"
                 />
                 <span className="text-xs text-dark-800 font-medium">
-                  I recommend {booking.proName} to other customers in Germany
+                  I recommend {booking.proName} to other customers in India
                 </span>
               </label>
+
+              {/* Error */}
+              {error && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-[11px] text-red-700"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
+                  <span>{error}</span>
+                </div>
+              )}
 
               <div className="pt-2 flex items-center justify-between gap-3">
                 <Link

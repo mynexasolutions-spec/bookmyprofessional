@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, DEMO_MODE } from "@/context/AuthContext";
 import {
   Mail,
   Lock,
@@ -16,13 +16,14 @@ import {
   ArrowRight,
   ShieldCheck,
   CheckCircle2,
+  AlertCircle,
   Sparkles,
 } from "lucide-react";
 import Button from "@/components/Button";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { signup } = useAuth();
+  const { signup, showToast } = useAuth();
 
   const [authRole, setAuthRole] = useState("customer"); // "customer" | "professional"
   const [showPassword, setShowPassword] = useState(false);
@@ -35,7 +36,7 @@ export default function RegisterPage() {
     phone: "",
     password: "",
     category: "Doctors",
-    city: "Berlin",
+    city: "Mumbai",
     agreeTerms: true,
   });
 
@@ -52,7 +53,7 @@ export default function RegisterPage() {
     "Painters",
   ];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage("");
 
@@ -70,23 +71,27 @@ export default function RegisterPage() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      signup({
-        name: form.fullName,
+    try {
+      const result = await signup({
+        fullName: form.fullName,
         email: form.email,
         phone: form.phone,
+        password: form.password,
         role: authRole,
         category: authRole === "professional" ? form.category : undefined,
         city: authRole === "professional" ? form.city : undefined,
-        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
       });
-      if (authRole === "professional") {
-        router.push("/vendor");
-      } else {
-        router.push("/dashboard");
+      if (result?.needsEmailConfirmation) {
+        showToast("Check your email to confirm your account, then sign in.", "info");
+        router.push("/login");
+        return;
       }
-    }, 700);
+      router.push(authRole === "professional" ? "/vendor" : "/dashboard");
+    } catch (err) {
+      setErrorMessage(err.message || "Sign up failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -134,7 +139,7 @@ export default function RegisterPage() {
         {/* Footer Guarantee */}
         <div className="relative z-10 flex items-center gap-2 text-xs text-white/60 pt-4 border-t border-white/10">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>256-bit SSL Encrypted & European Privacy Compliant</span>
+          <span>256-bit SSL Encrypted & India Data Privacy Compliant</span>
         </div>
       </div>
 
@@ -149,6 +154,19 @@ export default function RegisterPage() {
               Join BookMyProfessional today in less than a minute.
             </p>
           </div>
+
+          {errorMessage && (
+            <div className="flex items-center gap-2 p-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {DEMO_MODE && (
+            <div className="p-3 text-xs font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-xl">
+              Demo mode — no email confirmation. Any details will create an account and sign you in.
+            </div>
+          )}
 
           {/* Role Switcher */}
           <div className="bg-dark-50 p-1.5 rounded-2xl border border-border flex items-center gap-1.5">
@@ -224,7 +242,7 @@ export default function RegisterPage() {
                     type="tel"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="+49 152 1234567"
+                    placeholder="+91 98200 12345"
                     className="w-full pl-9 pr-3 py-2.5 bg-surface border border-border rounded-xl text-xs text-dark-900 focus:outline-none focus:border-primary-500"
                   />
                 </div>
@@ -260,7 +278,7 @@ export default function RegisterPage() {
                       type="text"
                       value={form.city}
                       onChange={(e) => setForm({ ...form, city: e.target.value })}
-                      placeholder="Berlin, Munich..."
+                      placeholder="Mumbai, Delhi..."
                       className="w-full pl-8 pr-3 py-2 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none"
                     />
                   </div>

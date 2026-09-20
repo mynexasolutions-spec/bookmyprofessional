@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ThumbsUp,
   MessageSquare,
+  AlertCircle,
 } from "lucide-react";
 import Button from "./Button";
 
@@ -23,6 +24,8 @@ export default function ReviewModal() {
   const [qualityScore, setQualityScore] = useState(5);
   const [punctualityScore, setPunctualityScore] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
 
   // Lock body scroll
   useEffect(() => {
@@ -30,6 +33,8 @@ export default function ReviewModal() {
       document.body.style.overflow = "hidden";
       setRating(5);
       setComment("");
+      setError(null);
+      setSuccess(false);
     } else {
       document.body.style.overflow = "unset";
     }
@@ -40,6 +45,35 @@ export default function ReviewModal() {
 
   if (!reviewBooking) return null;
 
+  if (success) {
+    return (
+      <div className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto">
+        <div className="fixed inset-0 bg-dark-900/70 backdrop-blur-sm" aria-hidden="true" />
+        <div
+          className="relative w-full max-w-md my-auto bg-surface rounded-2xl shadow-2xl border border-border/80 p-8 text-center z-10 animate-in zoom-in-95 fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review submitted"
+        >
+          <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+            <CheckCircle2 className="w-7 h-7" />
+          </div>
+          <h3 className="mt-4 font-heading text-base font-bold text-dark-900">Review submitted</h3>
+          <p className="mt-1 text-xs text-dark-500">
+            Thanks for your feedback. It will appear on the profile once it passes moderation.
+          </p>
+          <Button
+            variant="primary"
+            onClick={() => setReviewBooking(null)}
+            className="mt-5 w-full justify-center py-2.5 text-xs font-semibold"
+          >
+            Done
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const ratingDescriptions = {
     1: "Poor - Did not meet expectations",
     2: "Fair - Needs improvement",
@@ -48,21 +82,26 @@ export default function ReviewModal() {
     5: "Exceptional! - Exceeded all expectations",
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!comment.trim()) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      submitReview(
+    setError(null);
+    try {
+      await submitReview(
         reviewBooking.id,
         reviewBooking.proId,
         rating,
         comment,
         { quality: qualityScore, punctuality: punctualityScore }
       );
-    }, 600);
+      setSuccess(true);
+    } catch (err) {
+      setError(err?.message || "Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -222,6 +261,17 @@ export default function ReviewModal() {
               I recommend {reviewBooking.proName} to other customers
             </span>
           </label>
+
+          {/* Error */}
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-[11px] text-red-700"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
+              <span>{error}</span>
+            </div>
+          )}
 
           {/* Submit Button */}
           <div className="pt-2">

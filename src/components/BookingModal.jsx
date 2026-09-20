@@ -4,6 +4,11 @@ import React, { useState, useEffect } from "react";
 import { useMarketplace } from "@/context/MarketplaceContext";
 import { useAuth } from "@/context/AuthContext";
 import {
+  createBooking as createBookingRow,
+  getAvailableSlots,
+  nextBookingDates,
+} from "@/lib/data/bookings";
+import {
   X,
   Calendar,
   Clock,
@@ -24,6 +29,7 @@ import {
   Building,
 } from "lucide-react";
 import Button from "./Button";
+import { formatMoney } from "@/lib/money";
 
 export default function BookingModal() {
   const {
@@ -31,6 +37,7 @@ export default function BookingModal() {
     bookingPreselectedService,
     closeBooking,
     createBooking,
+    addBooking,
     customerProfile,
     setIsCustomerDashboardOpen,
   } = useMarketplace();
@@ -39,18 +46,21 @@ export default function BookingModal() {
   // Wizard Step: 1 = Service, 2 = Date/Slot, 3 = Address, 4 = Payment, 5 = Confirmation
   const [currentStep, setCurrentStep] = useState(1);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [bookingError, setBookingError] = useState(null);
   const [confirmedBookingData, setConfirmedBookingData] = useState(null);
 
   // Form State
   const [selectedService, setSelectedService] = useState(null);
-  const [selectedDate, setSelectedDate] = useState("2026-09-22");
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState("10:30 AM");
+  const [selectedDate, setSelectedDate] = useState(() => nextBookingDates(14)[0].date);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState("");
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [addressDetails, setAddressDetails] = useState({
     name: customerProfile.name || "",
     email: customerProfile.email || "",
-    phone: customerProfile.phone || "+49 152 1234567",
-    street: "Friedrichstraße 45",
-    city: "Berlin",
+    phone: customerProfile.phone || "+91 98200 12345",
+    street: "Bandra Kurla Complex",
+    city: "Mumbai",
     postalCode: "10117",
     notes: "Please call upon arrival at the main intercom.",
   });
@@ -73,7 +83,10 @@ export default function BookingModal() {
         setSelectedService(bookingPro.services[0]);
       }
       setCurrentStep(1);
+      setSelectedDate(nextBookingDates(14)[0].date);
+      setSelectedTimeSlot("");
       setConfirmedBookingData(null);
+      setBookingError(null);
     }
   }, [bookingPro, bookingPreselectedService]);
 
@@ -89,54 +102,68 @@ export default function BookingModal() {
     };
   }, [bookingPro]);
 
+  // Reload real availability whenever the pro or selected date changes.
+  useEffect(() => {
+    if (!bookingPro) return;
+    let active = true;
+    setIsLoadingSlots(true);
+    getAvailableSlots(bookingPro.id, selectedDate, bookingPro.availability).then((slots) => {
+      if (!active) return;
+      setAvailableSlots(slots);
+      setSelectedTimeSlot((prev) => (slots.includes(prev) ? prev : slots[0] || ""));
+      setIsLoadingSlots(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [bookingPro, selectedDate]);
+
   if (!bookingPro) return null;
 
-  const next7Days = [
-    { label: "Today", date: "2026-09-18", day: "Fri", num: "18" },
-    { label: "Tomorrow", date: "2026-09-19", day: "Sat", num: "19" },
-    { label: "Sun", date: "2026-09-20", day: "Sun", num: "20" },
-    { label: "Mon", date: "2026-09-21", day: "Mon", num: "21" },
-    { label: "Tue", date: "2026-09-22", day: "Tue", num: "22" },
-    { label: "Wed", date: "2026-09-23", day: "Wed", num: "23" },
-    { label: "Thu", date: "2026-09-24", day: "Thu", num: "24" },
-  ];
+  const nextDays = nextBookingDates(14);
 
-  const timeSlots = [
-    { time: "09:00 AM", period: "Morning" },
-    { time: "10:30 AM", period: "Morning" },
-    { time: "11:30 AM", period: "Morning" },
-    { time: "01:30 PM", period: "Afternoon" },
-    { time: "03:00 PM", period: "Afternoon" },
-    { time: "05:00 PM", period: "Evening" },
-    { time: "06:30 PM", period: "Evening" },
-  ];
-
-  const handlePayAndConfirm = () => {
+  const handlePayAndConfirm = async () => {
+    if (!selectedTimeSlot) return;
+    setBookingError(null);
     setIsProcessingPayment(true);
-    setTimeout(() => {
-      setIsProcessingPayment(false);
-      const newBooking = createBooking({
-        pro: bookingPro,
-        service: selectedService,
-        date: selectedDate,
-        timeSlot: selectedTimeSlot,
-        address: `${addressDetails.street}, ${addressDetails.postalCode} ${addressDetails.city}`,
-        notes: addressDetails.notes,
-        customerName: addressDetails.name,
-        customerEmail: addressDetails.email,
-        customerPhone: addressDetails.phone,
-        paymentMethod:
-          paymentMethod === "card"
-            ? "Visa ending in •••• 4242"
-            : paymentMethod === "paypal"
-            ? "PayPal (Instant)"
-            : paymentMethod === "applepay"
-            ? "Apple Pay"
-            : "SEPA Direct Debit",
-      });
+
+    const payload = {
+      pro: bookingPro,
+      service: selectedService,
+      date: selectedDate,
+      timeSlot: selectedTimeSlot,
+      address: `${addressDetails.street}, ${addressDetails.postalCode} ${addressDetails.city}`,
+      notes: addressDetails.notes,
+      customerName: addressDetails.name,
+      customerEmail: addressDetails.email,
+      customerPhone: addressDetails.phone,
+      paymentMethod:
+        paymentMethod === "card"
+          ? "Visa ending in •••• 4242"
+          : paymentMethod === "paypal"
+          ? "PayPal (Instant)"
+          : paymentMethod === "applepay"
+          ? "Apple Pay"
+          : "SEPA Direct Debit",
+    };
+
+    try {
+      const newBooking = await createBookingRow(payload);
+      addBooking(newBooking);
       setConfirmedBookingData(newBooking);
       setCurrentStep(5);
-    }, 1200);
+    } catch (error) {
+      if (error?.isUserFacing) {
+        setBookingError(error.message);
+        return;
+      }
+      // ponytail: fall back to the in-memory mock when supabase is unapplied/unreachable.
+      const fallbackBooking = createBooking(payload);
+      setConfirmedBookingData(fallbackBooking);
+      setCurrentStep(5);
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   const servicePrice = selectedService ? selectedService.price : bookingPro.price;
@@ -274,7 +301,7 @@ export default function BookingModal() {
                       </div>
 
                       <span className="font-heading text-base font-bold text-dark-900 shrink-0">
-                        €{srv.price}
+                        {formatMoney(srv.price, 0)}
                       </span>
                     </div>
                   );
@@ -301,7 +328,7 @@ export default function BookingModal() {
                   Select Date
                 </label>
                 <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-                  {next7Days.map((d) => {
+                  {nextDays.map((d) => {
                     const isSelected = selectedDate === d.date;
                     return (
                       <button
@@ -333,24 +360,35 @@ export default function BookingModal() {
                   Select Available Time
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {timeSlots.map((slot) => {
-                    const isSelected = selectedTimeSlot === slot.time;
-                    return (
-                      <button
-                        key={slot.time}
-                        type="button"
-                        onClick={() => setSelectedTimeSlot(slot.time)}
-                        className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                          isSelected
-                            ? "bg-primary-50 border-primary-500 text-primary-700 ring-2 ring-primary-500/20 shadow-xs"
-                            : "bg-surface border-border text-dark-800 hover:bg-dark-50"
-                        }`}
-                      >
-                        <Clock className="w-3.5 h-3.5 text-primary-500" />
-                        <span>{slot.time}</span>
-                      </button>
-                    );
-                  })}
+                  {isLoadingSlots ? (
+                    <div className="col-span-full flex items-center justify-center py-4 text-xs text-dark-400">
+                      <div className="h-4 w-4 border-2 border-primary-400 border-t-transparent rounded-full animate-spin mr-2" />
+                      Checking availability…
+                    </div>
+                  ) : availableSlots.length === 0 ? (
+                    <div className="col-span-full p-4 text-center text-xs text-dark-500 bg-dark-50 border border-dashed border-border rounded-xl">
+                      No slots available for this date. Please pick another day.
+                    </div>
+                  ) : (
+                    availableSlots.map((time) => {
+                      const isSelected = selectedTimeSlot === time;
+                      return (
+                        <button
+                          key={time}
+                          type="button"
+                          onClick={() => setSelectedTimeSlot(time)}
+                          className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                            isSelected
+                              ? "bg-primary-50 border-primary-500 text-primary-700 ring-2 ring-primary-500/20 shadow-xs"
+                              : "bg-surface border-border text-dark-800 hover:bg-dark-50"
+                          }`}
+                        >
+                          <Clock className="w-3.5 h-3.5 text-primary-500" />
+                          <span>{time}</span>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
@@ -489,7 +527,7 @@ export default function BookingModal() {
               <div className="p-4 bg-dark-50 rounded-xl border border-border space-y-2.5">
                 <div className="flex items-center justify-between text-xs text-dark-700">
                   <span>{selectedService?.title || "Professional Service"}</span>
-                  <span className="font-semibold text-dark-900">€{servicePrice}.00</span>
+                  <span className="font-semibold text-dark-900">{formatMoney(servicePrice)}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-dark-600">
                   <span>Platform Escrow Protection Fee</span>
@@ -501,7 +539,7 @@ export default function BookingModal() {
                 </div>
                 <div className="border-t border-border pt-2 flex items-center justify-between text-sm font-bold text-dark-900">
                   <span>Total Due</span>
-                  <span className="text-primary-600 font-heading text-lg">€{totalAmount}.00</span>
+                  <span className="text-primary-600 font-heading text-lg">{formatMoney(totalAmount)}</span>
                 </div>
               </div>
 
@@ -590,6 +628,13 @@ export default function BookingModal() {
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>256-bit SSL encrypted • 100% Money Back Escrow Guarantee</span>
               </div>
+
+              {bookingError && (
+                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{bookingError}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -643,7 +688,7 @@ export default function BookingModal() {
                 <div className="flex justify-between pt-1">
                   <span className="text-dark-500">Amount Paid:</span>
                   <span className="font-bold text-dark-900">
-                    €{confirmedBookingData.totalPaid}.00 (Paid via {confirmedBookingData.paymentMethod})
+                    {formatMoney(confirmedBookingData.totalPaid)} (Paid via {confirmedBookingData.paymentMethod})
                   </span>
                 </div>
               </div>
@@ -685,7 +730,7 @@ export default function BookingModal() {
               </button>
             ) : (
               <span className="text-xs text-dark-500">
-                Total: <strong className="text-dark-900">€{totalAmount}.00</strong>
+                Total: <strong className="text-dark-900">{formatMoney(totalAmount)}</strong>
               </span>
             )}
 
@@ -693,6 +738,7 @@ export default function BookingModal() {
               <Button
                 variant="primary"
                 size="sm"
+                disabled={currentStep === 2 && !selectedTimeSlot}
                 onClick={() => setCurrentStep(currentStep + 1)}
                 className="text-xs py-2.5 px-5 font-semibold shadow-button"
               >
@@ -715,7 +761,7 @@ export default function BookingModal() {
                 ) : (
                   <div className="flex items-center gap-1.5">
                     <Lock className="w-3.5 h-3.5" />
-                    <span>Pay €{totalAmount}.00 & Confirm</span>
+                    <span>Pay {formatMoney(totalAmount)} & Confirm</span>
                   </div>
                 )}
               </Button>

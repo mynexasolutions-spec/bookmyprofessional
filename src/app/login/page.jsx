@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, DEMO_MODE } from "@/context/AuthContext";
 import {
   Mail,
   Lock,
@@ -14,13 +14,14 @@ import {
   ArrowRight,
   ShieldCheck,
   CheckCircle2,
+  AlertCircle,
   Sparkles,
 } from "lucide-react";
 import Button from "@/components/Button";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, showToast } = useAuth();
 
   const [authRole, setAuthRole] = useState("customer"); // "customer" | "professional"
   const [showPassword, setShowPassword] = useState(false);
@@ -33,7 +34,7 @@ export default function LoginPage() {
     rememberMe: true,
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage("");
 
@@ -47,38 +48,18 @@ export default function LoginPage() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      await login({ identifier: form.identifier, password: form.password, role: authRole });
+      router.push(authRole === "professional" ? "/vendor" : "/dashboard");
+    } catch (err) {
+      setErrorMessage(err.message || "Sign in failed. Please try again.");
+    } finally {
       setIsLoading(false);
-      login({
-        name: form.identifier.split("@")[0] || "Alex Morgan",
-        email: form.identifier,
-        role: authRole,
-        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
-      });
-      if (authRole === "professional") {
-        router.push("/vendor");
-      } else {
-        router.push("/dashboard");
-      }
-    }, 600);
+    }
   };
 
   const handleSocialAuth = (provider) => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      login({
-        name: `${provider} User`,
-        email: `user@${provider.toLowerCase()}.com`,
-        role: authRole,
-        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
-      });
-      if (authRole === "professional") {
-        router.push("/vendor");
-      } else {
-        router.push("/dashboard");
-      }
-    }, 500);
+    showToast(`${provider} sign-in isn't enabled yet. Use email and password.`, "info");
   };
 
   return (
@@ -113,14 +94,14 @@ export default function LoginPage() {
           </h2>
 
           <p className="text-sm text-white/80 leading-relaxed">
-            Manage your bookings, track service milestones, and experience transparent escrow-backed scheduling across Germany.
+            Manage your bookings, track service milestones, and experience transparent escrow-backed scheduling across India.
           </p>
         </div>
 
         {/* Footer Guarantee */}
         <div className="relative z-10 flex items-center gap-2 text-xs text-white/60 pt-4 border-t border-white/10">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>256-bit SSL Encrypted & European Privacy Compliant</span>
+          <span>256-bit SSL Encrypted & India Data Privacy Compliant</span>
         </div>
       </div>
 
@@ -135,6 +116,19 @@ export default function LoginPage() {
               Please enter your login details to access your account.
             </p>
           </div>
+
+          {errorMessage && (
+            <div className="flex items-center gap-2 p-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {DEMO_MODE && (
+            <div className="p-3 text-xs font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-xl">
+              Demo mode — any email and password will sign you in. Pick <strong>Professional</strong> above to log in as a professional.
+            </div>
+          )}
 
           {/* Role Switcher */}
           <div className="bg-dark-50 p-1.5 rounded-2xl border border-border flex items-center gap-1.5">
