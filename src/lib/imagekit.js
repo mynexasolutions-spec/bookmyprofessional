@@ -5,8 +5,9 @@ export function ikImage(src, tr = "w-600,q-80,f-auto") {
   if (!src || !base || !src.startsWith("http") || !src.includes("ik.imagekit.io")) {
     return src;
   }
-  const path = new URL(src).pathname;
-  return `${base.replace(/\/$/, "")}${path}?tr=${tr}`;
+  const url = new URL(src);
+  url.searchParams.set("tr", tr);
+  return url.toString();
 }
 
 // Signed client-side upload: fetch short-lived auth params, then POST the file to ImageKit.

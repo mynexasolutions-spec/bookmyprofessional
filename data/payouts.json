@@ -1,0 +1,14 @@
+[
+  {
+    "id": "PAY-421",
+    "professional_id": "pro-1",
+    "professional": {
+      "full_name": "Dr. Ayesha Khan",
+      "email": "ayesha.khan@example.com"
+    },
+    "amount": 450,
+    "status": "requested",
+    "method": "SEPA Bank (DE89...4401)",
+    "requested_at": "2026-09-22T13:58:44.067Z"
+  }
+]

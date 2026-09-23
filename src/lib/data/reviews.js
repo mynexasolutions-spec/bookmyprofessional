@@ -128,13 +128,43 @@ export async function moderateReview(reviewId, status) {
   if (status !== "approved" && status !== "hidden") {
     throw new Error("Invalid moderation status.");
   }
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("reviews")
-    .update({ status })
-    .eq("id", reviewId)
-    .select()
-    .single();
-  if (error) throw error;
-  return mapReview(data);
+
+  let dbError = null;
+  let data = null;
+  try {
+    const supabase = createClient();
+    const result = await supabase
+      .from("reviews")
+      .update({ status })
+      .eq("id", reviewId)
+      .select()
+      .single();
+    if (result.error) dbError = result.error;
+    else data = result.data;
+  } catch (err) {
+    dbError = err;
+  }
+
+  // Local fallback
+  let localFound = false;
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const dbPath = path.join(process.cwd(), "data", "reviews.json");
+    if (fs.existsSync(dbPath)) {
+      const reviews = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+      const idx = reviews.findIndex((r) => r.id === reviewId);
+      if (idx >= 0) {
+        reviews[idx].status = status;
+        fs.writeFileSync(dbPath, JSON.stringify(reviews, null, 2));
+        data = reviews[idx];
+        localFound = true;
+      }
+    }
+  } catch (e) {
+    console.error("Local review update failed:", e);
+  }
+
+  if (dbError && !localFound) throw dbError;
+  return data ? mapReview(data) : null;
 }

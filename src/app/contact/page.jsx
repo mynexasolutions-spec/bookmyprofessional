@@ -30,6 +30,7 @@ import {
   Car,
   Compass,
 } from "lucide-react";
+import { insertContactMessage } from "@/lib/data/contacts";
 
 export default function ContactPage() {
   const [form, setForm] = useState({
@@ -42,6 +43,7 @@ export default function ContactPage() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [submittedTicket, setSubmittedTicket] = useState(null);
   const [expandedFaq, setExpandedFaq] = useState(0);
   const [selectedCity, setSelectedCity] = useState("mumbai");
@@ -148,14 +150,26 @@ export default function ContactPage() {
     },
   ];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMsg(null);
     if (!form.name || !form.email || !form.message) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
       const ticketNum = "BMP-" + Math.floor(100000 + Math.random() * 900000);
+      const payload = {
+        ticket_number: ticketNum,
+        name: form.name,
+        email: form.email,
+        phone: form.phone || null,
+        topic: form.topic,
+        subject: form.subject || "Support Inquiry",
+        message: form.message,
+      };
+
+      await insertContactMessage(payload);
+
       setSubmittedTicket({
         ticketNumber: ticketNum,
         name: form.name,
@@ -171,7 +185,11 @@ export default function ContactPage() {
         subject: "",
         message: "",
       });
-    }, 800);
+    } catch (error) {
+      setErrorMsg(error?.message || "Failed to submit message. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -301,6 +319,12 @@ export default function ContactPage() {
                     </div>
                   ) : (
                     <form onSubmit={handleSubmit} className="space-y-4">
+                      {errorMsg && (
+                        <div className="flex items-center gap-2 p-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl">
+                          <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                          <span>{errorMsg}</span>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-semibold text-dark-700 mb-1">

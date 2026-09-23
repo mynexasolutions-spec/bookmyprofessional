@@ -120,6 +120,13 @@ export default function ProfessionalDetailPage({ params }) {
               </span>
 
               <div className="relative z-10 flex items-center gap-2">
+                <Link
+                  href="/messages"
+                  className="p-2.5 rounded-full bg-white/15 hover:bg-white/30 text-white backdrop-blur-md transition-colors"
+                  title="Message Professional"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                </Link>
                 <button
                   type="button"
                   onClick={() => setIsSaved(!isSaved)}

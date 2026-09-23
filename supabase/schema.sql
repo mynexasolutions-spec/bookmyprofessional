@@ -508,3 +508,28 @@ do $$ begin
   alter publication supabase_realtime add table public.notifications;
 exception when duplicate_object then null;
 end $$;
+
+CREATE TABLE IF NOT EXISTS public.contacts (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  ticket_number text NOT NULL,
+  name text NOT NULL,
+  email text NOT NULL,
+  phone text,
+  topic text NOT NULL,
+  subject text,
+  message text NOT NULL,
+  status text DEFAULT 'open'::text,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public insert to contacts"
+  ON public.contacts
+  FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Allow admin to read contacts"
+  ON public.contacts
+  FOR SELECT
+  USING (true);

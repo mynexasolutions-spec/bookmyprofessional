@@ -1,0 +1,14 @@
+[
+  {
+    "id": "doc-demo-123",
+    "professional_id": "pro-1",
+    "type": "Identity (Passport / ID)",
+    "file_path": "pro-1/passport.pdf",
+    "status": "pending",
+    "created_at": "2026-09-22T14:00:00.000Z",
+    "professional": {
+      "full_name": "Dr. Ayesha Khan",
+      "email": "ayesha.khan@example.com"
+    }
+  }
+]

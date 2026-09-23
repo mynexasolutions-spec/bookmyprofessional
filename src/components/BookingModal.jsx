@@ -8,6 +8,7 @@ import {
   getAvailableSlots,
   nextBookingDates,
 } from "@/lib/data/bookings";
+import { ikImage } from "@/lib/imagekit";
 import {
   X,
   Calendar,
@@ -170,6 +171,12 @@ export default function BookingModal() {
   const platformFee = 0; // Free / included
   const totalAmount = servicePrice + platformFee;
 
+  const isCardValid =
+    cardDetails.number.replace(/\D/g, "").length >= 16 &&
+    cardDetails.expiry.trim().length >= 5 &&
+    cardDetails.cvc.trim().length >= 3;
+  const isPaymentDisabled = isProcessingPayment || (paymentMethod === "card" && !isCardValid);
+
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto">
       {/* Dark backdrop overlay */}
@@ -192,7 +199,7 @@ export default function BookingModal() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5">
               <img
-                src={bookingPro.image}
+                src={ikImage(bookingPro.image)}
                 alt={bookingPro.name}
                 className="w-10 h-10 rounded-xl object-cover border border-border"
               />
@@ -749,7 +756,7 @@ export default function BookingModal() {
               <Button
                 variant="primary"
                 size="sm"
-                disabled={isProcessingPayment}
+                disabled={isPaymentDisabled}
                 onClick={handlePayAndConfirm}
                 className="text-xs py-2.5 px-6 font-semibold shadow-button"
               >

@@ -21,7 +21,7 @@ import Button from "@/components/Button";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, showToast } = useAuth();
+  const { login, loginWithProvider, resendVerificationEmail, showToast } = useAuth();
 
   const [authRole, setAuthRole] = useState("customer"); // "customer" | "professional"
   const [showPassword, setShowPassword] = useState(false);
@@ -58,8 +58,12 @@ export default function LoginPage() {
     }
   };
 
-  const handleSocialAuth = (provider) => {
-    showToast(`${provider} sign-in isn't enabled yet. Use email and password.`, "info");
+  const handleSocialAuth = async (provider) => {
+    try {
+      await loginWithProvider(provider.toLowerCase());
+    } catch (err) {
+      setErrorMessage(err.message || `Failed to sign in with ${provider}.`);
+    }
   };
 
   return (
@@ -118,9 +122,27 @@ export default function LoginPage() {
           </div>
 
           {errorMessage && (
-            <div className="flex items-center gap-2 p-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl">
-              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
-              <span>{errorMessage}</span>
+            <div className="flex flex-col gap-2 p-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                <span>{errorMessage}</span>
+              </div>
+              {errorMessage.toLowerCase().includes("email not confirmed") && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await resendVerificationEmail(form.identifier);
+                      setErrorMessage("");
+                    } catch (err) {
+                      setErrorMessage(err.message || "Failed to resend email.");
+                    }
+                  }}
+                  className="mt-1 text-red-700 font-bold underline hover:text-red-900 text-left"
+                >
+                  Click here to resend verification email
+                </button>
+              )}
             </div>
           )}
 

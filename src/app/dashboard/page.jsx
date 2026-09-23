@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
 import { useMarketplace } from "@/context/MarketplaceContext";
@@ -38,12 +39,19 @@ export default function CustomerDashboardPage() {
     customerProfile,
     setCustomerProfile,
   } = useMarketplace();
-  const { showToast, user } = useAuth();
+  const { showToast, user, isLoading } = useAuth();
+  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState("bookings"); // "bookings" | "profile" | "invoices"
   const [bookingFilter, setBookingFilter] = useState("all"); // "all" | "upcoming" | "in_progress" | "completed" | "cancelled"
   const [profileForm, setProfileForm] = useState(customerProfile);
   const [prefs, setPrefs] = useState(null);
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push("/");
+    }
+  }, [isLoading, user, router]);
 
   useEffect(() => {
     setProfileForm(customerProfile);
@@ -307,7 +315,7 @@ export default function CustomerDashboardPage() {
                                 #{b.id}
                               </span>
                               <span className="text-dark-300">•</span>
-                              <span className="text-xs text-dark-500">
+                              <span className="text-xs text-dark-500" suppressHydrationWarning>
                                 Booked on {new Date(b.createdAt).toLocaleDateString("en-IN")}
                               </span>
                             </div>
@@ -615,7 +623,7 @@ export default function CustomerDashboardPage() {
                         {bookings.map((b) => (
                           <tr key={b.id} className="hover:bg-dark-50/50 transition-colors">
                             <td className="p-4 font-mono font-bold text-dark-900">INV-{b.id}</td>
-                            <td className="p-4 text-dark-600">
+                            <td className="p-4 text-dark-600" suppressHydrationWarning>
                               {new Date(b.createdAt).toLocaleDateString("en-IN")}
                             </td>
                             <td className="p-4 font-semibold text-dark-900">{b.proName}</td>

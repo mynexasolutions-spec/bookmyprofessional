@@ -14,6 +14,7 @@ import {
   listUsers,
 } from "@/lib/data/admin";
 import { listAllCategories } from "@/lib/data/categories";
+import { getContactMessages } from "@/lib/data/contacts";
 
 export const dynamic = "force-dynamic";
 
@@ -28,18 +29,29 @@ export default async function AdminPage() {
 
   const supabase = createAdminClient();
 
-  const [analytics, documents, reviews, bookings, users, payouts, categories, professionals, settings] =
-    await Promise.all([
-      getAnalytics(supabase),
-      listPendingDocuments(supabase),
-      listPendingReviews(supabase),
-      listAllBookings(supabase),
-      listUsers(supabase),
-      listPayouts(supabase),
-      listAllCategories(supabase),
-      listAllProfessionals(supabase),
-      getSettings(supabase),
-    ]);
+  const [
+    analytics,
+    documents,
+    reviews,
+    bookings,
+    users,
+    payouts,
+    categories,
+    professionals,
+    settings,
+    contactMessages
+  ] = await Promise.all([
+    getAnalytics(supabase),
+    listPendingDocuments(supabase),
+    listPendingReviews(supabase),
+    listAllBookings(supabase),
+    listUsers(supabase),
+    listPayouts(supabase),
+    listAllCategories(supabase),
+    listAllProfessionals(supabase),
+    getSettings(supabase),
+    getContactMessages(supabase),
+  ]);
 
   return (
     <AdminDashboard
@@ -52,6 +64,7 @@ export default async function AdminPage() {
       categories={categories}
       professionals={professionals}
       settings={settings}
+      contactMessages={contactMessages}
       adminId={session.id}
     />
   );

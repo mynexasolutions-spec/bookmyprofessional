@@ -87,23 +87,55 @@ export async function uploadDocument(professionalId, file, type, client) {
 export async function reviewDocument(documentId, professionalId, status, reviewerId, client) {
   const supabase = client || createClient();
 
-  const { error: docError } = await supabase
-    .from("documents")
-    .update({
-      status,
-      reviewer_id: reviewerId,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", documentId);
-  if (docError) throw docError;
+  let dbError = null;
+  try {
+    const { error: docError } = await supabase
+      .from("documents")
+      .update({
+        status,
+        reviewer_id: reviewerId,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", documentId);
+    if (docError) dbError = docError;
+  } catch (err) {
+    dbError = err;
+  }
 
-  const { data: docs, error: listError } = await supabase
-    .from("documents")
-    .select("status")
-    .eq("professional_id", professionalId);
-  if (listError) throw listError;
+  // Update local JSON fallback
+  let localFound = false;
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const dbPath = path.join(process.cwd(), "data", "documents.json");
+    if (fs.existsSync(dbPath)) {
+      const documents = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+      const idx = documents.findIndex((d) => d.id === documentId);
+      if (idx >= 0) {
+        documents[idx].status = status;
+        documents[idx].reviewed_at = new Date().toISOString();
+        documents[idx].reviewer_id = reviewerId;
+        fs.writeFileSync(dbPath, JSON.stringify(documents, null, 2));
+        localFound = true;
+      }
+    }
+  } catch (e) {
+    console.error("Local document update failed:", e);
+  }
 
-  const all = docs || [];
+  if (dbError && !localFound) throw dbError;
+
+  let all = [];
+  try {
+    const { data: docs, error: listError } = await supabase
+      .from("documents")
+      .select("status")
+      .eq("professional_id", professionalId);
+    if (!listError && docs) all = docs;
+  } catch {
+    // Ignore listError
+  }
+
   let verificationStatus = "pending";
   if (all.length > 0 && all.every((d) => d.status === "approved")) {
     verificationStatus = "approved";

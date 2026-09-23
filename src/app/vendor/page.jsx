@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
 import { useMarketplace } from "@/context/MarketplaceContext";
@@ -16,7 +17,7 @@ import {
   deleteCredential,
 } from "@/lib/data/vendor-profile";
 import { getEarningsSummary, listMyPayouts } from "@/lib/data/payments";
-import { uploadImage } from "@/lib/imagekit";
+import { uploadImage, ikImage } from "@/lib/imagekit";
 import { createClient } from "@/lib/supabase/client";
 import {
   DollarSign,
@@ -62,7 +63,14 @@ const docStatusStyles = {
 
 export default function VendorPortalPage() {
   const { proVendorState, bookings, updateBookingStatus, requestPayout } = useMarketplace();
-  const { user, showToast } = useAuth();
+  const { user, showToast, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push("/");
+    }
+  }, [isLoading, user, router]);
 
   const [activeTab, setActiveTab] = useState("earnings"); // "earnings" | "bookings" | "schedule" | "verification"
   const [payoutAmountInput, setPayoutAmountInput] = useState(
@@ -245,6 +253,10 @@ export default function VendorPortalPage() {
         .from("professionals")
         .update({ image_url: url })
         .eq("id", user.id);
+      
+      // Update local state even if supabase fails
+      setVendorProfile(prev => ({ ...prev, image_url: url }));
+      
       if (error) throw error;
       showToast("Profile photo updated.", "success");
     } catch (err) {
@@ -359,8 +371,12 @@ export default function VendorPortalPage() {
           <div className="bg-surface rounded-2xl border border-border p-6 sm:p-8 shadow-card mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold font-heading text-2xl shadow-soft">
-                  <ShieldCheck className="w-8 h-8" />
+                <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold font-heading text-2xl shadow-soft overflow-hidden shrink-0 border border-border">
+                  {vendorProfile?.image_url || proVendorState.image ? (
+                    <img src={ikImage(vendorProfile?.image_url || proVendorState.image)} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <ShieldCheck className="w-8 h-8" />
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5">
@@ -596,7 +612,7 @@ export default function VendorPortalPage() {
                           {payoutRows.map((p) => (
                             <tr key={p.id} className="hover:bg-dark-50/50 transition-colors">
                               <td className="p-4 font-mono font-bold text-dark-900">{p.id}</td>
-                              <td className="p-4 text-dark-600">{p.date}</td>
+                              <td className="p-4 text-dark-600" suppressHydrationWarning>{p.date}</td>
                               <td className="p-4 text-dark-600">{p.method}</td>
                               <td className="p-4 font-bold text-emerald-700">{formatMoney(Number(p.amount))}</td>
                               <td className="p-4">
@@ -1134,7 +1150,7 @@ export default function VendorPortalPage() {
                               <h4 className="text-xs sm:text-sm font-bold text-dark-900">
                                 {doc.type}
                               </h4>
-                              <p className="text-xs text-dark-500 mt-0.5">
+                              <p className="text-xs text-dark-500 mt-0.5" suppressHydrationWarning>
                                 {doc.file_path?.split("/").pop()} • Uploaded{" "}
                                 {doc.created_at
                                   ? new Date(doc.created_at).toLocaleDateString()

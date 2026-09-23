@@ -871,6 +871,11 @@ export function MarketplaceProvider({ children }) {
       .then((real) => setBookings((prev) => prev.map((b) => (b.id === newBooking.id ? real : b))))
       .catch(() => {
         // ponytail: keep the optimistic booking while schema/session is unavailable
+        fetch("/api/bookings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newBooking),
+        }).catch(console.error);
       });
 
     return newBooking;
@@ -1012,6 +1017,21 @@ export function MarketplaceProvider({ children }) {
       availablePayout: prev.availablePayout - amt,
       payoutHistory: [newPayout, ...prev.payoutHistory],
     }));
+    
+    // Persist to the local json fallback
+    fetch("/api/payouts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: newPayout.id,
+        professional_id: user?.id || "pro-1",
+        professional: { full_name: proVendorState.name || "Vendor" },
+        amount: newPayout.amount,
+        status: "requested",
+        method: newPayout.method,
+        requested_at: new Date().toISOString()
+      }),
+    }).catch(console.error);
 
     showToast(`Payout request of ${formatMoney(amount)} submitted successfully!`, "success");
     return true;

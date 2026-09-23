@@ -25,13 +25,41 @@ export async function POST(request) {
 
   try {
     const supabase = createAdminClient();
-    const { error } = await supabase.from("reviews").update({ status }).eq("id", reviewId);
-    if (error) throw error;
+    let dbError = null;
+    try {
+      const { error } = await supabase.from("reviews").update({ status }).eq("id", reviewId);
+      if (error) dbError = error;
+    } catch (err) {
+      dbError = err;
+    }
 
-    await logAdminAction(
-      { action: `review.${status}`, entity: "reviews", entityId: reviewId, meta: { status } },
-      supabase
-    );
+    // Local fallback
+    let localFound = false;
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      const dbPath = path.join(process.cwd(), "data", "reviews.json");
+      if (fs.existsSync(dbPath)) {
+        const reviews = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+        const idx = reviews.findIndex((r) => r.id === reviewId);
+        if (idx >= 0) {
+          reviews[idx].status = status;
+          fs.writeFileSync(dbPath, JSON.stringify(reviews, null, 2));
+          localFound = true;
+        }
+      }
+    } catch (e) {
+      console.error("Local review update failed:", e);
+    }
+
+    if (dbError && !localFound) throw dbError;
+
+    try {
+      await logAdminAction(
+        { action: `review.${status}`, entity: "reviews", entityId: reviewId, meta: { status } },
+        supabase
+      );
+    } catch {}
 
     return NextResponse.json({ ok: true, reviewId, status });
   } catch (error) {

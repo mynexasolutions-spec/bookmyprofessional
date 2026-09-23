@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { getAvailableSlots, nextBookingDates } from "@/lib/data/bookings";
+import { ikImage } from "@/lib/imagekit";
 
 function BookingPageContent({ params }) {
   const unwrappedParams = use(params);
@@ -74,11 +75,12 @@ function BookingPageContent({ params }) {
   // Payment method
   const [paymentMethod, setPaymentMethod] = useState("card"); // "card" | "paypal" | "applepay" | "sepa"
   const [cardDetails, setCardDetails] = useState({
-    number: "4242 •••• •••• 4242",
-    expiry: "12/28",
-    cvc: "888",
-    cardholder: "Alex Morgan",
+    number: "",
+    expiry: "",
+    cvc: "",
+    cardholder: "",
   });
+  const [paymentError, setPaymentError] = useState("");
 
   const nextDays = nextBookingDates(14);
 
@@ -100,6 +102,23 @@ function BookingPageContent({ params }) {
 
   const handlePayAndConfirm = () => {
     if (!selectedTimeSlot) return;
+    
+    setPaymentError("");
+
+    if (paymentMethod === "card") {
+      const num = cardDetails.number.replace(/\D/g, "");
+      if (num !== "4242424242424242") {
+        setPaymentError("Payment declined. Invalid card. (Hint: Use 4242 4242 4242 4242 for testing)");
+        return;
+      }
+    } else {
+      const confirmed = window.confirm(`Simulating ${paymentMethod} authentication... Authorize payment?`);
+      if (!confirmed) {
+        setPaymentError("Payment was cancelled by the user.");
+        return;
+      }
+    }
+
     setIsProcessingPayment(true);
     setTimeout(() => {
       setIsProcessingPayment(false);
@@ -130,6 +149,12 @@ function BookingPageContent({ params }) {
   const servicePrice = selectedService ? selectedService.price : pro.price;
   const platformFee = 0;
   const totalAmount = servicePrice + platformFee;
+
+  const isCardValid =
+    cardDetails.number.replace(/\D/g, "").length >= 16 &&
+    cardDetails.expiry.trim().length >= 5 &&
+    cardDetails.cvc.trim().length >= 3;
+  const isPaymentDisabled = isProcessingPayment || (paymentMethod === "card" && !isCardValid);
 
   if (!matchedPro && !isLoadingProfessionals) {
     return (
@@ -573,6 +598,13 @@ function BookingPageContent({ params }) {
                       <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>256-bit SSL encrypted • 100% Escrow Protection Guarantee</span>
                     </div>
+
+                    {paymentError && (
+                      <div className="p-3 rounded-xl bg-red-50 text-red-700 text-xs font-semibold border border-red-200 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{paymentError}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -681,7 +713,7 @@ function BookingPageContent({ params }) {
                       <Button
                         variant="primary"
                         size="md"
-                        disabled={isProcessingPayment}
+                        disabled={isPaymentDisabled}
                         onClick={handlePayAndConfirm}
                         className="text-xs font-semibold py-3 px-7 shadow-button"
                       >
@@ -713,7 +745,7 @@ function BookingPageContent({ params }) {
                 {/* Pro Avatar & Specialty */}
                 <div className="flex items-center gap-3">
                   <img
-                    src={pro.image}
+                    src={ikImage(pro.image)}
                     alt={pro.name}
                     className="w-12 h-12 rounded-xl object-cover border border-border bg-dark-100 shrink-0"
                   />

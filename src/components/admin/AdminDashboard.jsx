@@ -29,6 +29,7 @@ import {
   UserCheck,
   SlidersHorizontal,
   Megaphone,
+  MessageSquare,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 
@@ -49,6 +50,9 @@ const statusStyles = {
   admin: "text-violet-700 bg-violet-100",
   professional: "text-primary-700 bg-primary-100",
   customer: "text-dark-600 bg-dark-100",
+  open: "text-blue-700 bg-blue-100",
+  resolved: "text-emerald-700 bg-emerald-100",
+  closed: "text-dark-600 bg-dark-100",
 };
 
 function StatusPill({ value }) {
@@ -84,6 +88,7 @@ export default function AdminDashboard({
   categories = [],
   professionals = [],
   settings = {},
+  contactMessages = [],
   adminId = "admin",
 }) {
   const router = useRouter();
@@ -150,6 +155,7 @@ export default function AdminDashboard({
       label: "System",
       items: [
         { id: "announcements", label: "Announcements", icon: Megaphone },
+        { id: "contacts", label: "Contact Messages", icon: MessageSquare, count: contactMessages.filter(m => m.status === "open").length },
         { id: "settings", label: "Settings", icon: SlidersHorizontal },
       ],
     },
@@ -393,7 +399,7 @@ export default function AdminDashboard({
                             <td className="px-5 py-3.5">
                               <StatusPill value={b.payment_status} />
                             </td>
-                            <td className="px-5 py-3.5 text-dark-500 whitespace-nowrap">
+                            <td className="px-5 py-3.5 text-dark-500 whitespace-nowrap" suppressHydrationWarning>
                               {b.created_at ? new Date(b.created_at).toLocaleDateString() : "—"}
                             </td>
                           </tr>
@@ -680,7 +686,7 @@ export default function AdminDashboard({
                                 {profile.suspended ? "Suspended" : "Active"}
                               </span>
                             </td>
-                            <td className="px-5 py-3.5 text-dark-500 whitespace-nowrap">
+                            <td className="px-5 py-3.5 text-dark-500 whitespace-nowrap" suppressHydrationWarning>
                               {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : "—"}
                             </td>
                             <td className="px-5 py-3.5">
@@ -776,7 +782,7 @@ export default function AdminDashboard({
                               {formatMoney(Number(payout.amount || 0))}
                             </td>
                             <td className="px-5 py-3.5 text-dark-600">{payout.method || "—"}</td>
-                            <td className="px-5 py-3.5 text-dark-500 whitespace-nowrap">
+                            <td className="px-5 py-3.5 text-dark-500 whitespace-nowrap" suppressHydrationWarning>
                               {payout.requested_at ? new Date(payout.requested_at).toLocaleDateString() : "—"}
                             </td>
                             <td className="px-5 py-3.5">
@@ -1116,6 +1122,81 @@ export default function AdminDashboard({
                           </tr>
                         );
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSection === "contacts" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="font-heading text-2xl font-bold text-dark-900">Contact Messages</h2>
+                <p className="text-sm text-muted mt-1">
+                  View support inquiries from customers and professionals.
+                </p>
+              </div>
+              {contactMessages.length === 0 ? (
+                <EmptyState
+                  icon={MessageSquare}
+                  title="No messages"
+                  hint="Inquiries from the contact page will appear here."
+                />
+              ) : (
+                <div className="overflow-x-auto bg-surface border border-border rounded-2xl shadow-card">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-muted">
+                      <tr className="border-b border-border">
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Ticket ID</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Sender</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Topic / Subject</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Message</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Status</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Date</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {contactMessages.map((msg) => (
+                        <tr key={msg.id} className="hover:bg-dark-50/50 transition-colors">
+                          <td className="px-5 py-3.5 font-mono text-dark-700">{msg.ticket_number}</td>
+                          <td className="px-5 py-3.5">
+                            <div className="font-semibold text-dark-900">{msg.name}</div>
+                            <div className="text-dark-500">{msg.email}</div>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <div className="font-semibold text-dark-900 capitalize">{msg.topic.replace("_", " ")}</div>
+                            <div className="text-dark-600 truncate max-w-xs">{msg.subject}</div>
+                          </td>
+                          <td className="px-5 py-3.5 text-dark-600 truncate max-w-sm">{msg.message}</td>
+                          <td className="px-5 py-3.5">
+                            <StatusPill value={msg.status} />
+                          </td>
+                          <td className="px-5 py-3.5 text-dark-500 whitespace-nowrap" suppressHydrationWarning>
+                            {new Date(msg.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <select
+                              disabled={busy === `contact:${msg.id}`}
+                              value={msg.status}
+                              onChange={(e) =>
+                                run(
+                                  `contact:${msg.id}`,
+                                  "/api/admin/contacts",
+                                  { id: msg.id, status: e.target.value },
+                                  "Message status updated"
+                                )
+                              }
+                              className="rounded-lg border border-border bg-surface px-2 py-1.5 text-xs font-semibold text-dark-700 capitalize disabled:opacity-50"
+                            >
+                              <option value="open">Open</option>
+                              <option value="resolved">Resolved</option>
+                              <option value="closed">Closed</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

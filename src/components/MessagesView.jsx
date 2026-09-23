@@ -129,7 +129,14 @@ export default function MessagesView({ initialBookingId = null }) {
               <button
                 key={t.bookingId}
                 type="button"
-                onClick={() => setActiveId(t.bookingId)}
+                onClick={() => {
+                  setActiveId(t.bookingId);
+                  setThreads((prev) =>
+                    prev.map((x) =>
+                      x.bookingId === t.bookingId ? { ...x, unread: 0 } : x
+                    )
+                  );
+                }}
                 className={`w-full flex items-start gap-3 border-b border-border px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-dark-50 focus:bg-dark-50 focus:outline-none ${
                   activeId === t.bookingId ? "bg-primary-50/60" : ""
                 }`}

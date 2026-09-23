@@ -61,6 +61,7 @@ export function AuthProvider({ children }) {
   const [authModalTab, setAuthModalTab] = useState("login"); // "login" | "signup"
   const [authRole, setAuthRole] = useState("customer"); // "customer" | "professional"
   const [user, setUser] = useState(null); // { id, name, email, role, avatar }
+  const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState(null);
 
   // Auto-hide toast after 4 seconds
@@ -77,6 +78,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (DEMO_MODE) {
       setUser(readDemoUser());
+      setIsLoading(false);
       return;
     }
 
@@ -85,11 +87,17 @@ export function AuthProvider({ children }) {
 
     const hydrate = async (authUser) => {
       const profile = await getProfile(authUser.id);
-      if (active) setUser(mapUser(authUser, profile));
+      if (active) {
+        setUser(mapUser(authUser, profile));
+        setIsLoading(false);
+      }
     };
 
     supabase.auth.getSession().then(({ data }) => {
-      if (active && data?.session?.user) hydrate(data.session.user);
+      if (active) {
+        if (data?.session?.user) hydrate(data.session.user);
+        else setIsLoading(false);
+      }
     });
 
     const {
@@ -97,7 +105,10 @@ export function AuthProvider({ children }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return;
       if (session?.user) hydrate(session.user);
-      else setUser(null);
+      else {
+        setUser(null);
+        setIsLoading(false);
+      }
     });
 
     return () => {
@@ -239,6 +250,46 @@ export function AuthProvider({ children }) {
     showToast("You have been signed out successfully.", "info");
   };
 
+  const loginWithProvider = async (provider) => {
+    if (DEMO_MODE) {
+      showToast(`${provider} login simulated in demo mode.`);
+      const demoUser = makeDemoUser({ name: `${provider} User`, email: `user@${provider}.com`, role: authRole });
+      writeDemoUser(demoUser);
+      setUser(demoUser);
+      closeAuthModal();
+      return demoUser;
+    }
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) {
+      showToast(error.message, "error");
+      throw error;
+    }
+    return data;
+  };
+
+  const resendVerificationEmail = async (email) => {
+    if (DEMO_MODE) return;
+    const supabase = createClient();
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+      },
+    });
+    if (error) {
+      showToast(error.message, "error");
+      throw error;
+    }
+    showToast("Verification email resent successfully! Check your inbox.");
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -246,13 +297,16 @@ export function AuthProvider({ children }) {
         authModalTab,
         authRole,
         user,
+        isLoading,
         toastMessage,
         setAuthModalTab,
         setAuthRole,
         openAuthModal,
         closeAuthModal,
         login,
+        loginWithProvider,
         signup,
+        resendVerificationEmail,
         logout,
         showToast,
       }}
