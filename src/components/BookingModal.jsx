@@ -59,20 +59,20 @@ export default function BookingModal() {
   const [addressDetails, setAddressDetails] = useState({
     name: customerProfile.name || "",
     email: customerProfile.email || "",
-    phone: customerProfile.phone || "+91 98200 12345",
-    street: "Bandra Kurla Complex",
-    city: "Mumbai",
-    postalCode: "10117",
-    notes: "Please call upon arrival at the main intercom.",
+    phone: customerProfile.phone || "",
+    street: "",
+    city: "",
+    postalCode: "",
+    notes: "",
   });
 
   // Payment method
   const [paymentMethod, setPaymentMethod] = useState("card"); // "card" | "paypal" | "applepay" | "sepa"
   const [cardDetails, setCardDetails] = useState({
-    number: "4242 •••• •••• 4242",
-    expiry: "12/28",
-    cvc: "888",
-    cardholder: "Alex Morgan",
+    number: "",
+    expiry: "",
+    cvc: "",
+    cardholder: "",
   });
 
   // Prefill service on open
@@ -124,6 +124,10 @@ export default function BookingModal() {
   const nextDays = nextBookingDates(14);
 
   const handlePayAndConfirm = async () => {
+    if (!user) {
+      if (openAuthModal) openAuthModal();
+      return;
+    }
     if (!selectedTimeSlot) return;
     setBookingError(null);
     setIsProcessingPayment(true);

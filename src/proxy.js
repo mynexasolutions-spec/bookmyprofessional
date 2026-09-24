@@ -3,10 +3,8 @@ import { NextResponse } from "next/server";
 
 // Must match ADMIN_COOKIE in src/lib/admin-session.js
 const ADMIN_COOKIE = "bmp-admin-session";
-// Demo mode: no real sessions exist, so protected routes stay open (client-side mock user).
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
-export async function middleware(request) {
+export default async function proxy(request) {
   const { pathname } = request.nextUrl;
 
   // Admin area uses its own env-based session cookie, not Supabase auth.
@@ -18,7 +16,7 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  if (DEMO_MODE) return NextResponse.next();
+
 
   let response = NextResponse.next({ request });
 
@@ -48,11 +46,12 @@ export async function middleware(request) {
   const isProtected =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/vendor") ||
-    pathname.startsWith("/messages");
+    pathname.startsWith("/messages") ||
+    pathname.startsWith("/book");
 
   if (isProtected && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 

@@ -25,34 +25,8 @@ export async function POST(request) {
 
   try {
     const supabase = createAdminClient();
-    let dbError = null;
-    try {
-      const { error } = await supabase.from("reviews").update({ status }).eq("id", reviewId);
-      if (error) dbError = error;
-    } catch (err) {
-      dbError = err;
-    }
-
-    // Local fallback
-    let localFound = false;
-    try {
-      const fs = require("fs");
-      const path = require("path");
-      const dbPath = path.join(process.cwd(), "data", "reviews.json");
-      if (fs.existsSync(dbPath)) {
-        const reviews = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-        const idx = reviews.findIndex((r) => r.id === reviewId);
-        if (idx >= 0) {
-          reviews[idx].status = status;
-          fs.writeFileSync(dbPath, JSON.stringify(reviews, null, 2));
-          localFound = true;
-        }
-      }
-    } catch (e) {
-      console.error("Local review update failed:", e);
-    }
-
-    if (dbError && !localFound) throw dbError;
+    const { error } = await supabase.from("reviews").update({ status }).eq("id", reviewId);
+    if (error) throw error;
 
     try {
       await logAdminAction(

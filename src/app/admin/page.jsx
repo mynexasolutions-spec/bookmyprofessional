@@ -22,7 +22,8 @@ export const metadata = {
   title: "Admin Panel | BookMyProfessional",
 };
 
-export default async function AdminPage() {
+export default async function AdminPage({ searchParams }) {
+  const tab = (await searchParams)?.tab || "overview";
   const token = (await cookies()).get(ADMIN_COOKIE)?.value;
   const session = verifyAdminToken(token);
   if (!session) redirect("/admin/login");
@@ -66,6 +67,7 @@ export default async function AdminPage() {
       settings={settings}
       contactMessages={contactMessages}
       adminId={session.id}
+      initialTab={tab}
     />
   );
 }

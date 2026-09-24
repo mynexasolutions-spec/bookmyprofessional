@@ -54,8 +54,8 @@ function BookingPageContent({ params }) {
 
   // Form State
   const [selectedService, setSelectedService] = useState(
-    (preselectedServiceId && pro.services?.find((s) => s.id === preselectedServiceId)) ||
-      (pro.services && pro.services[0]) ||
+    (preselectedServiceId && pro?.services?.find((s) => s.id === preselectedServiceId)) ||
+      (pro?.services && pro.services[0]) ||
       null
   );
   const [selectedDate, setSelectedDate] = useState(() => nextBookingDates(14)[0].date);
@@ -63,13 +63,13 @@ function BookingPageContent({ params }) {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [addressDetails, setAddressDetails] = useState({
-    name: customerProfile.name || "Alex Morgan",
-    email: customerProfile.email || "alex.morgan@example.com",
-    phone: customerProfile.phone || "+91 98200 12345",
-    street: "Bandra Kurla Complex",
-    city: "Mumbai",
-    postalCode: "10117",
-    notes: "Please call upon arrival at the main intercom.",
+    name: customerProfile.name || "",
+    email: customerProfile.email || "",
+    phone: customerProfile.phone || "",
+    street: "",
+    city: "",
+    postalCode: "",
+    notes: "",
   });
 
   // Payment method
@@ -100,7 +100,11 @@ function BookingPageContent({ params }) {
     };
   }, [matchedPro, selectedDate]);
 
-  const handlePayAndConfirm = () => {
+  const handlePayAndConfirm = async () => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
     if (!selectedTimeSlot) return;
     
     setPaymentError("");
@@ -120,9 +124,8 @@ function BookingPageContent({ params }) {
     }
 
     setIsProcessingPayment(true);
-    setTimeout(() => {
-      setIsProcessingPayment(false);
-      const newBooking = createBooking({
+    try {
+      const newBooking = await createBooking({
         pro,
         service: selectedService || { title: pro.role, price: pro.price },
         date: selectedDate,
@@ -143,10 +146,14 @@ function BookingPageContent({ params }) {
       });
       setConfirmedBookingData(newBooking);
       setCurrentStep(5);
-    }, 1200);
+    } catch (err) {
+      setPaymentError(err.message || "Failed to confirm booking.");
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
-  const servicePrice = selectedService ? selectedService.price : pro.price;
+  const servicePrice = selectedService ? selectedService.price : (pro?.price || 0);
   const platformFee = 0;
   const totalAmount = servicePrice + platformFee;
 
@@ -155,6 +162,17 @@ function BookingPageContent({ params }) {
     cardDetails.expiry.trim().length >= 5 &&
     cardDetails.cvc.trim().length >= 3;
   const isPaymentDisabled = isProcessingPayment || (paymentMethod === "card" && !isCardValid);
+
+  if (isLoadingProfessionals && !matchedPro) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background text-dark-800">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        </main>
+      </div>
+    );
+  }
 
   if (!matchedPro && !isLoadingProfessionals) {
     return (
@@ -448,6 +466,7 @@ function BookingPageContent({ params }) {
                           <input
                             type="text"
                             value={addressDetails.street}
+                            placeholder="e.g. 123 Main Street, Appt 4B"
                             onChange={(e) =>
                               setAddressDetails({ ...addressDetails, street: e.target.value })
                             }
@@ -463,6 +482,7 @@ function BookingPageContent({ params }) {
                         <input
                           type="text"
                           value={addressDetails.city}
+                          placeholder="e.g. Mumbai"
                           onChange={(e) =>
                             setAddressDetails({ ...addressDetails, city: e.target.value })
                           }
@@ -477,6 +497,7 @@ function BookingPageContent({ params }) {
                         <input
                           type="text"
                           value={addressDetails.postalCode}
+                          placeholder="e.g. 400001"
                           onChange={(e) =>
                             setAddressDetails({ ...addressDetails, postalCode: e.target.value })
                           }
@@ -702,7 +723,15 @@ function BookingPageContent({ params }) {
                       <Button
                         variant="primary"
                         size="md"
-                        disabled={currentStep === 2 && !selectedTimeSlot}
+                        disabled={
+                          (currentStep === 2 && !selectedTimeSlot) ||
+                          (currentStep === 3 &&
+                            (!addressDetails.name.trim() ||
+                              !addressDetails.phone.trim() ||
+                              !addressDetails.street.trim() ||
+                              !addressDetails.city.trim() ||
+                              !addressDetails.postalCode.trim()))
+                        }
                         onClick={() => setCurrentStep(currentStep + 1)}
                         className="text-xs font-semibold py-3 px-6 shadow-button"
                       >

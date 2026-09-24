@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, use } from "react";
+import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
@@ -42,6 +42,24 @@ export default function ProfessionalDetailPage({ params }) {
   const [activeTab, setActiveTab] = useState("services"); // "services" | "about" | "credentials" | "reviews" | "schedule"
   const [isSaved, setIsSaved] = useState(false);
   const [reported, setReported] = useState({});
+
+  useEffect(() => {
+    const key = `saved_pro_${proId}`;
+    setIsSaved(window.localStorage.getItem(key) === "true");
+  }, [proId]);
+
+  const toggleSave = () => {
+    const key = `saved_pro_${proId}`;
+    const newState = !isSaved;
+    setIsSaved(newState);
+    if (newState) {
+      window.localStorage.setItem(key, "true");
+      showToast("Added to your wishlist", "success");
+    } else {
+      window.localStorage.removeItem(key);
+      showToast("Removed from your wishlist", "info");
+    }
+  };
 
   const handleReport = async (review) => {
     try {
@@ -129,7 +147,7 @@ export default function ProfessionalDetailPage({ params }) {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => setIsSaved(!isSaved)}
+                  onClick={toggleSave}
                   className="p-2.5 rounded-full bg-white/15 hover:bg-white/30 text-white backdrop-blur-md transition-colors"
                   title="Save Professional"
                 >

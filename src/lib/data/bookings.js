@@ -1,8 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { createPaymentForBooking, getCommissionRate } from "./payments";
 
-export { toUtcInstant } from "@/lib/datetime";
-
+import { toUtcInstant } from "@/lib/datetime";
 function generateBookingId() {
   return `BMP-${Math.floor(10000 + Math.random() * 90000)}`;
 }
@@ -52,7 +51,12 @@ async function fetchTimezone(supabase, professionalId) {
 function mapBooking(row) {
   const pro = row.professionals || {};
   const customer = row.customer || {};
-  const reviews = Array.isArray(row.reviews) ? row.reviews : [];
+  let reviews = [];
+  if (Array.isArray(row.reviews)) {
+    reviews = row.reviews;
+  } else if (row.reviews && typeof row.reviews === 'object') {
+    reviews = [row.reviews];
+  }
 
   return {
     id: row.id,
@@ -77,6 +81,7 @@ function mapBooking(row) {
     paymentMethod: row.payment_method || "",
     createdAt: row.created_at,
     hasReview: reviews.length > 0,
+    reviewRating: reviews.length > 0 ? reviews[0].rating : null,
   };
 }
 
@@ -87,15 +92,19 @@ export async function listMyBookings(client) {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user) return null;
 
-    const { data, error } = await supabase
-      .from("bookings")
-      .select(
-        "*, professionals(name, role_title, image_url), customer:profiles(full_name, email, phone), reviews(id)"
-      )
-      .order("created_at", { ascending: false });
+    let dbBookings = [];
+    try {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select(
+          "*, professionals(name, role_title, image_url), customer:profiles(full_name, email, phone), reviews(id, rating)"
+        )
+        .order("created_at", { ascending: false });
 
-    if (error) throw error;
-    return (data || []).map(mapBooking);
+      if (!error && data) dbBookings = data.map(mapBooking);
+    } catch (err) {}
+
+    return dbBookings;
   } catch {
     return null;
   }

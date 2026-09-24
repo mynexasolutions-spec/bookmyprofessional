@@ -335,7 +335,7 @@ export default function ContactPage() {
                             required
                             value={form.name}
                             onChange={(e) => setForm({ ...form, name: e.target.value })}
-                            placeholder="e.g. Alexander Müller"
+                            placeholder="Enter your full name"
                             className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-dark-50/70 border border-border rounded-xl text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                           />
                         </div>
@@ -349,7 +349,7 @@ export default function ContactPage() {
                             required
                             value={form.email}
                             onChange={(e) => setForm({ ...form, email: e.target.value })}
-                            placeholder="alexander@example.com"
+                            placeholder="Enter your email address"
                             className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-dark-50/70 border border-border rounded-xl text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                           />
                         </div>
@@ -364,7 +364,7 @@ export default function ContactPage() {
                             type="tel"
                             value={form.phone}
                             onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                            placeholder="+91 98200 12345"
+                            placeholder="Enter your phone number"
                             className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-dark-50/70 border border-border rounded-xl text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                           />
                         </div>

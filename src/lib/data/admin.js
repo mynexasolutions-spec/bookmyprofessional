@@ -11,31 +11,26 @@ export async function listPendingDocuments(client) {
     const { data, error } = await supabase
       .from("documents")
       .select(
-        "id, professional_id, type, file_path, status, created_at, professional:profiles(full_name, email)"
+        "id, professional_id, type, file_path, status, created_at, professional:profiles!documents_professional_id_fkey(full_name, email)"
       )
       .eq("status", "pending")
       .order("created_at", { ascending: false });
     if (!error && data) {
-      dbData = data;
+      dbData = await Promise.all(data.map(async (doc) => {
+        if (!doc.file_path) return doc;
+        const { data: urlData } = await supabase
+          .storage
+          .from("verification-docs")
+          .createSignedUrl(doc.file_path, 3600); // 1 hour expiration
+        
+        return {
+          ...doc,
+          signedUrl: urlData?.signedUrl || null
+        };
+      }));
     }
   } catch {
     // Ignore supabase error
-  }
-
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    const dbPath = path.join(process.cwd(), "data", "documents.json");
-    if (fs.existsSync(dbPath)) {
-      const localData = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-      // filter only pending
-      const pendingLocal = localData.filter(d => d.status === "pending");
-      if (pendingLocal.length > 0) {
-        return dbData.length === 0 ? pendingLocal : [...dbData, ...pendingLocal];
-      }
-    }
-  } catch (e) {
-    console.error("Local documents read failed:", e);
   }
 
   return dbData;
@@ -61,21 +56,6 @@ export async function listPendingReviews(client) {
     // Ignore supabase error
   }
 
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    const dbPath = path.join(process.cwd(), "data", "reviews.json");
-    if (fs.existsSync(dbPath)) {
-      const localData = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-      const pendingLocal = localData.filter(r => r.status === "pending");
-      if (pendingLocal.length > 0) {
-        return dbData.length === 0 ? pendingLocal : [...dbData, ...pendingLocal];
-      }
-    }
-  } catch (e) {
-    console.error("Local reviews read failed:", e);
-  }
-
   return dbData;
 }
 
@@ -95,34 +75,6 @@ export async function listAllBookings(client) {
     }
   } catch {
     // Ignore supabase error
-  }
-
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    const dbPath = path.join(process.cwd(), "data", "bookings.json");
-    if (fs.existsSync(dbPath)) {
-      const rawData = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-      const localData = rawData.map(b => ({
-        id: b.id,
-        customer_id: b.customerId || null,
-        professional_id: b.proId,
-        service_title: b.serviceTitle,
-        total_paid: b.totalPaid,
-        date: b.date,
-        time_slot: b.timeSlot,
-        status: b.status,
-        payment_status: b.paymentStatus,
-        created_at: b.createdAt,
-        professionals: { name: b.proName },
-        customer: { full_name: b.customerName }
-      }));
-      if (localData.length > 0) {
-        return dbData.length === 0 ? localData : [...dbData, ...localData];
-      }
-    }
-  } catch (e) {
-    console.error("Local booking read failed:", e);
   }
 
   return dbData;
@@ -161,21 +113,6 @@ export async function listPayouts(client) {
     // Ignore supabase error
   }
 
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    const dbPath = path.join(process.cwd(), "data", "payouts.json");
-    if (fs.existsSync(dbPath)) {
-      const localData = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-      if (localData.length > 0) {
-        // Merge them, giving preference to local for this demo
-        return dbData.length === 0 ? localData : [...dbData, ...localData];
-      }
-    }
-  } catch (e) {
-    console.error("Local payout read failed:", e);
-  }
-
   return dbData;
 }
 
@@ -186,11 +123,15 @@ export async function listAllProfessionals(client) {
     const { data, error } = await supabase
       .from("professionals")
       .select(
-        "id, name, category, city, verification_status, verified, is_active, rating, review_count, created_at"
+        "id, name, category, city, verification_status, verified, is_active, rating, review_count, created_at, profile:profiles(full_name)"
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return data || [];
+    
+    return (data || []).map(pro => ({
+      ...pro,
+      name: pro.profile?.full_name || pro.name
+    }));
   } catch {
     return [];
   }

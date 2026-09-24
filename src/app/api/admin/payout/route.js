@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { isAdminRequest } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction } from "@/lib/data/admin";
@@ -30,7 +31,9 @@ export async function POST(request) {
       .update({ status, processed_at: new Date().toISOString() })
       .eq("id", payoutId);
     
-    if (error) throw error;
+    if (error) {
+      return NextResponse.json({ error: error.message || "Update failed" }, { status: 500 });
+    }
     
     try {
       await logAdminAction(
@@ -41,26 +44,47 @@ export async function POST(request) {
       // Ignore logging errors
     }
   } catch (error) {
-    // Ignore supabase error
+    return NextResponse.json({ error: error?.message || "Payout update failed" }, { status: 500 });
   }
 
-  // Update local fallback
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    const dbPath = path.join(process.cwd(), "data", "payouts.json");
-    if (fs.existsSync(dbPath)) {
-      const payouts = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-      const idx = payouts.findIndex((p) => p.id === payoutId);
-      if (idx >= 0) {
-        payouts[idx].status = status;
-        payouts[idx].processed_at = new Date().toISOString();
-        fs.writeFileSync(dbPath, JSON.stringify(payouts, null, 2));
-      }
-    }
-  } catch (err) {
-    console.error("Failed to update local payouts.json", err);
-  }
-
+  revalidatePath("/admin");
   return NextResponse.json({ ok: true, payoutId, status });
+}
+
+export async function DELETE(request) {
+  if (!(await isAdminRequest())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { payoutId } = body || {};
+  if (!payoutId) {
+    return NextResponse.json({ error: "payoutId is required" }, { status: 400 });
+  }
+
+  try {
+    const supabase = createAdminClient();
+    const { error } = await supabase.from("payouts").delete().eq("id", payoutId);
+    if (error) throw error;
+    
+    try {
+      await logAdminAction(
+        { action: "payout.delete", entity: "payouts", entityId: payoutId },
+        supabase
+      );
+    } catch (e) {
+      // Ignore logging errors
+    }
+  } catch (error) {
+    return NextResponse.json({ error: error?.message || "Payout deletion failed" }, { status: 500 });
+  }
+
+  revalidatePath("/admin");
+  return NextResponse.json({ ok: true });
 }

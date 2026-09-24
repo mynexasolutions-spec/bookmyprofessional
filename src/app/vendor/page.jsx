@@ -11,6 +11,7 @@ import { listMyDocuments, uploadDocument } from "@/lib/data/documents";
 import {
   getVendorProfile,
   updateVendorBasics,
+  updateVendorSchedule,
   saveService,
   deleteService,
   saveCredential,
@@ -184,7 +185,9 @@ export default function VendorPortalPage() {
     setPayoutAmountInput(String(stats.available));
   }, [stats.available]);
 
-  const allApproved = documents.length > 0 && documents.every((d) => d.status === "approved");
+  const allApproved =
+    vendorProfile?.verification_status === "approved" ||
+    (documents.length > 0 && documents.every((d) => d.status === "approved"));
 
   const handlePayoutSubmit = async (e) => {
     e.preventDefault();
@@ -231,8 +234,48 @@ export default function VendorPortalPage() {
     }
   };
 
-  const handleSaveSchedule = () => {
-    showToast("Weekly operating hours saved successfully!", "success");
+  const handleSaveSchedule = async () => {
+    if (!requireSignIn()) return;
+    try {
+      const startSplit = scheduleState.startTime.split(":");
+      const endSplit = scheduleState.endTime.split(":");
+      const startHour = parseInt(startSplit[0], 10);
+      const endHour = parseInt(endSplit[0], 10);
+      
+      const slots = [];
+      if (!isNaN(startHour) && !isNaN(endHour) && startHour < endHour) {
+        for (let i = startHour; i < endHour; i++) {
+          const ampm = i >= 12 ? "PM" : "AM";
+          const displayHour = i > 12 ? i - 12 : (i === 0 ? 12 : i);
+          slots.push(`${displayHour}:00 ${ampm}`);
+        }
+      } else {
+        slots.push("09:00 AM", "10:00 AM", "11:00 AM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM"); // fallback
+      }
+
+      const activeDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].filter(d => scheduleState[d]);
+
+      const formatTime = (timeStr) => {
+        const [h, m] = timeStr.split(":");
+        let hr = parseInt(h, 10);
+        const ampm = hr >= 12 ? "PM" : "AM";
+        hr = hr > 12 ? hr - 12 : (hr === 0 ? 12 : hr);
+        return `${hr}:${m} ${ampm}`;
+      };
+
+      const hoursDisplay = `${formatTime(scheduleState.startTime)} - ${formatTime(scheduleState.endTime)}`;
+
+      const availability = {
+        days: activeDays,
+        hours: hoursDisplay,
+        slots: slots
+      };
+      
+      await updateVendorSchedule(user.id, availability);
+      showToast("Weekly operating hours saved successfully!", "success");
+    } catch (err) {
+      showToast(err?.message || "Could not save your schedule.", "error");
+    }
   };
 
   const handlePhotoUpload = async (e) => {
@@ -290,6 +333,7 @@ export default function VendorPortalPage() {
         experienceYears: Number(vendorProfile.experienceYears) || 0,
         specialty: vendorProfile.specialty,
         city: vendorProfile.city,
+        hourlyRate: Number(vendorProfile.hourlyRate) || 0,
       });
       showToast("Experience & service location saved.", "success");
     } catch (err) {
@@ -372,8 +416,8 @@ export default function VendorPortalPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold font-heading text-2xl shadow-soft overflow-hidden shrink-0 border border-border">
-                  {vendorProfile?.image_url || proVendorState.image ? (
-                    <img src={ikImage(vendorProfile?.image_url || proVendorState.image)} alt="Profile" className="w-full h-full object-cover" />
+                  {vendorProfile?.image_url ? (
+                    <img src={ikImage(vendorProfile.image_url)} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     <ShieldCheck className="w-8 h-8" />
                   )}
@@ -381,7 +425,7 @@ export default function VendorPortalPage() {
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h1 className="font-heading text-xl sm:text-2xl font-bold text-dark-900">
-                      {proVendorState.name}
+                      {vendorProfile?.name || "Professional"}
                     </h1>
                     {allApproved ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
@@ -394,7 +438,7 @@ export default function VendorPortalPage() {
                     )}
                   </div>
                   <p className="text-xs text-dark-500 mt-0.5">
-                    Vendor ID: {proVendorState.id} • 10% Platform Commission Tier
+                    Vendor ID: {user?.id?.substring(0, 8) || "..."} • 10% Platform Commission Tier
                   </p>
                 </div>
               </div>
@@ -427,7 +471,7 @@ export default function VendorPortalPage() {
                   />
                 </label>
                 <Link
-                  href={`/professionals/${proVendorState.id}`}
+                  href={`/professionals/${user?.id}`}
                   className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-border hover:bg-dark-50 text-dark-700 text-xs font-semibold transition-colors"
                 >
                   <span>View Public Profile</span>
@@ -831,7 +875,7 @@ export default function VendorPortalPage() {
                         Shown on your public profile to help customers pick the right expert.
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-dark-700 mb-1.5">
                           Years of Experience
@@ -843,6 +887,21 @@ export default function VendorPortalPage() {
                           onChange={(e) =>
                             setVendorProfile({ ...vendorProfile, experienceYears: e.target.value })
                           }
+                          className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                          Base Hourly Rate (₹)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={vendorProfile.hourlyRate || ""}
+                          onChange={(e) =>
+                            setVendorProfile({ ...vendorProfile, hourlyRate: e.target.value })
+                          }
+                          placeholder="e.g. 500"
                           className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
                         />
                       </div>

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth, DEMO_MODE } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   Mail,
   Lock,
@@ -162,11 +162,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {DEMO_MODE && (
-            <div className="p-3 text-xs font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-xl">
-              Demo mode — no email confirmation. Any details will create an account and sign you in.
-            </div>
-          )}
+
 
           {/* Role Switcher */}
           <div className="bg-dark-50 p-1.5 rounded-2xl border border-border flex items-center gap-1.5">
@@ -208,7 +204,7 @@ export default function RegisterPage() {
                   required
                   value={form.fullName}
                   onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                  placeholder="e.g. Alex Morgan"
+                  placeholder="Enter your full name"
                   className="w-full pl-10 pr-3.5 py-2.5 bg-surface border border-border rounded-xl text-xs sm:text-sm text-dark-900 focus:outline-none focus:border-primary-500"
                 />
               </div>
@@ -226,7 +222,7 @@ export default function RegisterPage() {
                     required
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="name@example.com"
+                    placeholder="Enter your email address"
                     className="w-full pl-9 pr-3 py-2.5 bg-surface border border-border rounded-xl text-xs text-dark-900 focus:outline-none focus:border-primary-500"
                   />
                 </div>
@@ -242,7 +238,7 @@ export default function RegisterPage() {
                     type="tel"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="+91 98200 12345"
+                    placeholder="Enter your phone number"
                     className="w-full pl-9 pr-3 py-2.5 bg-surface border border-border rounded-xl text-xs text-dark-900 focus:outline-none focus:border-primary-500"
                   />
                 </div>
@@ -278,7 +274,7 @@ export default function RegisterPage() {
                       type="text"
                       value={form.city}
                       onChange={(e) => setForm({ ...form, city: e.target.value })}
-                      placeholder="Mumbai, Delhi..."
+                      placeholder="Enter your city"
                       className="w-full pl-8 pr-3 py-2 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none"
                     />
                   </div>

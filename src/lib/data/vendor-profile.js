@@ -1,40 +1,15 @@
 import { createClient } from "@/lib/supabase/client";
 
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-const DEMO_KEY = "bmp_demo_vendor_profile";
-
 const EMPTY = { experienceYears: 0, specialty: "", city: "", services: [], credentials: [] };
-
-// ponytail: demo mode keeps the vendor's services/qualifications in one localStorage blob, not per-user.
-function readDemo() {
-  if (typeof window === "undefined") return { ...EMPTY };
-  try {
-    return { ...EMPTY, ...JSON.parse(window.localStorage.getItem(DEMO_KEY) || "{}") };
-  } catch {
-    return { ...EMPTY };
-  }
-}
-
-function writeDemo(next) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(DEMO_KEY, JSON.stringify(next));
-  } catch {
-    // ignore quota / privacy-mode errors
-  }
-}
-
 // ponytail: empty profile on error keeps the vendor page alive while supabase/schema.sql is unapplied.
 export async function getVendorProfile(professionalId) {
   if (!professionalId) return { ...EMPTY };
-  if (DEMO_MODE) return readDemo();
-
   try {
     const supabase = createClient();
     const [{ data: pro }, { data: services }, { data: credentials }] = await Promise.all([
       supabase
         .from("professionals")
-        .select("experience_years, specialty, city")
+        .select("experience_years, specialty, city, name, image_url, verification_status, hourly_rate")
         .eq("id", professionalId)
         .maybeSingle(),
       supabase.from("services").select("*").eq("professional_id", professionalId).order("sort"),
@@ -44,6 +19,10 @@ export async function getVendorProfile(professionalId) {
       experienceYears: pro?.experience_years || 0,
       specialty: pro?.specialty || "",
       city: pro?.city || "",
+      name: pro?.name || "",
+      image_url: pro?.image_url || "",
+      verification_status: pro?.verification_status || "pending",
+      hourlyRate: Number(pro?.hourly_rate) || 0,
       services: services || [],
       credentials: credentials || [],
     };
@@ -53,10 +32,6 @@ export async function getVendorProfile(professionalId) {
 }
 
 export async function updateVendorBasics(professionalId, patch) {
-  if (DEMO_MODE) {
-    writeDemo({ ...readDemo(), ...patch });
-    return { ...readDemo() };
-  }
   const supabase = createClient();
   const { error } = await supabase
     .from("professionals")
@@ -64,10 +39,21 @@ export async function updateVendorBasics(professionalId, patch) {
       experience_years: Number(patch.experienceYears) || 0,
       specialty: patch.specialty || "",
       city: patch.city || "",
+      hourly_rate: Number(patch.hourlyRate) || 0,
     })
     .eq("id", professionalId);
   if (error) throw error;
   return patch;
+}
+
+export async function updateVendorSchedule(professionalId, availability) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("professionals")
+    .update({ availability })
+    .eq("id", professionalId);
+  if (error) throw error;
+  return availability;
 }
 
 export async function saveService(professionalId, service) {
@@ -78,17 +64,6 @@ export async function saveService(professionalId, service) {
     duration: service.duration || "",
   };
   if (!row.title) throw new Error("Service title is required.");
-
-  if (DEMO_MODE) {
-    const demo = readDemo();
-    if (service.id) {
-      demo.services = demo.services.map((s) => (s.id === service.id ? { ...s, ...row } : s));
-    } else {
-      demo.services = [...demo.services, { id: `demo-srv-${Date.now()}`, professional_id: professionalId, sort: demo.services.length, ...row }];
-    }
-    writeDemo(demo);
-    return demo.services;
-  }
 
   const supabase = createClient();
   if (service.id) {

@@ -6,10 +6,6 @@ import { getProfile } from "@/lib/data/profiles";
 
 const AuthContext = createContext(null);
 
-// Demo mode: skip Supabase Auth entirely and keep a fake session in localStorage.
-export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-const DEMO_STORAGE_KEY = "bmp_demo_user";
-
 function mapUser(authUser, profile) {
   const meta = authUser?.user_metadata || {};
   const email = profile?.email || authUser?.email || "";
@@ -20,39 +16,7 @@ function mapUser(authUser, profile) {
     email,
     role: profile?.role || meta.role || "customer",
     avatar: profile?.avatar_url || null,
-  };
-}
-
-function readDemoUser() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(DEMO_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeDemoUser(user) {
-  if (typeof window === "undefined") return;
-  try {
-    if (user) window.localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(user));
-    else window.localStorage.removeItem(DEMO_STORAGE_KEY);
-  } catch {
-    // ignore quota / privacy-mode errors
-  }
-}
-
-function makeDemoUser({ name, email, role } = {}) {
-  const r = role === "professional" ? "professional" : "customer";
-  const mail = (email || "").trim() || `${r}@demo.com`;
-  return {
-    id: `demo-${r}`,
-    name: (name || "").trim() || mail.split("@")[0] || "Demo User",
-    email: mail,
-    role: r,
-    avatar: null,
-    demo: true,
+    user_metadata: meta,
   };
 }
 
@@ -74,16 +38,10 @@ export function AuthProvider({ children }) {
     }
   }, [toastMessage]);
 
-  // Restore the session (demo: localStorage; otherwise Supabase) and stay in sync
+  // Restore the session (Supabase) and stay in sync
   useEffect(() => {
-    if (DEMO_MODE) {
-      setUser(readDemoUser());
-      setIsLoading(false);
-      return;
-    }
-
-    const supabase = createClient();
     let active = true;
+    const supabase = createClient();
 
     const hydrate = async (authUser) => {
       const profile = await getProfile(authUser.id);
@@ -140,14 +98,7 @@ export function AuthProvider({ children }) {
       throw error;
     }
 
-    if (DEMO_MODE) {
-      const demoUser = makeDemoUser({ email: mail, role });
-      writeDemoUser(demoUser);
-      setUser(demoUser);
-      closeAuthModal();
-      showToast(`Welcome back, ${demoUser.name}! You are now logged in.`);
-      return demoUser;
-    }
+
 
     const supabase = createClient();
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -179,14 +130,7 @@ export function AuthProvider({ children }) {
   } = {}) => {
     const displayName = (fullName || name || "").trim();
 
-    if (DEMO_MODE) {
-      const demoUser = makeDemoUser({ name: displayName, email, role });
-      writeDemoUser(demoUser);
-      setUser(demoUser);
-      closeAuthModal();
-      showToast(`Welcome to BookMyProfessional, ${demoUser.name}! Your account was created.`);
-      return { user: demoUser };
-    }
+
 
     const supabase = createClient();
 
@@ -234,12 +178,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    if (DEMO_MODE) {
-      writeDemoUser(null);
-      setUser(null);
-      showToast("You have been signed out successfully.", "info");
-      return;
-    }
+
 
     try {
       await createClient().auth.signOut();
@@ -251,17 +190,11 @@ export function AuthProvider({ children }) {
   };
 
   const loginWithProvider = async (provider) => {
-    if (DEMO_MODE) {
-      showToast(`${provider} login simulated in demo mode.`);
-      const demoUser = makeDemoUser({ name: `${provider} User`, email: `user@${provider}.com`, role: authRole });
-      writeDemoUser(demoUser);
-      setUser(demoUser);
-      closeAuthModal();
-      return demoUser;
-    }
+    const safeProvider = provider.toLowerCase();
+
     const supabase = createClient();
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
+      provider: safeProvider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -270,11 +203,14 @@ export function AuthProvider({ children }) {
       showToast(error.message, "error");
       throw error;
     }
+    if (data?.url) {
+      window.location.href = data.url;
+    }
     return data;
   };
 
   const resendVerificationEmail = async (email) => {
-    if (DEMO_MODE) return;
+
     const supabase = createClient();
     const { error } = await supabase.auth.resend({
       type: "signup",

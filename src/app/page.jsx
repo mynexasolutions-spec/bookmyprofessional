@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
@@ -63,6 +63,32 @@ export default function HomePage() {
   const [heroService, setHeroService] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [testimonialIndex, setTestimonialIndex] = useState(0);
+  const [savedPros, setSavedPros] = useState({});
+
+  useEffect(() => {
+    const saved = {};
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith("saved_pro_") && window.localStorage.getItem(key) === "true") {
+        saved[key.replace("saved_pro_", "")] = true;
+      }
+    }
+    setSavedPros(saved);
+  }, []);
+
+  const toggleSave = (id, name) => {
+    const isSaved = !!savedPros[id];
+    const key = `saved_pro_${id}`;
+    if (isSaved) {
+      window.localStorage.removeItem(key);
+      setSavedPros(prev => { const n = {...prev}; delete n[id]; return n; });
+      showToast(`${name} removed from your favorites!`, "info");
+    } else {
+      window.localStorage.setItem(key, "true");
+      setSavedPros(prev => ({ ...prev, [id]: true }));
+      showToast(`${name} saved to your favorites!`, "success");
+    }
+  };
 
   const handleHeroSearch = (e) => {
     if (e) e.preventDefault();
@@ -638,10 +664,11 @@ export default function HomePage() {
             {/* 5 Cards Grid: 1 col on mobile, 2 cols on sm, 3 cols on md, 5 cols on xl */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {professionals.map((pro, index) => {
-                const targetPro =
-                  marketplacePros.find((p) =>
-                    p.name.toLowerCase().includes(pro.name.toLowerCase())
-                  ) || marketplacePros[index % marketplacePros.length];
+                const targetPro = marketplacePros?.length > 0
+                  ? (marketplacePros.find((p) =>
+                      p.name.toLowerCase().includes(pro.name.toLowerCase())
+                    ) || marketplacePros[index % marketplacePros.length])
+                  : { id: "pro-1" };
 
                 return (
                   <div
@@ -664,18 +691,17 @@ export default function HomePage() {
                           <span className="text-[10px] font-bold text-dark-800">Verified</span>
                         </div>
 
-                        {/* Top Right Heart Wishlist Button */}
                         <button
                           type="button"
                           aria-label="Save professional"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            showToast(`${pro.name} saved to your favorites!`);
+                            toggleSave(targetPro.id, pro.name);
                           }}
                           className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center text-dark-500 hover:text-danger hover:bg-white transition-colors shadow-xs"
                         >
-                          <Heart className="w-3.5 h-3.5" />
+                          <Heart className={`w-3.5 h-3.5 ${savedPros[targetPro.id] ? "fill-red-500 text-red-500" : ""}`} />
                         </button>
                       </div>
 

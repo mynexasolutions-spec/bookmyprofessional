@@ -78,8 +78,7 @@ export async function refundPayment(bookingId, client) {
 // ponytail: null on error so the vendor page can fall back to proVendorState.payoutHistory.
 export async function listMyPayouts(professionalId, client) {
   if (!professionalId) return null;
-  // ponytail: demo mode has no real professional row -> let the vendor page use its mock history.
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return null;
+
   try {
     const supabase = client || createClient();
     const { data, error } = await supabase
@@ -97,8 +96,7 @@ export async function listMyPayouts(professionalId, client) {
 // ponytail: null on error so the vendor page can fall back to the proVendorState mock numbers.
 export async function getEarningsSummary(professionalId, client) {
   if (!professionalId) return null;
-  // ponytail: demo mode has no real professional row -> let the vendor page use its mock numbers.
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return null;
+
   try {
     const supabase = client || createClient();
     const rate = await getCommissionRate(supabase);
@@ -113,7 +111,7 @@ export async function getEarningsSummary(professionalId, client) {
       .from("payouts")
       .select("amount, status")
       .eq("professional_id", professionalId)
-      .in("status", ["paid", "processing"]);
+      .in("status", ["paid", "processing", "requested"]);
     if (payoutErr) throw payoutErr;
 
     let gross = 0;
@@ -126,13 +124,18 @@ export async function getEarningsSummary(professionalId, client) {
       if (p.status === "released") released += Number(p.pro_payout) || 0;
     });
 
-    const paidOut = (payouts || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    let paidOut = 0;
+    let pendingWithdrawals = 0;
+    (payouts || []).forEach((p) => {
+      if (p.status === "requested") pendingWithdrawals += (Number(p.amount) || 0);
+      else paidOut += (Number(p.amount) || 0);
+    });
 
     return {
       gross: round2(gross),
       commission: round2(commission),
       released: round2(released),
-      available: round2(Math.max(0, released - paidOut)),
+      available: round2(Math.max(0, released - paidOut - pendingWithdrawals)),
       paidOut: round2(paidOut),
       commissionRate: rate,
     };

@@ -29,7 +29,10 @@ import {
   ChevronRight,
   ArrowRight,
   MessageSquare,
+  Camera,
+  Heart,
 } from "lucide-react";
+import { uploadImage, ikImage } from "@/lib/imagekit";
 import { formatMoney } from "@/lib/money";
 
 export default function CustomerDashboardPage() {
@@ -38,14 +41,67 @@ export default function CustomerDashboardPage() {
     cancelBooking,
     customerProfile,
     setCustomerProfile,
+    professionals: marketplacePros,
   } = useMarketplace();
   const { showToast, user, isLoading } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState("bookings"); // "bookings" | "profile" | "invoices"
+  const [activeTab, setActiveTab] = useState("bookings"); // "bookings" | "profile" | "invoices" | "wishlist"
   const [bookingFilter, setBookingFilter] = useState("all"); // "all" | "upcoming" | "in_progress" | "completed" | "cancelled"
   const [profileForm, setProfileForm] = useState(customerProfile);
   const [prefs, setPrefs] = useState(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [savedProIds, setSavedProIds] = useState([]);
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!user?.id) {
+      showToast("Please sign in to update your profile photo.", "error");
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      const url = await uploadImage(file);
+      await updateProfile(user.id, { avatar_url: url });
+      
+      setCustomerProfile(prev => ({ ...prev, avatar_url: url }));
+      setProfileForm(prev => ({ ...prev, avatar_url: url }));
+      
+      showToast("Profile photo updated.", "success");
+    } catch (err) {
+      showToast(err?.message || "Photo upload failed. Please try again.", "error");
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("customerActiveTab");
+    if (saved) {
+      setActiveTab(saved);
+    }
+    
+    // Load wishlist from localStorage
+    const savedIds = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith("saved_pro_") && window.localStorage.getItem(key) === "true") {
+        savedIds.push(key.replace("saved_pro_", ""));
+      }
+    }
+    setSavedProIds(savedIds);
+  }, []);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("customerActiveTab", tabId);
+    }
+  };
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -59,7 +115,20 @@ export default function CustomerDashboardPage() {
 
   // Load the real profile row for signed-in (non-demo) users so edits round-trip to Supabase.
   useEffect(() => {
-    if (!user?.id || user.demo) return;
+    if (!user) return;
+    
+    const meta = user.user_metadata || {};
+    // Immediately set base values from user metadata
+    setCustomerProfile((prev) => ({
+      ...prev,
+      name: prev.name || meta.full_name || meta.name || user.name || "",
+      email: prev.email || user.email || "",
+      phone: prev.phone || meta.phone || "",
+      city: prev.city || meta.city || "",
+    }));
+
+    if (user.demo || !user.id) return;
+
     let active = true;
     getProfile(user.id).then((p) => {
       if (!active || !p) return;
@@ -70,12 +139,13 @@ export default function CustomerDashboardPage() {
         phone: p.phone || prev.phone,
         city: p.city || prev.city,
         address: p.address || prev.address,
+        avatar_url: p.avatar_url || prev.avatar_url,
       }));
     });
     return () => {
       active = false;
     };
-  }, [user?.id, user?.demo, setCustomerProfile]);
+  }, [user, setCustomerProfile]);
 
   useEffect(() => {
     getNotificationPrefs().then(setPrefs);
@@ -199,8 +269,10 @@ export default function CustomerDashboardPage() {
           <div className="bg-surface rounded-2xl border border-border p-6 sm:p-8 shadow-card mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-primary-500 text-white flex items-center justify-center font-bold font-heading text-2xl shadow-soft">
-                  {customerProfile.name ? customerProfile.name.charAt(0) : "A"}
+                <div className="w-14 h-14 rounded-2xl bg-primary-500 text-white flex items-center justify-center font-bold font-heading text-2xl shadow-soft overflow-hidden">
+                  {customerProfile.avatar_url ? (
+                    <img src={ikImage(customerProfile.avatar_url)} alt="Profile" className="w-full h-full object-cover" />
+                  ) : customerProfile.name ? customerProfile.name.charAt(0) : "A"}
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5">
@@ -233,6 +305,7 @@ export default function CustomerDashboardPage() {
             <div className="flex border-b border-border px-6 bg-dark-50/50 gap-6 overflow-x-auto no-scrollbar">
               {[
                 { id: "bookings", label: `My Bookings (${bookings.length})`, icon: Calendar },
+                { id: "wishlist", label: "My Wishlist", icon: Heart },
                 { id: "profile", label: "My Profile & Address", icon: User },
                 { id: "invoices", label: "Invoices & Receipts", icon: FileText },
               ].map((tab) => {
@@ -242,7 +315,7 @@ export default function CustomerDashboardPage() {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabChange(tab.id)}
                     className={`py-4 text-xs sm:text-sm font-semibold flex items-center gap-2 border-b-2 -mb-px transition-all whitespace-nowrap ${
                       isActive
                         ? "border-primary-500 text-primary-600"
@@ -446,6 +519,26 @@ export default function CustomerDashboardPage() {
                     </p>
                   </div>
 
+                  <div className="mb-6 flex items-center gap-5">
+                    <div className="relative w-20 h-20 rounded-2xl bg-dark-100 border border-border shadow-soft overflow-hidden shrink-0">
+                      {profileForm.avatar_url ? (
+                        <img src={ikImage(profileForm.avatar_url)} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-dark-400">
+                          <User className="w-8 h-8" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-heading text-sm font-bold text-dark-900 mb-2">Profile Photo</h4>
+                      <label className={`cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-border bg-white hover:bg-dark-50 text-dark-700 text-xs font-semibold shadow-soft transition-colors ${isUploadingPhoto ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {isUploadingPhoto ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                        {isUploadingPhoto ? "Uploading..." : "Change Photo"}
+                        <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={isUploadingPhoto} />
+                      </label>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-dark-700 mb-1.5">
@@ -491,7 +584,8 @@ export default function CustomerDashboardPage() {
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
                         <input
                           type="tel"
-                          value={profileForm.phone}
+                          value={profileForm.phone || ""}
+                          placeholder="e.g. +91 98765 43210"
                           onChange={(e) =>
                             setProfileForm({ ...profileForm, phone: e.target.value })
                           }
@@ -506,7 +600,8 @@ export default function CustomerDashboardPage() {
                       </label>
                       <input
                         type="text"
-                        value={profileForm.city}
+                        value={profileForm.city || ""}
+                        placeholder="e.g. Mumbai"
                         onChange={(e) =>
                           setProfileForm({ ...profileForm, city: e.target.value })
                         }
@@ -522,7 +617,8 @@ export default function CustomerDashboardPage() {
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
                         <input
                           type="text"
-                          value={profileForm.address}
+                          value={profileForm.address || ""}
+                          placeholder="e.g. 123 Main Street, Appt 4B"
                           onChange={(e) =>
                             setProfileForm({ ...profileForm, address: e.target.value })
                           }
@@ -665,6 +761,74 @@ export default function CustomerDashboardPage() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              )}
+
+              {/* TAB 4: WISHLIST */}
+              {activeTab === "wishlist" && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-heading text-lg font-bold text-dark-900">
+                      My Wishlist
+                    </h3>
+                    <p className="text-xs text-dark-500 mt-1">
+                      Professionals you've saved for later.
+                    </p>
+                  </div>
+
+                  {savedProIds.length === 0 ? (
+                    <div className="text-center py-12 px-4 bg-dark-50 rounded-xl border border-dashed border-border">
+                      <Heart className="w-8 h-8 text-dark-300 mx-auto mb-3" />
+                      <h4 className="text-sm font-bold text-dark-800">Your wishlist is empty</h4>
+                      <p className="text-xs text-dark-500 mt-1 max-w-sm mx-auto mb-4">
+                        Save professionals you like by clicking the heart icon on their profile.
+                      </p>
+                      <Link href="/professionals" className="inline-flex items-center justify-center bg-white border border-border shadow-soft rounded-lg px-4 py-2 text-xs font-semibold text-dark-700 hover:text-primary-600 hover:border-primary-200 transition-colors">
+                        Browse Professionals
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {savedProIds.map(id => {
+                        const pro = marketplacePros?.find(p => p.id === id);
+                        if (!pro) return null;
+                        return (
+                          <div key={pro.id} className="group bg-surface rounded-card border border-border shadow-card hover:shadow-soft hover:border-primary-200 transition-all duration-200 overflow-hidden flex flex-col justify-between">
+                            <Link href={`/professionals/${pro.id}`} className="block">
+                              <div className="relative aspect-square w-full bg-dark-100 overflow-hidden">
+                                <img
+                                  src={ikImage(pro.image || "")}
+                                  alt={pro.name}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    window.localStorage.removeItem(`saved_pro_${pro.id}`);
+                                    setSavedProIds(prev => prev.filter(pId => pId !== pro.id));
+                                    showToast(`${pro.name} removed from wishlist`, "info");
+                                  }}
+                                  className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center text-red-500 hover:bg-white transition-colors shadow-xs"
+                                >
+                                  <Heart className="w-3.5 h-3.5 fill-red-500" />
+                                </button>
+                              </div>
+                              <div className="p-3.5">
+                                <h3 className="font-heading font-bold text-sm text-dark-900 leading-tight truncate group-hover:text-primary-600 transition-colors">
+                                  {pro.name}
+                                </h3>
+                                <p className="text-xs text-dark-600 font-medium mt-0.5">
+                                  {pro.role}
+                                </p>
+                              </div>
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -7,8 +7,34 @@
       "email": "ayesha.khan@example.com"
     },
     "amount": 450,
-    "status": "requested",
+    "status": "rejected",
     "method": "SEPA Bank (DE89...4401)",
-    "requested_at": "2026-09-22T13:58:44.067Z"
+    "requested_at": "2026-09-22T13:58:44.067Z",
+    "processed_at": "2026-09-24T13:37:18.034Z"
+  },
+  {
+    "id": "PAY-892",
+    "professional_id": "2b4c2000-700f-4421-b20c-cf6bbccd5f4e",
+    "professional": {
+      "full_name": "Ramesh Kumar",
+      "email": "ramesh.plumber@example.com"
+    },
+    "amount": 120,
+    "status": "paid",
+    "method": "PayPal (ramesh.plumb...)",
+    "requested_at": "2026-09-20T10:15:22.000Z"
+  },
+  {
+    "id": "PAY-105",
+    "professional_id": "c78fd48a-24f6-4ed2-a390-97f7f9d5b25a",
+    "professional": {
+      "full_name": "Rohit Sharma",
+      "email": "rohit.tutor@example.com"
+    },
+    "amount": 350,
+    "status": "rejected",
+    "method": "Apple Pay",
+    "requested_at": "2026-09-23T08:30:11.000Z",
+    "processed_at": "2026-09-24T13:39:51.788Z"
   }
 ]

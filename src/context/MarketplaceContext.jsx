@@ -48,589 +48,23 @@ function buildMockBooking(bookingData, customerProfile) {
 const MarketplaceContext = createContext(null);
 
 // Initial Verified Professionals Dataset with comprehensive services, schedules, credentials, and reviews
-export const INITIAL_PROFESSIONALS = [
-  {
-    id: "pro-1",
-    name: "Dr. Ayesha Khan",
-    role: "General Physician & Consultant",
-    category: "Doctors",
-    specialty: "Internal Medicine & Family Health",
-    rating: 4.9,
-    reviewCount: 128,
-    location: "Mumbai, India",
-    experienceYears: 12,
-    verified: true,
-    hourlyRate: 50,
-    price: 50,
-    originalPrice: 65,
-    unit: "session",
-    responseTime: "< 30 mins",
-    image: "/images/pro_doctor.jpg",
-    bio: "Board-certified physician with 12+ years of clinical experience in India and the UK. Specializes in preventive healthcare, chronic illness management, general consultations, and wellness planning.",
-    about:
-      "Dr. Ayesha Khan graduated with honors from All India Institute of Medical Sciences (AIIMS), Mumbai and completed advanced residency in Internal Medicine. She provides compassionate, thorough telehealth and in-person medical consultations for patients of all ages.",
-    credentials: [
-      { title: "Medical License (Approbation)", issuer: "Maharashtra Medical Council", year: "2012" },
-      { title: "Doctor of Medicine (M.D.)", issuer: "AIIMS Mumbai", year: "2011" },
-      { title: "Certified Telehealth Practitioner", issuer: "Indian Medical Association", year: "2019" },
-    ],
-    services: [
-      {
-        id: "srv-101",
-        title: "Standard Health Consultation",
-        description: "Comprehensive 30-minute health evaluation, symptom review, and medical advice.",
-        price: 50,
-        duration: "30 mins",
-      },
-      {
-        id: "srv-102",
-        title: "Extended Diagnostic & Prescription Review",
-        description: "In-depth 60-minute review of lab results, ongoing treatments, and chronic illness plan.",
-        price: 85,
-        duration: "60 mins",
-      },
-      {
-        id: "srv-103",
-        title: "Preventive Wellness & Diet Consultation",
-        description: "Personalized lifestyle, dietary assessment, and preventive healthcare strategy.",
-        price: 65,
-        duration: "45 mins",
-      },
-    ],
-    availability: {
-      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-      hours: "09:00 - 18:00",
-      slots: ["09:00 AM", "10:30 AM", "11:30 AM", "02:00 PM", "03:30 PM", "05:00 PM"],
-    },
-    reviews: [
-      {
-        id: "rev-1",
-        userName: "Ananya Iyer",
-        userAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80",
-        rating: 5,
-        date: "2 days ago",
-        comment:
-          "Dr. Khan is incredibly attentive and patient. She explained my diagnosis clearly and prescribed an effective treatment plan. Highly recommend!",
-        verifiedBooking: true,
-      },
-      {
-        id: "rev-2",
-        userName: "Rahul Verma",
-        userAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80",
-        rating: 5,
-        date: "1 week ago",
-        comment:
-          "Super fast scheduling and very professional. The appointment started right on time and all my medical questions were answered.",
-        verifiedBooking: true,
-      },
-    ],
-  },
-  {
-    id: "pro-2",
-    name: "Rohit Sharma",
-    role: "Senior Mathematics & Physics Tutor",
-    category: "Tutors",
-    specialty: "High School, SAT/AP & University Calculus",
-    rating: 4.8,
-    reviewCount: 98,
-    location: "Mumbai, India",
-    experienceYears: 8,
-    verified: true,
-    hourlyRate: 30,
-    price: 30,
-    originalPrice: 40,
-    unit: "hour",
-    responseTime: "< 15 mins",
-    image: "/images/pro_tutor.jpg",
-    bio: "Passionate STEM educator with a Master's in Applied Mathematics. Specializing in making complex calculus, algebra, and physics concepts simple, engaging, and exam-ready.",
-    about:
-      "With over 8 years of tutoring experience across international curricula, Rohit has helped hundreds of students achieve top scores in Abitur, SAT, AP Calculus, and university exams with customized lesson plans.",
-    credentials: [
-      { title: "M.Sc. in Applied Mathematics", issuer: "Indian Institute of Technology (IIT), Delhi", year: "2016" },
-      { title: "Certified Advanced STEM Educator", issuer: "Indian Tutoring Council", year: "2018" },
-    ],
-    services: [
-      {
-        id: "srv-201",
-        title: "1-on-1 High School Mathematics",
-        description: "Targeted problem solving, exam prep, and concept clarity for Algebra/Geometry/Calculus.",
-        price: 30,
-        duration: "60 mins",
-      },
-      {
-        id: "srv-202",
-        title: "Intensive Exam & Test Preparation (SAT / AP)",
-        description: "Focused strategy sessions, past paper walkthroughs, and time management techniques.",
-        price: 45,
-        duration: "90 mins",
-      },
-      {
-        id: "srv-203",
-        title: "University Level Calculus & Linear Algebra",
-        description: "Advanced tutoring for engineering and science undergraduates.",
-        price: 50,
-        duration: "60 mins",
-      },
-    ],
-    availability: {
-      days: ["Monday", "Wednesday", "Friday", "Saturday", "Sunday"],
-      hours: "10:00 - 20:00",
-      slots: ["10:00 AM", "11:30 AM", "01:30 PM", "03:00 PM", "05:00 PM", "06:30 PM"],
-    },
-    reviews: [
-      {
-        id: "rev-3",
-        userName: "Priya Sharma",
-        userAvatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80",
-        rating: 5,
-        date: "3 days ago",
-        comment:
-          "Rohit helped my daughter move from a C to an A in Calculus within 6 weeks. His explanations and visual tricks are phenomenal.",
-        verifiedBooking: true,
-      },
-    ],
-  },
-  {
-    id: "pro-3",
-    name: "Ahmed Ali",
-    role: "Master Electrician & Smart Home Specialist",
-    category: "Electricians",
-    specialty: "Wiring, Fuse Box, Solar & EV Charger Installs",
-    rating: 4.7,
-    reviewCount: 86,
-    location: "Mumbai, India",
-    experienceYears: 10,
-    verified: true,
-    hourlyRate: 40,
-    price: 40,
-    originalPrice: 60,
-    unit: "hour",
-    responseTime: "< 45 mins",
-    image: "/images/pro_electrician.jpg",
-    bio: "Certified master electrician with a decade of expertise in residential electrical repairs, complete rewiring, emergency fault detection, and modern smart home automation.",
-    about:
-      "Fully certified under Indian IS standards with complete liability insurance. Ahmed handles everything from quick socket fixes to full residential electrical overhauls safely and punctually.",
-    credentials: [
-      { title: "Master Electrician Certification", issuer: "Maharashtra Electrical Licensing Board", year: "2014" },
-      { title: "Certified Smart Home Installer", issuer: "KNX Association", year: "2020" },
-    ],
-    services: [
-      {
-        id: "srv-301",
-        title: "Electrical Inspection & Fault Diagnosis",
-        description: "Emergency circuit check, tripping fuse troubleshooting, and safety certification.",
-        price: 40,
-        duration: "60 mins",
-      },
-      {
-        id: "srv-302",
-        title: "Light Fixture & Appliance Installation",
-        description: "Installation of ceiling fans, pendant lights, oven/cooktop connections, and smart switches.",
-        price: 60,
-        duration: "90 mins",
-      },
-      {
-        id: "srv-303",
-        title: "Full Fuse Box Upgrade & Surge Protection",
-        description: "Modern breaker board replacement with RCBO safety switches.",
-        price: 150,
-        duration: "180 mins",
-      },
-    ],
-    availability: {
-      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-      hours: "08:00 - 19:00",
-      slots: ["08:30 AM", "10:00 AM", "12:00 PM", "02:30 PM", "04:30 PM", "06:00 PM"],
-    },
-    reviews: [
-      {
-        id: "rev-4",
-        userName: "Karan Malhotra",
-        userAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80",
-        rating: 5,
-        date: "5 days ago",
-        comment:
-          "Ahmed arrived equipped with all necessary tools, identified a hidden short circuit within 20 minutes, and resolved it cleanly.",
-        verifiedBooking: true,
-      },
-    ],
-  },
-  {
-    id: "pro-4",
-    name: "Sara Khan",
-    role: "Certified Beautician & Skin Specialist",
-    category: "Beauticians",
-    specialty: "Bridal Makeup, Facials & Hair Styling",
-    rating: 4.9,
-    reviewCount: 112,
-    location: "Mumbai, India",
-    experienceYears: 7,
-    verified: true,
-    hourlyRate: 35,
-    price: 35,
-    originalPrice: 50,
-    unit: "session",
-    responseTime: "< 20 mins",
-    image: "/images/pro_beautician.jpg",
-    bio: "International certified makeup artist and aesthetician providing luxury at-home salon treatments, organic facials, skin rejuvenation, and event makeup.",
-    about:
-      "Trained at the London Academy of Beauty & Aesthetics. Sara utilizes top-tier hypoallergenic, cruelty-free cosmetic brands tailored specifically to your skin type.",
-    credentials: [
-      { title: "Diploma in Professional Aesthetics & Makeup", issuer: "CIDESCO India", year: "2017" },
-      { title: "Organic Skincare Specialist Certification", issuer: "Indian Beauty & Aesthetics Guild", year: "2019" },
-    ],
-    services: [
-      {
-        id: "srv-401",
-        title: "Hydrating Facial & Skin Rejuvenation",
-        description: "Deep pore cleansing, exfoliation, herbal steam, and collagen mask.",
-        price: 35,
-        duration: "45 mins",
-      },
-      {
-        id: "srv-402",
-        title: "Glam Party & Event Makeup",
-        description: "Full face HD makeup including false lash application and contouring.",
-        price: 65,
-        duration: "60 mins",
-      },
-      {
-        id: "srv-403",
-        title: "Complete Bridal / Special Occasion Package",
-        description: "Hair styling, HD bridal makeup, pre-treatment skin prep and setting.",
-        price: 120,
-        duration: "120 mins",
-      },
-    ],
-    availability: {
-      days: ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-      hours: "09:00 - 19:00",
-      slots: ["09:30 AM", "11:00 AM", "01:00 PM", "03:00 PM", "05:00 PM", "06:30 PM"],
-    },
-    reviews: [
-      {
-        id: "rev-5",
-        userName: "Sneha Kulkarni",
-        userAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
-        rating: 5,
-        date: "4 days ago",
-        comment:
-          "Sara is a true artist! My skin was glowing and the party makeup lasted through the entire night without a touch up.",
-        verifiedBooking: true,
-      },
-    ],
-  },
-  {
-    id: "pro-5",
-    name: "Ramesh Kumar",
-    role: "Master Plumber & Heating Engineer",
-    category: "Plumbers",
-    specialty: "Leak Repairs, Pipe Fitting & Boiler Maintenance",
-    rating: 4.8,
-    reviewCount: 74,
-    location: "Mumbai, India",
-    experienceYears: 14,
-    verified: true,
-    hourlyRate: 45,
-    price: 45,
-    originalPrice: 65,
-    unit: "hour",
-    responseTime: "< 25 mins",
-    image: "/images/pro_plumber.jpg",
-    bio: "Licensed master plumber with 14+ years servicing residential and commercial plumbing systems, bathroom renovations, drainage clearance, and boiler servicing.",
-    about:
-      "Equipped with the latest thermal imaging leak detection and high-pressure pipe cleaning tools. Available for scheduled repairs and rapid emergency fixes.",
-    credentials: [
-      { title: "Master Plumber Certification", issuer: "Maharashtra Electrical Licensing Board", year: "2010" },
-      { title: "Certified Gas & Water Safety Inspector", issuer: "Indian Plumbing Association", year: "2015" },
-    ],
-    services: [
-      {
-        id: "srv-501",
-        title: "Emergency Pipe Leak Repair & Tap Fixing",
-        description: "Rapid leak detection, pipe sealing, tap washer/cartridge replacement.",
-        price: 45,
-        duration: "60 mins",
-      },
-      {
-        id: "srv-502",
-        title: "Clogged Drain & Sewer Line Jetting",
-        description: "High-pressure clearing of blocked kitchen/bathroom drains and waste pipes.",
-        price: 75,
-        duration: "75 mins",
-      },
-      {
-        id: "srv-503",
-        title: "Water Heater & Boiler Health Inspection",
-        description: "Complete pressure testing, valve check, and heating efficiency tuning.",
-        price: 95,
-        duration: "90 mins",
-      },
-    ],
-    availability: {
-      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-      hours: "08:00 - 18:00",
-      slots: ["08:00 AM", "10:00 AM", "12:00 PM", "02:00 PM", "04:00 PM"],
-    },
-    reviews: [
-      {
-        id: "rev-6",
-        userName: "Aisha Sheikh",
-        userAvatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120&auto=format&fit=crop&q=80",
-        rating: 5,
-        date: "1 week ago",
-        comment:
-          "Daniel fixed our leaking pipe under the kitchen sink very quickly. Neat, polite, and very reasonable pricing.",
-        verifiedBooking: true,
-      },
-    ],
-  },
-  {
-    id: "pro-6",
-    name: "Arjun Mehta",
-    role: "Senior IT Support & Cybersecurity Specialist",
-    category: "IT Professionals",
-    specialty: "Network Setup, Data Recovery & Hardware Fixes",
-    rating: 4.9,
-    reviewCount: 65,
-    location: "Delhi, India",
-    experienceYears: 9,
-    verified: true,
-    hourlyRate: 55,
-    price: 55,
-    originalPrice: 75,
-    unit: "hour",
-    responseTime: "< 20 mins",
-    image: "/images/cat_it_pro.jpg",
-    bio: "Senior systems engineer providing on-demand IT troubleshooting, Wi-Fi mesh setup, cybersecurity audits, backup configuration, and Mac/PC repairs.",
-    about:
-      "CompTIA Security+ and Cisco CCNA certified. Johannes provides remote and on-site support for home offices and small business infrastructure.",
-    credentials: [
-      { title: "B.Sc. in Computer Science", issuer: "IIT Delhi", year: "2015" },
-      { title: "Cisco Certified Network Associate (CCNA)", issuer: "Cisco Systems", year: "2018" },
-      { title: "CompTIA Security+ Certified", issuer: "CompTIA", year: "2021" },
-    ],
-    services: [
-      {
-        id: "srv-601",
-        title: "PC/Mac Diagnostic & Virus Removal",
-        description: "Full system optimization, malware scan, OS repair, and hardware test.",
-        price: 55,
-        duration: "60 mins",
-      },
-      {
-        id: "srv-602",
-        title: "Home Office Wi-Fi Mesh & Network Setup",
-        description: "Coverage mapping, router security hardening, and high-speed network setup.",
-        price: 80,
-        duration: "90 mins",
-      },
-      {
-        id: "srv-603",
-        title: "Data Recovery & Automated Cloud Backup",
-        description: "Encrypted backup solution and corrupted drive recovery.",
-        price: 110,
-        duration: "120 mins",
-      },
-    ],
-    availability: {
-      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-      hours: "09:00 - 18:00",
-      slots: ["09:00 AM", "11:00 AM", "01:30 PM", "03:30 PM", "05:00 PM"],
-    },
-    reviews: [
-      {
-        id: "rev-7",
-        userName: "Rohan Mehta",
-        userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80",
-        rating: 5,
-        date: "2 weeks ago",
-        comment:
-          "Johannes revived my bricked MacBook and salvaged all my work files. Absolute lifesaver!",
-        verifiedBooking: true,
-      },
-    ],
-  },
-  {
-    id: "pro-7",
-    name: "Priya Nair",
-    role: "Professional Home & Deep Cleaning Specialist",
-    category: "Cleaners",
-    specialty: "Eco-friendly Deep Clean, Move-in/out & Sanitize",
-    rating: 4.8,
-    reviewCount: 92,
-    location: "Bangalore, India",
-    experienceYears: 6,
-    verified: true,
-    hourlyRate: 28,
-    price: 28,
-    originalPrice: 38,
-    unit: "hour",
-    responseTime: "< 30 mins",
-    image: "/images/cat_cleaner.jpg",
-    bio: "Meticulous professional cleaner using non-toxic, eco-certified cleaning agents. Specializing in residential deep cleaning, Airbnb turnovers, and post-tenancy handovers.",
-    about:
-      "Fully vetted with liability insurance and background verification. Brings all high-end HEPA vacuum equipment, microfibers, and eco-friendly products.",
-    credentials: [
-      { title: "Certified Professional Housekeeper", issuer: "Indian Housekeeping Institute", year: "2018" },
-      { title: "Hygiene & Sanitization Compliance Certificate", issuer: "Health & Safety India", year: "2021" },
-    ],
-    services: [
-      {
-        id: "srv-701",
-        title: "Standard Residential Maintenance Clean",
-        description: "Dusting, vacuuming, mopping, bathroom disinfection, and kitchen wipe-down.",
-        price: 28,
-        duration: "60 mins",
-      },
-      {
-        id: "srv-702",
-        title: "Comprehensive Move-in / Move-out Deep Clean",
-        description: "Inside oven/fridge, baseboards, window sills, and deep lime descaling.",
-        price: 84,
-        duration: "180 mins",
-      },
-    ],
-    availability: {
-      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-      hours: "08:30 - 17:30",
-      slots: ["08:30 AM", "11:00 AM", "01:30 PM", "04:00 PM"],
-    },
-    reviews: [
-      {
-        id: "rev-8",
-        userName: "Anita Sharma",
-        userAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80",
-        rating: 5,
-        date: "6 days ago",
-        comment: "My apartment has never looked this spotless! Clara is super thorough and very friendly.",
-        verifiedBooking: true,
-      },
-    ],
-  },
-  {
-    id: "pro-8",
-    name: "Vikram Desai",
-    role: "Certified Business & Tax Consultant",
-    category: "Consultants",
-    specialty: "Freelancer Taxes, Business Plans & Legal Setup",
-    rating: 4.9,
-    reviewCount: 53,
-    location: "Hyderabad, India",
-    experienceYears: 15,
-    verified: true,
-    hourlyRate: 70,
-    price: 70,
-    originalPrice: 95,
-    unit: "session",
-    responseTime: "< 40 mins",
-    image: "/images/cat_consultant.jpg",
-    bio: "Senior financial consultant and certified business advisor helping startups, freelancers, and small enterprises streamline accounting, optimize tax deductions, and scale safely.",
-    about:
-      "Over 15 years advising in Mumbai financial district. Fluent in Hindi and English, offering actionable, step-by-step guidance tailored to Indian tax regulations.",
-    credentials: [
-      { title: "Master of Finance & Accounting", issuer: "Indian Institute of Banking & Finance", year: "2009" },
-      { title: "Certified Tax Advisory Professional", issuer: "Institute of Chartered Accountants of India (ICAI)", year: "2012" },
-    ],
-    services: [
-      {
-        id: "srv-801",
-        title: "Freelancer Tax & Registration Strategy",
-        description: "Finanzamt setup, Kleinunternehmerregelung analysis, and deductible expenses.",
-        price: 70,
-        duration: "45 mins",
-      },
-      {
-        id: "srv-802",
-        title: "Full Business Model & Financial Plan Audit",
-        description: "Cash flow modeling, investor pitch review, and growth structure analysis.",
-        price: 130,
-        duration: "90 mins",
-      },
-    ],
-    availability: {
-      days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-      hours: "09:00 - 17:00",
-      slots: ["09:00 AM", "11:00 AM", "02:00 PM", "04:00 PM"],
-    },
-    reviews: [
-      {
-        id: "rev-9",
-        userName: "Tarun Bhatia",
-        userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80",
-        rating: 5,
-        date: "3 weeks ago",
-        comment: "Marc saved my startup thousands in tax structuring. Worth every single cent!",
-        verifiedBooking: true,
-      },
-    ],
-  },
-];
+export const INITIAL_PROFESSIONALS = [];
 
 // Initial demo bookings
-export const INITIAL_BOOKINGS = [
-  {
-    id: "BMP-84920",
-    proId: "pro-1",
-    proName: "Dr. Ayesha Khan",
-    proRole: "General Physician & Consultant",
-    proAvatar: "/images/pro_doctor.jpg",
-    serviceTitle: "Standard Health Consultation",
-    servicePrice: 50,
-    platformFee: 3.5,
-    totalPaid: 50,
-    date: "2026-09-22",
-    timeSlot: "10:30 AM",
-    address: "Bandra Kurla Complex, Mumbai 400051",
-    customerNotes: "Annual general checkup & routine blood test review.",
-    customerName: "Alex Morgan",
-    customerEmail: "alex.morgan@example.com",
-    customerPhone: "+91 98200 98765",
-    status: "upcoming", // "upcoming" | "in_progress" | "completed" | "cancelled"
-    paymentStatus: "paid",
-    paymentMethod: "Visa ending in •••• 4242",
-    createdAt: "2026-09-15T14:30:00Z",
-    hasReview: false,
-  },
-  {
-    id: "BMP-73911",
-    proId: "pro-3",
-    proName: "Ahmed Ali",
-    proRole: "Master Electrician",
-    proAvatar: "/images/pro_electrician.jpg",
-    serviceTitle: "Electrical Inspection & Fault Diagnosis",
-    servicePrice: 40,
-    platformFee: 3.5,
-    totalPaid: 40,
-    date: "2026-09-10",
-    timeSlot: "02:30 PM",
-    address: "Linking Road, Bandra West, Mumbai 400050",
-    customerNotes: "Tripping breaker in the living room socket.",
-    customerName: "Alex Morgan",
-    customerEmail: "alex.morgan@example.com",
-    customerPhone: "+91 98200 98765",
-    status: "completed",
-    paymentStatus: "paid",
-    paymentMethod: "PayPal (alex@example.com)",
-    createdAt: "2026-09-08T09:15:00Z",
-    hasReview: true,
-    reviewRating: 5,
-    reviewText: "Quick diagnostic and repaired right away.",
-  },
-];
+export const INITIAL_BOOKINGS = [];
 
 export function MarketplaceProvider({ children }) {
   const { user, showToast } = useAuth();
 
   // Master State
-  const [professionals, setProfessionals] = useState(INITIAL_PROFESSIONALS);
+  const [professionals, setProfessionals] = useState([]);
   // Server-filtered, paginated page of the directory. Detail/booking pages keep using the full `professionals` list.
-  const [filteredProfessionals, setFilteredProfessionals] = useState(INITIAL_PROFESSIONALS);
+  const [filteredProfessionals, setFilteredProfessionals] = useState([]);
   const [locations, setLocations] = useState(DEFAULT_LOCATIONS);
   const [isLoadingProfessionals, setIsLoadingProfessionals] = useState(true);
-  const [bookings, setBookings] = useState(INITIAL_BOOKINGS);
+  const [bookings, setBookings] = useState([]);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(INITIAL_PROFESSIONALS.length);
+  const [total, setTotal] = useState(0);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // Directory Filter State
@@ -654,12 +88,12 @@ export function MarketplaceProvider({ children }) {
 
   // Customer Profile State
   const [customerProfile, setCustomerProfile] = useState({
-    name: "Alex Morgan",
-    email: "alex.morgan@example.com",
-    phone: "+91 98200 98765",
-    address: "Bandra Kurla Complex",
-    city: "Mumbai",
-    postalCode: "10117",
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    postalCode: "",
   });
 
   // Professional Vendor State (Simulated for active pro user)
@@ -707,7 +141,6 @@ export function MarketplaceProvider({ children }) {
           page: 1,
           pageSize: 500,
           locations: locs,
-          seed: INITIAL_PROFESSIONALS,
         });
         if (active && rows.length > 0) setProfessionals(rows);
       } finally {
@@ -744,7 +177,6 @@ export function MarketplaceProvider({ children }) {
         availabilitySlot,
         page,
         pageSize: DEFAULT_PAGE_SIZE,
-        seed: professionals,
         locations,
       });
       if (!active) return;
@@ -859,26 +291,12 @@ export function MarketplaceProvider({ children }) {
     });
   };
 
-  // Create new booking (sync optimistic for legacy callers). Persists to supabase in the background
-  // and reconciles; BookingModal uses the data layer directly so it can surface slot conflicts.
-  const createBooking = (bookingData) => {
-    const newBooking = buildMockBooking(bookingData, customerProfile);
-    addBooking(newBooking);
+  const createBooking = async (bookingData) => {
+    const realBooking = await createBookingRow(bookingData);
+    addBooking(realBooking);
     bumpVendorEarnings(bookingData.service?.price || 0);
-    showToast(`Booking ${newBooking.id} confirmed! Check 'My Bookings' for details.`, "success");
-
-    createBookingRow(bookingData)
-      .then((real) => setBookings((prev) => prev.map((b) => (b.id === newBooking.id ? real : b))))
-      .catch(() => {
-        // ponytail: keep the optimistic booking while schema/session is unavailable
-        fetch("/api/bookings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newBooking),
-        }).catch(console.error);
-      });
-
-    return newBooking;
+    showToast(`Booking ${realBooking.id} confirmed! Check 'My Bookings' for details.`, "success");
+    return realBooking;
   };
 
   // Cancel Booking. Policy/validation errors (e.g. cancellation window) are rethrown for the caller to show.
@@ -921,14 +339,8 @@ export function MarketplaceProvider({ children }) {
   // to the in-memory mock when supabase/schema is unavailable. Callers close the modal.
   const submitReview = async (bookingId, proId, rating, comment, breakdown = {}) => {
     let persisted = false;
-    try {
-      await submitReviewRow({ bookingId, professionalId: proId, rating, comment, breakdown });
-      persisted = true;
-    } catch (err) {
-      // Surface validation errors (own/completed booking, duplicate review) to the caller.
-      if (err?.isUserFacing) throw err;
-      // ponytail: mock fallback while schema/session is unavailable — remove once reviews are live.
-    }
+    await submitReviewRow({ bookingId, professionalId: proId, rating, comment, breakdown });
+    persisted = true;
 
     // 1. Mark booking as reviewed
     setBookings((prev) =>
@@ -988,53 +400,20 @@ export function MarketplaceProvider({ children }) {
   // Request Payout
   const requestPayout = async (amount) => {
     const amt = parseFloat(amount);
-
-    if (user?.id) {
-      try {
-        await requestPayoutRow(user.id, amt, "SEPA Bank (DE89...4401)");
-        showToast(`Payout request of ${formatMoney(amt)} submitted successfully!`, "success");
-        return true;
-      } catch {
-        // ponytail: fall through to the mock payout while schema/session is unavailable.
-      }
-    }
-
-    if (amt > proVendorState.availablePayout) {
-      showToast("Requested amount exceeds available balance.", "error");
+    if (!user?.id) {
+      showToast("You must be logged in to request a payout.", "error");
       return false;
     }
-    const newPayout = {
-      id: `PAY-${Math.floor(100 + Math.random() * 900)}`,
-      date: "Just now",
-      amount: amt,
-      status: "Processing (1-2 business days)",
-      method: "SEPA Bank (DE89...4401)",
-    };
-
-    setProVendorState((prev) => ({
-      ...prev,
-      paidOutAmount: prev.paidOutAmount + amt,
-      availablePayout: prev.availablePayout - amt,
-      payoutHistory: [newPayout, ...prev.payoutHistory],
-    }));
     
-    // Persist to the local json fallback
-    fetch("/api/payouts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: newPayout.id,
-        professional_id: user?.id || "pro-1",
-        professional: { full_name: proVendorState.name || "Vendor" },
-        amount: newPayout.amount,
-        status: "requested",
-        method: newPayout.method,
-        requested_at: new Date().toISOString()
-      }),
-    }).catch(console.error);
-
-    showToast(`Payout request of ${formatMoney(amount)} submitted successfully!`, "success");
-    return true;
+    try {
+      await requestPayoutRow(user.id, amt, "SEPA Bank (DE89...4401)");
+      showToast(`Payout request of ${formatMoney(amt)} submitted successfully!`, "success");
+      return true;
+    } catch (error) {
+      console.error(error);
+      showToast("Failed to submit payout request. Check your balance.", "error");
+      return false;
+    }
   };
 
   // Upload verification document

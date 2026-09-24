@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { adminLogout } from "@/actions/admin";
 import {
@@ -30,6 +30,7 @@ import {
   SlidersHorizontal,
   Megaphone,
   MessageSquare,
+  RefreshCw,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 
@@ -90,10 +91,19 @@ export default function AdminDashboard({
   settings = {},
   contactMessages = [],
   adminId = "admin",
+  initialTab = "overview",
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlTab = searchParams.get("tab") || initialTab;
+  
   const { showToast } = useAuth();
-  const [activeSection, setActiveSection] = useState("overview");
+  const [activeSection, setActiveSection] = useState(urlTab);
+
+  // Sync state if URL changes externally
+  useEffect(() => {
+    setActiveSection(urlTab);
+  }, [urlTab]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [busy, setBusy] = useState(null);
@@ -140,16 +150,16 @@ export default function AdminDashboard({
       label: "Marketplace",
       items: [
         { id: "verification", label: "Verification", icon: FileCheck, count: documents.length },
-        { id: "bookings", label: "Bookings", icon: Calendar, count: bookings.length },
+        { id: "bookings", label: "Bookings", icon: Calendar },
         { id: "reviews", label: "Reviews", icon: Star, count: reviews.length },
-        { id: "payouts", label: "Payouts", icon: DollarSign, count: payouts.length },
+        { id: "payouts", label: "Withdrawals", icon: DollarSign, count: payouts.filter(p => p.status === "requested").length },
         { id: "professionals", label: "Professionals", icon: ShieldCheck },
         { id: "categories", label: "Categories", icon: Tag },
       ],
     },
     {
       label: "Accounts",
-      items: [{ id: "users", label: "Users", icon: Users, count: users.length }],
+      items: [{ id: "users", label: "Users", icon: Users }],
     },
     {
       label: "System",
@@ -193,6 +203,8 @@ export default function AdminDashboard({
   const goTo = (id) => {
     setActiveSection(id);
     setSidebarOpen(false);
+    router.push(`?tab=${id}`);
+    router.refresh();
   };
 
   return (
@@ -300,6 +312,13 @@ export default function AdminDashboard({
               <ExternalLink className="w-3.5 h-3.5" />
               View Site
             </Link>
+            <button
+              onClick={() => router.refresh()}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-xs font-semibold text-dark-600 hover:bg-dark-50 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Refresh Data
+            </button>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -442,7 +461,19 @@ export default function AdminDashboard({
                             <h3 className="text-xs sm:text-sm font-bold text-dark-900">{doc.type}</h3>
                             <p className="text-xs text-dark-500 mt-0.5">
                               {doc.professional?.full_name || "Unknown professional"}
-                              {doc.file_path ? ` • ${doc.file_path.split("/").pop()}` : ""}
+                              {doc.file_path && (
+                                <>
+                                  {" • "}
+                                  <a 
+                                    href={doc.signedUrl || "#"}
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-primary-600 hover:underline"
+                                  >
+                                    {doc.file_path.split("/").pop()}
+                                  </a>
+                                </>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -746,13 +777,13 @@ export default function AdminDashboard({
           {activeSection === "payouts" && (
             <div className="space-y-4">
               <div>
-                <h2 className="font-heading text-2xl font-bold text-dark-900">Payouts</h2>
-                <p className="text-sm text-muted mt-1">Withdrawal requests from professionals.</p>
+                <h2 className="font-heading text-2xl font-bold text-dark-900">Withdrawals (Payouts)</h2>
+                <p className="text-sm text-muted mt-1">Withdrawal requests from professionals. Customer payments are visible in the Bookings tab.</p>
               </div>
               {payouts.length === 0 ? (
                 <EmptyState
                   icon={DollarSign}
-                  title="No payout requests"
+                  title="No withdrawal requests"
                   hint="Withdrawal requests from professionals will appear here."
                 />
               ) : (
@@ -813,7 +844,31 @@ export default function AdminDashboard({
                                   </button>
                                 </div>
                               ) : (
-                                <span className="block text-right text-dark-400">—</span>
+                                <div className="flex items-center justify-end gap-2.5">
+                                  <span className="text-dark-400 text-xs italic mr-2">Processed</span>
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={async () => {
+                                      if (confirm("Delete this payout record?")) {
+                                        setBusy(key);
+                                        try {
+                                          await post("/api/admin/payout", { payoutId: payout.id, action: "delete" }, "DELETE");
+                                          showToast("Payout deleted", "success");
+                                          router.refresh();
+                                        } catch(e) {
+                                          showToast(e.message, "error");
+                                        } finally {
+                                          setBusy(null);
+                                        }
+                                      }
+                                    }}
+                                    className="p-2 rounded-lg text-dark-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                    title="Delete Record"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -1026,11 +1081,20 @@ export default function AdminDashboard({
 
           {activeSection === "professionals" && (
             <div className="space-y-4">
-              <div>
-                <h2 className="font-heading text-2xl font-bold text-dark-900">Professionals</h2>
-                <p className="text-sm text-muted mt-1">
-                  Approve verification and toggle marketplace visibility.
-                </p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-heading text-2xl font-bold text-dark-900">Professionals</h2>
+                  <p className="text-sm text-muted mt-1">
+                    Approve verification and toggle marketplace visibility.
+                  </p>
+                </div>
+                <Link
+                  href="/register"
+                  target="_blank"
+                  className="py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm"
+                >
+                  + Add New Professional
+                </Link>
               </div>
               {professionals.length === 0 ? (
                 <EmptyState
