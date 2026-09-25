@@ -29,6 +29,8 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [step, setStep] = useState("form");
+  const [otp, setOtp] = useState("");
 
   const [form, setForm] = useState({
     fullName: "",
@@ -72,6 +74,51 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
+      // Step 1: Send OTP via Brevo API
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email, type: 'signup' })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send OTP.');
+      }
+      
+      setStep("otp");
+      showToast("OTP sent to your email. Please check your inbox.", "info");
+    } catch (err) {
+      setErrorMessage(err.message || "Failed to initiate registration.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setErrorMessage("");
+    
+    if (otp.length !== 6) {
+      setErrorMessage("Please enter the 6-digit OTP.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Step 2: Verify OTP
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email, type: 'signup', otp })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Invalid or expired OTP.');
+      }
+
+      // Step 3: Complete actual Supabase Signup
       const result = await signup({
         fullName: form.fullName,
         email: form.email,
@@ -88,7 +135,7 @@ export default function RegisterPage() {
       }
       router.push(authRole === "professional" ? "/vendor" : "/dashboard");
     } catch (err) {
-      setErrorMessage(err.message || "Sign up failed. Please try again.");
+      setErrorMessage(err.message || "Verification failed.");
     } finally {
       setIsLoading(false);
     }
@@ -161,6 +208,46 @@ export default function RegisterPage() {
               <span>{errorMessage}</span>
             </div>
           )}
+
+          {step === "otp" ? (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1">
+                  Enter 6-digit OTP sent to {form.email}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full px-4 py-3 text-center tracking-[1em] font-heading font-bold bg-surface border border-border rounded-xl text-lg text-dark-900 focus:outline-none focus:border-primary-500"
+                  />
+                </div>
+              </div>
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                className="w-full rounded-xl py-3 text-sm"
+                disabled={isLoading}
+              >
+                {isLoading ? "Verifying..." : "Verify & Create Account"}
+              </Button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => { setStep("form"); setOtp(""); setErrorMessage(""); }}
+                  className="text-xs text-primary-600 font-medium hover:underline"
+                >
+                  Change Email / Go Back
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
 
 
 
@@ -342,6 +429,8 @@ export default function RegisterPage() {
               Sign In
             </Link>
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>

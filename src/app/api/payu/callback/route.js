@@ -45,6 +45,13 @@ export async function POST(req) {
         .from('bookings')
         .update({ payment_status: 'paid', status: 'upcoming' })
         .eq('id', txnid);
+        
+      if (data.mihpayid) {
+        await supabase
+          .from('payments')
+          .update({ provider_ref: data.mihpayid })
+          .eq('booking_id', txnid);
+      }
       
       // Redirect to a success page or back to the app with a success parameter
       return NextResponse.redirect(new URL(`/dashboard?payment=success&bookingId=${txnid}`, req.url), { status: 303 });

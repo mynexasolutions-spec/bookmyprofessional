@@ -179,16 +179,46 @@ export async function updateUserSuspended(client, userId, suspended) {
   return true;
 }
 
-// ponytail: profiles delete cascades to professionals/bookings; auth user delete is best-effort.
 export async function deleteUser(client, userId) {
   const supabase = client || (await createClient());
-  const { error } = await supabase.from("profiles").delete().eq("id", userId);
-  if (error) throw error;
+  
+  // Attempt to delete auth user first (might cascade depending on DB setup)
   try {
     await supabase.auth.admin.deleteUser(userId);
   } catch {
-    // ponytail: auth row may outlive profile if service role lacks auth admin scope; ignore.
+    // Ignore auth deletion errors
   }
+
+  // Manually delete dependent records to avoid Foreign Key constraint errors
+  // Find user bookings to delete their payments
+  const { data: userBookings } = await supabase
+    .from("bookings")
+    .select("id")
+    .or(`customer_id.eq.${userId},professional_id.eq.${userId}`);
+  
+  if (userBookings && userBookings.length > 0) {
+    const bookingIds = userBookings.map(b => b.id);
+    await supabase.from("payments").delete().in("booking_id", bookingIds);
+  }
+
+  await Promise.all([
+    supabase.from("reviews").delete().eq("customer_id", userId),
+    supabase.from("reviews").delete().eq("professional_id", userId),
+    supabase.from("documents").delete().eq("professional_id", userId),
+    supabase.from("payouts").delete().eq("professional_id", userId),
+    supabase.from("bookings").delete().eq("customer_id", userId),
+    supabase.from("bookings").delete().eq("professional_id", userId),
+  ]);
+
+  await supabase.from("professionals").delete().eq("id", userId);
+
+  const { error } = await supabase.from("profiles").delete().eq("id", userId);
+  
+  if (error) {
+    console.error("Failed to delete profile:", error);
+    throw error;
+  }
+  
   return true;
 }
 
