@@ -97,6 +97,9 @@ export default function AdminDashboard({
   const searchParams = useSearchParams();
   const urlTab = searchParams.get("tab") || initialTab;
   
+  // Filter out pending/abandoned bookings (upcoming but unpaid) from the admin view
+  const validBookings = bookings.filter((b) => !(b.status === "upcoming" && b.payment_status === "unpaid"));
+  
   const { showToast } = useAuth();
   const [activeSection, setActiveSection] = useState(urlTab);
 
@@ -198,7 +201,7 @@ export default function AdminDashboard({
     },
   ];
 
-  const recentBookings = bookings.slice(0, 8);
+  const recentBookings = validBookings.slice(0, 8);
 
   const goTo = (id) => {
     setActiveSection(id);
@@ -591,7 +594,7 @@ export default function AdminDashboard({
                 <h2 className="font-heading text-2xl font-bold text-dark-900">Bookings</h2>
                 <p className="text-sm text-muted mt-1">Every booking placed on the marketplace.</p>
               </div>
-              {bookings.length === 0 ? (
+              {validBookings.length === 0 ? (
                 <EmptyState
                   icon={Calendar}
                   title="No bookings yet"
@@ -614,7 +617,7 @@ export default function AdminDashboard({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {bookings.map((booking) => {
+                      {validBookings.map((booking) => {
                         const key = `booking:${booking.id}`;
                         const isBusy = busy === key;
                         return (

@@ -66,8 +66,18 @@ export default function BookingModal() {
     notes: "",
   });
 
+  // Keep form updated if profile loads late
+  useEffect(() => {
+    setAddressDetails((prev) => ({
+      ...prev,
+      name: prev.name || customerProfile.name || "",
+      email: prev.email || customerProfile.email || "",
+      phone: prev.phone || customerProfile.phone || "",
+    }));
+  }, [customerProfile]);
+
   // Payment method
-  const [paymentMethod, setPaymentMethod] = useState("card"); // "card" | "paypal" | "applepay" | "sepa"
+  const [paymentMethod, setPaymentMethod] = useState("payu"); // "payu"
   const [cardDetails, setCardDetails] = useState({
     number: "",
     expiry: "",
@@ -142,31 +152,68 @@ export default function BookingModal() {
       customerName: addressDetails.name,
       customerEmail: addressDetails.email,
       customerPhone: addressDetails.phone,
-      paymentMethod:
-        paymentMethod === "card"
-          ? "Visa ending in •••• 4242"
-          : paymentMethod === "paypal"
-          ? "PayPal (Instant)"
-          : paymentMethod === "applepay"
-          ? "Apple Pay"
-          : "SEPA Direct Debit",
+      paymentMethod: "PayU",
+      paymentStatus: "unpaid"
     };
 
     try {
       const newBooking = await createBookingRow(payload);
       addBooking(newBooking);
-      setConfirmedBookingData(newBooking);
-      setCurrentStep(5);
+
+      const servicePrice = selectedService ? selectedService.price : bookingPro.price;
+      const totalAmount = servicePrice; // no platform fee
+
+      const hashRes = await fetch("/api/payu/hash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          txnid: newBooking.id,
+          amount: totalAmount,
+          productinfo: selectedService?.title || "Professional Service",
+          firstname: addressDetails.name || "Customer",
+          email: addressDetails.email || "customer@example.com",
+          phone: addressDetails.phone || "9999999999",
+          surl: `${window.location.origin}/api/payu/callback`,
+          furl: `${window.location.origin}/api/payu/callback`
+        })
+      });
+
+      const hashData = await hashRes.json();
+      if (!hashRes.ok) throw new Error(hashData.error || "Failed to initiate payment");
+
+      const form = document.createElement("form");
+      form.setAttribute("method", "post");
+      form.setAttribute("action", "https://secure.payu.in/_payment");
+
+      const fields = {
+        key: hashData.key,
+        txnid: hashData.txnid,
+        amount: hashData.amount,
+        productinfo: hashData.productinfo,
+        firstname: hashData.firstname,
+        email: hashData.email,
+        phone: hashData.phone,
+        surl: hashData.surl,
+        furl: hashData.furl,
+        hash: hashData.hash
+      };
+
+      for (const key in fields) {
+        const hiddenField = document.createElement("input");
+        hiddenField.setAttribute("type", "hidden");
+        hiddenField.setAttribute("name", key);
+        hiddenField.setAttribute("value", fields[key] || "");
+        form.appendChild(hiddenField);
+      }
+      document.body.appendChild(form);
+      form.submit();
+      // Redirecting to PayU, no need to set step to 5 here.
     } catch (error) {
       if (error?.isUserFacing) {
         setBookingError(error.message);
-        return;
+      } else {
+        setBookingError("Something went wrong while initiating payment.");
       }
-      // ponytail: fall back to the in-memory mock when supabase is unapplied/unreachable.
-      const fallbackBooking = createBooking(payload);
-      setConfirmedBookingData(fallbackBooking);
-      setCurrentStep(5);
-    } finally {
       setIsProcessingPayment(false);
     }
   };
@@ -175,11 +222,7 @@ export default function BookingModal() {
   const platformFee = 0; // Free / included
   const totalAmount = servicePrice + platformFee;
 
-  const isCardValid =
-    cardDetails.number.replace(/\D/g, "").length >= 16 &&
-    cardDetails.expiry.trim().length >= 5 &&
-    cardDetails.cvc.trim().length >= 3;
-  const isPaymentDisabled = isProcessingPayment || (paymentMethod === "card" && !isCardValid);
+  const isPaymentDisabled = isProcessingPayment;
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto">
@@ -559,79 +602,14 @@ export default function BookingModal() {
                 <label className="block text-xs font-semibold text-dark-700 mb-2">
                   Select Payment Method
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                  {[
-                    { id: "card", label: "Credit Card" },
-                    { id: "paypal", label: "PayPal" },
-                    { id: "applepay", label: "Apple Pay" },
-                    { id: "sepa", label: "SEPA Bank" },
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setPaymentMethod(m.id)}
-                      className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all text-center ${
-                        paymentMethod === m.id
-                          ? "bg-primary-50 border-primary-500 text-primary-700 ring-2 ring-primary-500/20"
-                          : "bg-surface border-border text-dark-700 hover:bg-dark-50"
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Card Fields Mockup */}
-                {paymentMethod === "card" && (
-                  <div className="space-y-2.5 p-3.5 bg-surface border border-border rounded-xl">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-dark-700 mb-1">
-                        Card Number
-                      </label>
-                      <div className="relative">
-                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
-                        <input
-                          type="text"
-                          value={cardDetails.number}
-                          onChange={(e) =>
-                            setCardDetails({ ...cardDetails, number: e.target.value })
-                          }
-                          className="w-full pl-9 pr-3 py-2 bg-dark-50 border border-border rounded-lg text-xs text-dark-900 font-mono focus:bg-white focus:outline-none focus:border-primary-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-dark-700 mb-1">
-                          Expiry Date
-                        </label>
-                        <input
-                          type="text"
-                          value={cardDetails.expiry}
-                          onChange={(e) =>
-                            setCardDetails({ ...cardDetails, expiry: e.target.value })
-                          }
-                          className="w-full px-3 py-2 bg-dark-50 border border-border rounded-lg text-xs text-dark-900 font-mono focus:bg-white focus:outline-none focus:border-primary-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-dark-700 mb-1">
-                          CVC / CVV
-                        </label>
-                        <input
-                          type="password"
-                          maxLength={4}
-                          value={cardDetails.cvc}
-                          onChange={(e) =>
-                            setCardDetails({ ...cardDetails, cvc: e.target.value })
-                          }
-                          className="w-full px-3 py-2 bg-dark-50 border border-border rounded-lg text-xs text-dark-900 font-mono focus:bg-white focus:outline-none focus:border-primary-500"
-                        />
-                      </div>
-                    </div>
+                <div className="grid grid-cols-1 gap-2 mb-3">
+                  <div
+                    className={`py-3 px-4 rounded-xl border text-sm font-semibold transition-all text-center flex items-center justify-center gap-2 bg-primary-50 border-primary-500 text-primary-700 ring-2 ring-primary-500/20`}
+                  >
+                    <CreditCard className="w-5 h-5" />
+                    <span>Pay Securely with PayU</span>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Security note */}

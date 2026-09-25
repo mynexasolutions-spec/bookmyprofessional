@@ -38,7 +38,7 @@ function buildMockBooking(bookingData, customerProfile) {
     customerEmail: bookingData.customerEmail || customerProfile.email,
     customerPhone: bookingData.customerPhone || customerProfile.phone,
     status: "upcoming",
-    paymentStatus: "paid",
+    paymentStatus: bookingData.paymentStatus || "paid",
     paymentMethod: bookingData.paymentMethod || "Visa ending in •••• 4242",
     createdAt: new Date().toISOString(),
     hasReview: false,
@@ -122,6 +122,7 @@ export function MarketplaceProvider({ children }) {
         ...prev,
         name: user.name || prev.name,
         email: user.email || prev.email,
+        phone: user.phone || prev.phone,
       }));
     }
   }, [user]);

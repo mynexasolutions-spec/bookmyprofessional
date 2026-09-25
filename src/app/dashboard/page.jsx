@@ -379,7 +379,11 @@ export default function CustomerDashboardPage() {
                       {filteredBookings.map((b) => (
                         <div
                           key={b.id}
-                          className="p-5 sm:p-6 rounded-2xl border border-border bg-surface shadow-xs space-y-4 hover:border-primary-200 transition-all"
+                          className={`p-5 sm:p-6 rounded-2xl border transition-all space-y-4 shadow-xs ${
+                            b.status === "cancelled"
+                              ? "bg-dark-50/50 border-border opacity-75 grayscale-[0.2]"
+                              : "bg-surface border-border hover:border-primary-200"
+                          }`}
                         >
                           {/* Top Row: Ref ID + Status */}
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3.5">
@@ -428,10 +432,10 @@ export default function CustomerDashboardPage() {
                               <span className="text-[11px] text-dark-400 block uppercase font-semibold">
                                 Total Amount
                               </span>
-                              <span className="text-xl font-bold font-heading text-dark-900">
+                              <span className={`text-xl font-bold font-heading ${b.status === 'cancelled' ? 'text-dark-400 line-through' : 'text-dark-900'}`}>
                                 {formatMoney(b.totalPaid)}
                               </span>
-                              <span className="block text-[11px] text-emerald-600 font-medium mt-0.5">
+                              <span className={`block text-[11px] font-medium mt-0.5 ${b.status === 'cancelled' ? 'text-red-600' : 'text-emerald-600'}`}>
                                 {b.paymentStatus === "refunded"
                                   ? "Refunded"
                                   : `Paid via ${b.paymentMethod || "—"}`}

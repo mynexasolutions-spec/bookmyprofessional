@@ -116,12 +116,13 @@ export async function listTakenSlots(professionalId, date, client) {
     const supabase = client || createClient();
     const { data, error } = await supabase
       .from("bookings")
-      .select("time_slot")
+      .select("time_slot, status, payment_status")
       .eq("professional_id", professionalId)
       .eq("date", date)
-      .neq("status", "cancelled");
+      .in("status", ["upcoming", "in_progress", "completed"]);
     if (error) throw error;
-    return (data || []).map((r) => r.time_slot);
+    const validSlots = (data || []).filter(r => !(r.status === 'upcoming' && r.payment_status === 'unpaid'));
+    return validSlots.map((r) => r.time_slot);
   } catch {
     return [];
   }
@@ -193,7 +194,7 @@ export async function createBooking(payload, client) {
     address: address ?? null,
     notes: notes ?? null,
     status: "upcoming",
-    payment_status: "paid",
+    payment_status: payload.paymentStatus || "paid",
     payment_method: paymentMethod ?? null,
     starts_at: toUtcInstant(date, timeSlot, timezone),
   };
@@ -262,9 +263,9 @@ async function getCancellationWindowHours(supabase) {
       .single();
     if (error) throw error;
     const hours = Number(data?.value?.window_hours);
-    return Number.isFinite(hours) ? hours : 24;
+    return Number.isFinite(hours) ? hours : 2;
   } catch {
-    return 24; // ponytail: default window until the settings row exists in the environment.
+    return 2; // ponytail: default window until the settings row exists in the environment.
   }
 }
 

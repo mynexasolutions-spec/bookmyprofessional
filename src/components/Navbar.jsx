@@ -90,13 +90,16 @@ export default function Navbar() {
         <div className="hidden sm:flex items-center gap-2.5">
          
           {/* Become a Pro / Vendor Portal Quick Button */}
-          <Link
-            href="/vendor"
-            className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Pro Vendor Portal</span>
-          </Link>
+
+          {user?.role === "professional" && (
+            <Link
+              href="/vendor"
+              className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Pro Vendor Portal</span>
+            </Link>
+          )}
 
           {user ? (
             <>
@@ -152,19 +155,21 @@ export default function Navbar() {
                       </span>
                     </Link>
 
-                    <Link
-                      href="/vendor"
-                      onClick={() => setProfileDropdownOpen(false)}
-                      className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-dark-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors text-left"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <DollarSign className="h-4 w-4 text-emerald-600" />
-                        <span>Vendor Earnings & Schedule</span>
-                      </div>
-                      <span className="text-[10px] text-emerald-700 font-bold">
-                        {formatMoney(proVendorState.availablePayout, 0)}
-                      </span>
-                    </Link>
+                    {user.role === "professional" && (
+                      <Link
+                        href="/vendor"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-dark-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <DollarSign className="h-4 w-4 text-emerald-600" />
+                          <span>Vendor Earnings & Schedule</span>
+                        </div>
+                        <span className="text-[10px] text-emerald-700 font-bold">
+                          {formatMoney(proVendorState.availablePayout, 0)}
+                        </span>
+                      </Link>
+                    )}
 
                     <Link
                       href="/messages"
@@ -321,14 +326,16 @@ export default function Navbar() {
                       <Calendar className="h-4 w-4 mr-2" />
                       My Bookings & Profile ({bookings.length})
                     </Link>
-                    <Link
-                      href="/vendor"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-emerald-300 text-xs font-semibold text-emerald-700 bg-emerald-50/50"
-                    >
-                      <ShieldCheck className="h-4 w-4 mr-2 text-emerald-600" />
-                      Pro Vendor Portal ({formatMoney(proVendorState.availablePayout, 0)})
-                    </Link>
+                    {user.role === "professional" && (
+                      <Link
+                        href="/vendor"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-emerald-300 text-xs font-semibold text-emerald-700 bg-emerald-50/50"
+                      >
+                        <ShieldCheck className="h-4 w-4 mr-2 text-emerald-600" />
+                        Pro Vendor Portal ({formatMoney(proVendorState.availablePayout, 0)})
+                      </Link>
+                    )}
                     <Link
                       href="/messages"
                       onClick={() => setMobileMenuOpen(false)}
@@ -376,14 +383,7 @@ export default function Navbar() {
                   >
                     Sign Up
                   </Link>
-                  <Link
-                    href="/vendor"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full flex items-center justify-center py-2.5 px-4 rounded-xl border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-700 text-center"
-                  >
-                    <ShieldCheck className="h-4 w-4 mr-1.5 text-emerald-600" />
-                    Pro Vendor Portal
-                  </Link>
+
                 </>
               )}
             </div>

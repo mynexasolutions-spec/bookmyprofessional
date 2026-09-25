@@ -14,6 +14,7 @@ function mapUser(authUser, profile) {
     id: authUser?.id,
     name: profile?.full_name || meta.full_name || email.split("@")[0] || "User",
     email,
+    phone: profile?.phone || meta.phone || "",
     role: profile?.role || meta.role || "customer",
     avatar: profile?.avatar_url || null,
     user_metadata: meta,

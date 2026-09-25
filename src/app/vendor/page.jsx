@@ -68,8 +68,10 @@ export default function VendorPortalPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.push("/");
+    if (!isLoading) {
+      if (!user || user.role !== "professional") {
+        router.push("/");
+      }
     }
   }, [isLoading, user, router]);
 
