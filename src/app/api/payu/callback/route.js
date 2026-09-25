@@ -47,7 +47,7 @@ export async function POST(req) {
         .eq('id', txnid);
       
       // Redirect to a success page or back to the app with a success parameter
-      return NextResponse.redirect(new URL(`/dashboard?payment=success&bookingId=${txnid}`, req.url));
+      return NextResponse.redirect(new URL(`/dashboard?payment=success&bookingId=${txnid}`, req.url), { status: 303 });
     } else {
       // Payment failed
       await supabase
@@ -55,10 +55,10 @@ export async function POST(req) {
         .update({ payment_status: 'failed', status: 'cancelled' })
         .eq('id', txnid);
       
-      return NextResponse.redirect(new URL(`/?payment=failure&bookingId=${txnid}`, req.url));
+      return NextResponse.redirect(new URL(`/?payment=failure&bookingId=${txnid}`, req.url), { status: 303 });
     }
   } catch (error) {
     console.error('Error handling PayU callback:', error);
-    return NextResponse.redirect(new URL('/?payment=error', req.url));
+    return NextResponse.redirect(new URL('/?payment=error', req.url), { status: 303 });
   }
 }

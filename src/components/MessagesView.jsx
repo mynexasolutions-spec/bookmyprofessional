@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { MessageSquare, Send, ArrowLeft, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { listThreads, listMessages, sendMessage, markThreadRead } from "@/lib/data/messages";
@@ -21,7 +22,8 @@ function timeAgo(iso) {
 }
 
 export default function MessagesView({ initialBookingId = null }) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
   const [threads, setThreads] = useState([]);
   const [activeId, setActiveId] = useState(initialBookingId);
   const [messages, setMessages] = useState([]);
@@ -41,8 +43,16 @@ export default function MessagesView({ initialBookingId = null }) {
   }, []);
 
   useEffect(() => {
-    loadThreads();
-  }, [loadThreads]);
+    if (!isLoading && !user) {
+      router.push("/");
+    }
+  }, [isLoading, user, router]);
+
+  useEffect(() => {
+    if (user) {
+      loadThreads();
+    }
+  }, [loadThreads, user]);
 
   useEffect(() => {
     if (!activeId) {
