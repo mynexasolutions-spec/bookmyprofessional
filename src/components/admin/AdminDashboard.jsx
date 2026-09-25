@@ -850,10 +850,10 @@ export default function AdminDashboard({
                                     type="button"
                                     disabled={isBusy}
                                     onClick={async () => {
-                                      if (confirm("Delete this payout record?")) {
+                                      if (window.confirm("Delete this payout record?")) {
                                         setBusy(key);
                                         try {
-                                          await post("/api/admin/payout", { payoutId: payout.id, action: "delete" }, "DELETE");
+                                          await post("/api/admin/payout", { payoutId: payout.id, action: "delete" }, "POST");
                                           showToast("Payout deleted", "success");
                                           router.refresh();
                                         } catch(e) {

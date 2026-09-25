@@ -16,16 +16,41 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { payoutId, status } = body || {};
-  if (!payoutId || !["paid", "rejected"].includes(status)) {
+  const { payoutId, status, action } = body || {};
+  if (!payoutId) {
+    return NextResponse.json({ error: "payoutId is required" }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+
+  if (action === "delete") {
+    try {
+      const { error } = await supabase.from("payouts").delete().eq("id", payoutId);
+      if (error) throw error;
+      
+      try {
+        await logAdminAction(
+          { action: "payout.delete", entity: "payouts", entityId: payoutId },
+          supabase
+        );
+      } catch (e) {
+        // Ignore logging errors
+      }
+      revalidatePath("/admin");
+      return NextResponse.json({ ok: true });
+    } catch (error) {
+      return NextResponse.json({ error: error?.message || "Payout deletion failed" }, { status: 500 });
+    }
+  }
+
+  if (!["paid", "rejected"].includes(status)) {
     return NextResponse.json(
-      { error: "payoutId and status ('paid'|'rejected') are required" },
+      { error: "status ('paid'|'rejected') is required" },
       { status: 400 }
     );
   }
 
   try {
-    const supabase = createAdminClient();
     const { error } = await supabase
       .from("payouts")
       .update({ status, processed_at: new Date().toISOString() })
@@ -49,42 +74,4 @@ export async function POST(request) {
 
   revalidatePath("/admin");
   return NextResponse.json({ ok: true, payoutId, status });
-}
-
-export async function DELETE(request) {
-  if (!(await isAdminRequest())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const { payoutId } = body || {};
-  if (!payoutId) {
-    return NextResponse.json({ error: "payoutId is required" }, { status: 400 });
-  }
-
-  try {
-    const supabase = createAdminClient();
-    const { error } = await supabase.from("payouts").delete().eq("id", payoutId);
-    if (error) throw error;
-    
-    try {
-      await logAdminAction(
-        { action: "payout.delete", entity: "payouts", entityId: payoutId },
-        supabase
-      );
-    } catch (e) {
-      // Ignore logging errors
-    }
-  } catch (error) {
-    return NextResponse.json({ error: error?.message || "Payout deletion failed" }, { status: 500 });
-  }
-
-  revalidatePath("/admin");
-  return NextResponse.json({ ok: true });
 }
