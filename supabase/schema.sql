@@ -143,11 +143,9 @@ create table if not exists public.bookings (
   status text not null default 'upcoming'
     check (status in ('upcoming','in_progress','completed','cancelled')),
   payment_status text not null default 'unpaid'
-    check (payment_status in ('unpaid','paid','refunded')),
+    check (payment_status in ('unpaid','paid','refunded','failed')),
   payment_method text,
-  created_at timestamptz not null default now(),
-  -- prevents double-booking the same slot at the database level
-  unique (professional_id, date, time_slot)
+  created_at timestamptz not null default now()
 );
 
 -- ---------- reviews ----------
@@ -464,6 +462,13 @@ alter table public.professionals add column if not exists timezone text not null
 -- booking UTC instant (date + time_slot remain the display/unique values)
 alter table public.bookings add column if not exists starts_at timestamptz;
 
+-- free a slot when its booking is cancelled (failed payment / cancellation) so it can be rebooked.
+-- Replaces the old full unique constraint that blocked the slot even after cancellation.
+alter table public.bookings drop constraint if exists bookings_professional_id_date_time_slot_key;
+create unique index if not exists bookings_active_slot
+  on public.bookings (professional_id, date, time_slot)
+  where status <> 'cancelled';
+
 -- booking status transitions (server-enforced; service role / SQL bypasses)
 create or replace function public.enforce_booking_status() returns trigger
 language plpgsql as $$
@@ -524,11 +529,13 @@ CREATE TABLE IF NOT EXISTS public.contacts (
 
 ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 
+drop policy if exists "Allow public insert to contacts" on public.contacts;
 CREATE POLICY "Allow public insert to contacts"
   ON public.contacts
   FOR INSERT
   WITH CHECK (true);
 
+drop policy if exists "Allow admin to read contacts" on public.contacts;
 CREATE POLICY "Allow admin to read contacts"
   ON public.contacts
   FOR SELECT

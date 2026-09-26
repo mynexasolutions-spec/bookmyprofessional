@@ -183,7 +183,7 @@ export default function BookingModal() {
 
       const form = document.createElement("form");
       form.setAttribute("method", "post");
-      form.setAttribute("action", "https://secure.payu.in/_payment");
+      form.setAttribute("action", hashData.action);
 
       const fields = {
         key: hashData.key,

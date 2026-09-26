@@ -4,15 +4,6 @@ function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
-// ponytail: stubbed gateway — a real Stripe/PayPal charge needs provider keys plus a server-side
-// webhook to confirm/refund. Swap this single function when those exist; nothing else changes.
-export async function chargeProvider(amount, method) {
-  return {
-    provider: "stub",
-    ref: `STUB-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-  };
-}
-
 // ponytail: default 10% rate until the settings table exists in the target environment.
 export async function getCommissionRate(client) {
   try {
@@ -35,8 +26,9 @@ export async function createPaymentForBooking(booking, commissionRate = 0.1, cli
   const amount = round2(booking.totalPaid ?? booking.total_paid ?? 0);
   const commission = round2(amount * commissionRate);
   const proPayout = round2(amount - commission);
-  const charge = await chargeProvider(amount, booking.paymentMethod);
 
+  // Escrow row starts "pending" (payment initiated, not captured). The PayU callback/webhook
+  // flips it to "held" with the real mihpayid once the charge is confirmed.
   const { data, error } = await supabase
     .from("payments")
     .insert({
@@ -44,9 +36,9 @@ export async function createPaymentForBooking(booking, commissionRate = 0.1, cli
       amount,
       commission,
       pro_payout: proPayout,
-      status: "held",
-      provider: charge.provider,
-      provider_ref: charge.ref,
+      status: "pending",
+      provider: "payu",
+      provider_ref: null,
     })
     .select()
     .single();
