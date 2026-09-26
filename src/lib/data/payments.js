@@ -58,21 +58,22 @@ export async function releasePayment(bookingId, client) {
 }
 
 export async function refundPayment(bookingId, client) {
-  // Call our new API route to process the real PayU refund
-  try {
-    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
-    const res = await fetch(`${origin}/api/payu/refund`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId })
-    });
-    
-    // We don't strictly throw on failure so we can still mock locally
-    if (!res.ok) {
-      console.warn('PayU refund API returned non-OK status, proceeding with local DB update anyway for testing.');
-    }
-  } catch (err) {
-    console.warn('Failed to call PayU refund API:', err);
+  const origin = typeof window !== 'undefined'
+    ? window.location.origin
+    : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+
+  const res = await fetch(`${origin}/api/payu/refund`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookingId })
+  });
+  const data = await res.json().catch(() => ({}));
+
+  // Only mark refunded once PayU confirms the refund actually went through.
+  if (!res.ok || data.status !== 1) {
+    const err = new Error(data.message || 'Refund failed at the payment gateway. Please contact support.');
+    err.isUserFacing = true;
+    throw err;
   }
 
   const supabase = client || createClient();
@@ -81,6 +82,10 @@ export async function refundPayment(bookingId, client) {
     .update({ status: "refunded" })
     .eq("booking_id", bookingId);
   if (error) throw error;
+  await supabase
+    .from("bookings")
+    .update({ payment_status: "refunded" })
+    .eq("id", bookingId);
   return true;
 }
 

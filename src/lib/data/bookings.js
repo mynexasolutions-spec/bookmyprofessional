@@ -298,7 +298,7 @@ export async function cancelBooking(bookingId, client) {
 
   const { data, error } = await supabase
     .from("bookings")
-    .update({ status: "cancelled", payment_status: "refunded" })
+    .update({ status: "cancelled" })
     .eq("id", bookingId)
     .select("*, professionals(name, role_title, image_url)")
     .single();

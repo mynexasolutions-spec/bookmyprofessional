@@ -304,15 +304,27 @@ export function MarketplaceProvider({ children }) {
   const cancelBooking = async (bookingId) => {
     try {
       await cancelBookingRow(bookingId);
-      await refundPayment(bookingId);
     } catch (err) {
       if (err?.isUserFacing) throw err;
       // ponytail: mock fallback while schema/session is unavailable — still reflect the cancel locally.
     }
     setBookings((prev) =>
-      prev.map((b) => (b.id === bookingId ? { ...b, status: "cancelled", paymentStatus: "refunded" } : b))
+      prev.map((b) => (b.id === bookingId ? { ...b, status: "cancelled" } : b))
     );
-    showToast(`Booking ${bookingId} has been cancelled and refunded to your original payment method.`, "info");
+
+    let refunded = true;
+    try {
+      await refundPayment(bookingId);
+    } catch (err) {
+      refunded = false;
+      showToast(err?.message || "Booking cancelled, but the refund failed. Please contact support.", "error");
+    }
+    if (refunded) {
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, paymentStatus: "refunded" } : b))
+      );
+      showToast(`Booking ${bookingId} has been cancelled and refunded to your original payment method.`, "info");
+    }
   };
 
   // Pro marks status (e.g. In-progress or Completed). Invalid-transition errors are rethrown for the caller.
