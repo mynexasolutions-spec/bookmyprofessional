@@ -388,7 +388,7 @@ export default function AboutPage() {
         {/* CALL TO ACTION */}
         <section className="py-16 bg-gradient-to-r from-dark-900 via-primary-950 to-dark-900 text-white border-b border-border">
           <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
+            <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-white">
               Ready to Experience Better Service?
             </h2>
             <p className="mt-3 text-xs sm:text-sm sm:text-base text-white/80 max-w-xl mx-auto">

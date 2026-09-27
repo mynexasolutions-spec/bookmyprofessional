@@ -43,5 +43,15 @@ export async function updateProfile(userId, patch) {
     .maybeSingle();
 
   if (error) throw error;
+
+  // The public professional name lives in its own column; keep it aligned with the account name.
+  if (patch?.full_name !== undefined) {
+    try {
+      await supabase.from("professionals").update({ name: patch.full_name }).eq("id", userId);
+    } catch {
+      // ponytail: best-effort — profiles_sync_pro_name trigger covers paths this misses.
+    }
+  }
+
   return data;
 }

@@ -186,6 +186,7 @@ export default function AdminDashboard({
     String(settings?.cancellation?.window_hours ?? 24)
   );
   const [announcementForm, setAnnouncementForm] = useState({ title: "", body: "" });
+  const [selectedContact, setSelectedContact] = useState(null);
 
   const post = async (url, body, method = "POST") => {
     const res = await fetch(url, {
@@ -1524,7 +1525,12 @@ export default function AdminDashboard({
                     </thead>
                     <tbody className="divide-y divide-border">
                       {contactMessages.map((msg) => (
-                        <tr key={msg.id} className="hover:bg-dark-50/50 transition-colors">
+                        <tr
+                          key={msg.id}
+                          onClick={() => setSelectedContact(msg)}
+                          title="Click to view the full message"
+                          className="hover:bg-dark-50/50 transition-colors cursor-pointer"
+                        >
                           <td className="px-5 py-3.5 font-mono text-dark-700">{msg.ticket_number}</td>
                           <td className="px-5 py-3.5">
                             <div className="font-semibold text-dark-900">{msg.name}</div>
@@ -1545,6 +1551,7 @@ export default function AdminDashboard({
                             <select
                               disabled={busy === `contact:${msg.id}`}
                               value={msg.status}
+                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) =>
                                 run(
                                   `contact:${msg.id}`,
@@ -1564,6 +1571,60 @@ export default function AdminDashboard({
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {selectedContact && (
+                <div
+                  className="fixed inset-0 z-[100] flex items-center justify-center bg-dark-900/70 p-4"
+                  onClick={() => setSelectedContact(null)}
+                >
+                  <div
+                    className="w-full max-w-lg bg-surface rounded-2xl border border-border shadow-soft p-6 max-h-[85vh] overflow-y-auto"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-mono text-xs text-dark-500">{selectedContact.ticket_number}</p>
+                        <h3 className="font-heading text-lg font-bold text-dark-900 capitalize mt-1">
+                          {selectedContact.topic.replace("_", " ")}
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedContact(null)}
+                        className="p-1.5 rounded-lg text-dark-400 hover:text-dark-700 hover:bg-dark-50"
+                        aria-label="Close"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="mt-4 space-y-0.5 text-xs">
+                      <p className="font-semibold text-dark-900">{selectedContact.name}</p>
+                      <p className="text-dark-500">{selectedContact.email}</p>
+                      {selectedContact.phone ? (
+                        <p className="text-dark-500">{selectedContact.phone}</p>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Subject</p>
+                      <p className="text-sm text-dark-900 mt-1">{selectedContact.subject}</p>
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Message</p>
+                      <p className="text-sm text-dark-700 whitespace-pre-line mt-1">{selectedContact.message}</p>
+                    </div>
+
+                    <div className="mt-5 flex items-center justify-between gap-3">
+                      <StatusPill value={selectedContact.status} />
+                      <span className="text-xs text-dark-500" suppressHydrationWarning>
+                        {new Date(selectedContact.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

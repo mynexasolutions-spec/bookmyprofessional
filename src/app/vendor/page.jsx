@@ -589,7 +589,7 @@ export default function VendorPortalPage() {
                   {/* Request Payout Action Box */}
                   <div className="p-6 bg-gradient-to-r from-primary-900 to-dark-900 rounded-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-5 shadow-soft">
                     <div>
-                      <h3 className="font-heading text-lg font-bold">
+                      <h3 className="font-heading text-lg font-bold text-white">
                         Withdraw Net Earnings to Bank Account
                       </h3>
                       <p className="text-xs text-white/80 mt-1">

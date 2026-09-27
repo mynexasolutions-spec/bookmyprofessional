@@ -198,9 +198,9 @@ export default function ProfessionalDetailPage({ params }) {
                     )}
                   </div>
 
-                  <div>
+                  <div className="sm:mb-2">
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <h1 className="font-heading text-2xl sm:text-3xl font-bold text-dark-900">
+                      <h1 className="font-heading text-2xl sm:text-3xl font-bold text-dark-900 sm:text-white">
                         {pro.name}
                       </h1>
                       {pro.verified && (

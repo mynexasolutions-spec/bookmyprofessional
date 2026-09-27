@@ -555,3 +555,18 @@ drop policy if exists wishlists_insert_own on public.wishlists;
 create policy wishlists_insert_own on public.wishlists for insert with check (user_id = auth.uid());
 drop policy if exists wishlists_delete_own on public.wishlists;
 create policy wishlists_delete_own on public.wishlists for delete using (user_id = auth.uid());
+
+-- ---------- keep professionals.name in sync with the account name ----------
+create or replace function public.sync_professional_name() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.professionals set name = new.full_name where id = new.id;
+  return new;
+end;
+$$;
+drop trigger if exists profiles_sync_pro_name on public.profiles;
+create trigger profiles_sync_pro_name
+  after update of full_name on public.profiles
+  for each row
+  when (new.full_name is distinct from old.full_name)
+  execute function public.sync_professional_name();

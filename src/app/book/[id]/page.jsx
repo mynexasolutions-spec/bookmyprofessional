@@ -409,7 +409,9 @@ function BookingPageContent({ params }) {
                           </div>
                         ) : availableSlots.length === 0 ? (
                           <div className="col-span-full p-4 text-center text-xs text-dark-500 bg-dark-50 border border-dashed border-border rounded-xl">
-                            No slots available for this date. Please pick another day.
+                            {matchedPro?.availability?.slots?.length
+                              ? "No slots available for this date. Please pick another day."
+                              : "This professional hasn't published their working hours yet. Please check back later or pick another professional."}
                           </div>
                         ) : (
                           availableSlots.map((time) => {
@@ -741,11 +743,17 @@ function BookingPageContent({ params }) {
 
                 {/* Pro Avatar & Specialty */}
                 <div className="flex items-center gap-3">
-                  <img
-                    src={ikImage(pro.image)}
-                    alt={pro.name}
-                    className="w-12 h-12 rounded-xl object-cover border border-border bg-dark-100 shrink-0"
-                  />
+                  {pro.image ? (
+                    <img
+                      src={ikImage(pro.image)}
+                      alt={pro.name}
+                      className="w-12 h-12 rounded-xl object-cover border border-border bg-dark-100 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl border border-border bg-dark-100 flex items-center justify-center font-heading font-bold text-lg text-dark-400 shrink-0">
+                      {pro.name?.charAt(0) || "P"}
+                    </div>
+                  )}
                   <div>
                     <h4 className="font-heading text-sm font-bold text-dark-900">{pro.name}</h4>
                     <p className="text-xs text-primary-600 font-medium">{pro.role}</p>

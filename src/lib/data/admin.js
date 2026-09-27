@@ -123,7 +123,7 @@ export async function listAllProfessionals(client) {
     const { data, error } = await supabase
       .from("professionals")
       .select(
-        "id, name, category, city, verification_status, verified, is_active, rating, review_count, created_at, profile:profiles(full_name)"
+        "id, name, category, city, verification_status, verified, is_active, rating, review_count, created_at, profile:profiles!professionals_id_fkey(full_name)"
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
