@@ -10,12 +10,13 @@ export const metadata = {
 export default async function MessagesPage({ searchParams }) {
   const params = await searchParams;
   const bookingId = typeof params?.booking === "string" ? params.booking : null;
+  const dmId = typeof params?.dm === "string" ? params.dm : null;
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-dark-800">
       <Navbar />
       <main className="flex-1 py-8 sm:py-10">
-        <MessagesView initialBookingId={bookingId} />
+        <MessagesView initialBookingId={bookingId} initialDmId={dmId} />
       </main>
     </div>
   );

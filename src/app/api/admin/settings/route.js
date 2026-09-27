@@ -3,6 +3,21 @@ import { isAdminRequest } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction, updateSettings } from "@/lib/data/admin";
 
+const cleanText = (value, max) => String(value ?? "").trim().slice(0, max);
+
+const cleanStatRows = (rows, withDetail) => {
+  if (!Array.isArray(rows)) return null;
+  return rows.slice(0, 8).map((row) =>
+    withDetail
+      ? {
+          value: cleanText(row?.value, 40),
+          label: cleanText(row?.label, 60),
+          detail: cleanText(row?.detail, 120),
+        }
+      : { value: cleanText(row?.value, 40), label: cleanText(row?.label, 60) }
+  );
+};
+
 const SHAPES = {
   commission: (value) => {
     const rate = Number(value?.rate);
@@ -13,6 +28,31 @@ const SHAPES = {
     const hours = Number(value?.window_hours);
     if (!Number.isFinite(hours) || hours < 0) return null;
     return { window_hours: hours };
+  },
+  marketing: (value) => {
+    if (!value || typeof value !== "object") return null;
+    const home = cleanStatRows(value.home, false);
+    const about = cleanStatRows(value.about, true);
+    if (!home || !about) return null;
+    return { home, about, ctaCustomers: cleanText(value.ctaCustomers, 20) };
+  },
+  testimonials: (value) => {
+    if (!Array.isArray(value)) return null;
+    return value.slice(0, 12).map((t) => ({
+      name: cleanText(t?.name, 60),
+      location: cleanText(t?.location, 80),
+      comment: cleanText(t?.comment, 400),
+      avatar: cleanText(t?.avatar, 500),
+      rating: Math.min(5, Math.max(1, Number(t?.rating) || 5)),
+    }));
+  },
+  social: (value) => {
+    if (!value || typeof value !== "object") return null;
+    const out = {};
+    for (const key of ["facebook", "instagram", "twitter", "linkedin", "youtube"]) {
+      out[key] = cleanText(value[key], 300);
+    }
+    return out;
   },
 };
 
@@ -32,7 +72,7 @@ export async function POST(request) {
   const shape = SHAPES[key];
   if (!shape) {
     return NextResponse.json(
-      { error: "key must be 'commission' or 'cancellation'" },
+      { error: `key must be one of: ${Object.keys(SHAPES).join(", ")}` },
       { status: 400 }
     );
   }

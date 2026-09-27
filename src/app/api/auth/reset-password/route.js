@@ -14,7 +14,7 @@ export async function POST(req) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
 
-    const key = `reset_${email.toLowerCase()}`;
+    const key = `reset_${String(email).trim().toLowerCase()}`;
     const { data: record, error } = await supabase.from('settings').select('value').eq('key', key).single();
     
     if (error || !record || !record.value) {
@@ -31,22 +31,19 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 400 });
     }
 
-    // Token is valid. Find user ID by email using Admin API
-    const { data: { users }, error: userError } = await supabase.auth.admin.listUsers();
-    
-    if (userError) {
-      console.error(userError);
-      return NextResponse.json({ error: 'Database configuration error' }, { status: 500 });
-    }
+    // Token is valid. Look the account up by email (paged listUsers can miss users beyond page 1).
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('email', String(email).trim())
+      .maybeSingle();
 
-    const targetUser = users.find(u => u.email === email.toLowerCase());
-
-    if (!targetUser) {
+    if (!profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Update password
-    const { error: updateError } = await supabase.auth.admin.updateUserById(targetUser.id, {
+    const { error: updateError } = await supabase.auth.admin.updateUserById(profile.id, {
       password: newPassword
     });
 

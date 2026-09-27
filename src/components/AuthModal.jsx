@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { createClient } from "@/lib/supabase/client";
 import { listCategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
 import {
   X,
@@ -188,11 +187,13 @@ export default function AuthModal() {
 
     setIsLoading(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-        redirectTo: `${window.location.origin}/login`,
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
       });
-      if (error) throw error;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Unable to send reset instructions. Please try again.");
       setForgotPasswordSubmitted(true);
     } catch (error) {
       setErrorMessage(error?.message || "Unable to send reset instructions. Please try again.");

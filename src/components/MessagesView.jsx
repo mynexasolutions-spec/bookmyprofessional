@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { MessageSquare, Send, ArrowLeft, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { listThreads, listMessages, sendMessage, markThreadRead } from "@/lib/data/messages";
+import { listThreads, listMessages, sendMessage, markThreadRead, getDmPeer } from "@/lib/data/messages";
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -21,11 +22,13 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
-export default function MessagesView({ initialBookingId = null }) {
+export default function MessagesView({ initialBookingId = null, initialDmId = null }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const [threads, setThreads] = useState([]);
-  const [activeId, setActiveId] = useState(initialBookingId);
+  const [activeId, setActiveId] = useState(
+    initialBookingId || (initialDmId ? `dm:${initialDmId}` : null)
+  );
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [loadingThreads, setLoadingThreads] = useState(true);
@@ -33,14 +36,63 @@ export default function MessagesView({ initialBookingId = null }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const bottomRef = useRef(null);
+  const dmOpenedRef = useRef(null);
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true);
     const rows = await listThreads();
-    setThreads(rows);
+    setThreads((prev) => {
+      // Keep a pending direct-message thread (no messages yet, so not in `rows`) from being wiped
+      // when this reloads (auth re-hydration triggers it). A real thread with the same key wins.
+      const pending = prev.filter(
+        (t) => String(t.key).startsWith("dm:") && !rows.some((r) => r.key === t.key)
+      );
+      return [...pending, ...rows];
+    });
     setLoadingThreads(false);
-    setActiveId((prev) => prev || rows[0]?.bookingId || null);
+    setActiveId((prev) => prev || rows[0]?.key || null);
   }, []);
+
+  // ?dm=<userId>: open a direct thread once per dm param. If no message exists yet, add a virtual
+  // thread so the composer is usable before the first message. The ref stops later thread-list
+  // updates (unread resets etc.) from yanking the user back here.
+  useEffect(() => {
+    if (!initialDmId || loadingThreads || dmOpenedRef.current === initialDmId) return;
+    const key = `dm:${initialDmId}`;
+    if (threads.some((t) => t.key === key)) {
+      dmOpenedRef.current = initialDmId;
+      setActiveId(key);
+      return;
+    }
+    let active = true;
+    getDmPeer(initialDmId).then((peer) => {
+      if (!active || !peer) return;
+      dmOpenedRef.current = initialDmId;
+      setThreads((prev) =>
+        prev.some((t) => t.key === key)
+          ? prev
+          : [
+              {
+                key,
+                bookingId: null,
+                serviceTitle: "Direct message",
+                date: "",
+                otherId: peer.id,
+                otherName: peer.name,
+                otherAvatar: peer.avatar,
+                lastMessage: "",
+                lastAt: new Date().toISOString(),
+                unread: 0,
+              },
+              ...prev,
+            ]
+      );
+      setActiveId(key);
+    });
+    return () => {
+      active = false;
+    };
+  }, [initialDmId, loadingThreads, threads]);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -79,7 +131,7 @@ export default function MessagesView({ initialBookingId = null }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const active = threads.find((t) => t.bookingId === activeId) || null;
+  const active = threads.find((t) => t.key === activeId) || null;
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -97,7 +149,7 @@ export default function MessagesView({ initialBookingId = null }) {
       setDraft("");
       setThreads((prev) =>
         prev.map((t) =>
-          t.bookingId === active.bookingId
+          t.key === active.key
             ? { ...t, lastMessage: row.body, lastAt: row.createdAt }
             : t
         )
@@ -118,10 +170,10 @@ export default function MessagesView({ initialBookingId = null }) {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-[320px_1fr] rounded-2xl border border-border bg-surface shadow-card overflow-hidden md:h-[640px]">
+      <div className="grid md:grid-cols-[320px_1fr] rounded-2xl border border-border bg-surface shadow-card overflow-hidden md:h-[calc(100dvh-13rem)] md:min-h-[440px]">
         {/* Conversation list */}
         <aside
-          className={`md:block border-b md:border-b-0 md:border-r border-border overflow-y-auto ${
+          className={`md:block min-h-0 border-b md:border-b-0 md:border-r border-border overflow-y-auto ${
             active ? "hidden md:block" : "block"
           }`}
         >
@@ -131,24 +183,31 @@ export default function MessagesView({ initialBookingId = null }) {
             <div className="p-8 text-center">
               <MessageSquare className="w-10 h-10 text-dark-300 mx-auto mb-3" />
               <p className="text-xs text-dark-500">
-                No conversations yet. Messages appear once you have a booking.
+                No conversations yet. Open a professional's profile and tap the message icon to
+                chat directly — or book a service to start a booking chat.
               </p>
+              <Link
+                href="/professionals"
+                className="mt-4 inline-flex items-center justify-center rounded-xl bg-primary-500 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-600 transition-colors"
+              >
+                Browse Professionals
+              </Link>
             </div>
           ) : (
             threads.map((t) => (
               <button
-                key={t.bookingId}
+                key={t.key}
                 type="button"
                 onClick={() => {
-                  setActiveId(t.bookingId);
+                  setActiveId(t.key);
                   setThreads((prev) =>
                     prev.map((x) =>
-                      x.bookingId === t.bookingId ? { ...x, unread: 0 } : x
+                      x.key === t.key ? { ...x, unread: 0 } : x
                     )
                   );
                 }}
                 className={`w-full flex items-start gap-3 border-b border-border px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-dark-50 focus:bg-dark-50 focus:outline-none ${
-                  activeId === t.bookingId ? "bg-primary-50/60" : ""
+                  activeId === t.key ? "bg-primary-50/60" : ""
                 }`}
               >
                 {t.otherAvatar ? (
@@ -185,7 +244,7 @@ export default function MessagesView({ initialBookingId = null }) {
         </aside>
 
         {/* Thread pane */}
-        <section className={`flex flex-col min-w-0 ${active ? "flex" : "hidden md:flex"}`}>
+        <section className={`flex flex-col min-w-0 min-h-0 ${active ? "flex" : "hidden md:flex"}`}>
           {!active ? (
             <div className="flex-1 flex items-center justify-center p-10 text-center">
               <div>
@@ -210,12 +269,14 @@ export default function MessagesView({ initialBookingId = null }) {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-dark-900">{active.otherName}</p>
                   <p className="truncate text-[11px] text-dark-500">
-                    {active.serviceTitle} • Booking #{active.bookingId}
+                    {active.bookingId
+                      ? `${active.serviceTitle} • Booking #${active.bookingId}`
+                      : active.serviceTitle}
                   </p>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-dark-50/40">
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-dark-50/40">
                 {loadingMessages ? (
                   <p className="text-center text-xs text-dark-400">Loading messages…</p>
                 ) : messages.length === 0 ? (

@@ -58,6 +58,7 @@ export default function ProfessionalDetailPage({ params }) {
   const pro =
     professionals.find((p) => p.id === proId) ||
     professionals.find((p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(proId));
+  const isOwnProfile = !!(user && pro && user.id === pro.id);
 
   useEffect(() => {
     let active = true;
@@ -154,7 +155,7 @@ export default function ProfessionalDetailPage({ params }) {
 
               <div className="relative z-10 flex items-center gap-2">
                 <Link
-                  href="/messages"
+                  href={`/messages?dm=${pro.id}`}
                   className="p-2.5 rounded-full bg-white/15 hover:bg-white/30 text-white backdrop-blur-md transition-colors"
                   title="Message Professional"
                 >
@@ -331,13 +332,19 @@ export default function ProfessionalDetailPage({ params }) {
                           <span className="font-heading text-xl font-bold text-dark-900">
                             {formatMoney(srv.price)}
                           </span>
-                          <Link
-                            href={`/book/${pro.id}?service=${srv.id}`}
-                            className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white font-semibold text-xs shadow-button transition-colors"
-                          >
-                            <Calendar className="w-3.5 h-3.5 mr-1.5" />
-                            Book Package
-                          </Link>
+                          {isOwnProfile ? (
+                            <span className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-dark-100 text-dark-500 font-semibold text-xs cursor-not-allowed">
+                              Your Service
+                            </span>
+                          ) : (
+                            <Link
+                              href={`/book/${pro.id}?service=${srv.id}`}
+                              className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white font-semibold text-xs shadow-button transition-colors"
+                            >
+                              <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                              Book Package
+                            </Link>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -637,13 +644,20 @@ export default function ProfessionalDetailPage({ params }) {
                   </div>
                 </div>
 
-                <Link
-                  href={`/book/${pro.id}`}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-primary-500 hover:bg-primary-600 text-white font-semibold text-sm shadow-button transition-colors"
-                >
-                  <Calendar className="w-4 h-4" />
-                  <span>Book Appointment Now</span>
-                </Link>
+                {isOwnProfile ? (
+                  <div className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-dark-100 text-dark-500 font-semibold text-sm cursor-not-allowed">
+                    <Calendar className="w-4 h-4" />
+                    <span>You cannot book your own profile</span>
+                  </div>
+                ) : (
+                  <Link
+                    href={`/book/${pro.id}`}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-primary-500 hover:bg-primary-600 text-white font-semibold text-sm shadow-button transition-colors"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>Book Appointment Now</span>
+                  </Link>
+                )}
 
                 <p className="text-[11px] text-center text-dark-500">
                   No payment charged until service milestones are confirmed.

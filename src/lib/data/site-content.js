@@ -1,0 +1,98 @@
+import { createClient } from "@/lib/supabase/client";
+
+// Marketing numbers shown on the home banner and the About page. Admin edits these in Settings.
+export const DEFAULT_MARKETING = {
+  home: [
+    { value: "10,000+", label: "Verified Professionals" },
+    { value: "50,000+", label: "Happy Customers" },
+    { value: "100+", label: "Service Categories" },
+    { value: "4.8/5", label: "Average Rating" },
+  ],
+  about: [
+    { value: "15,000+", label: "Verified Professionals", detail: "Across 20+ specialized disciplines" },
+    { value: "120,000+", label: "Completed Appointments", detail: "Safely managed with escrow protection" },
+    { value: "98.4%", label: "Satisfaction Rate", detail: "Rated 4.8+ stars by verified clients" },
+    { value: "45 mins", label: "Avg. Response Time", detail: "Rapid chat & consultation turnaround" },
+  ],
+  ctaCustomers: "50,000",
+};
+
+export const DEFAULT_TESTIMONIALS = [
+  {
+    name: "Priya S.",
+    location: "Mumbai, India",
+    rating: 5,
+    avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
+    comment: "“Found an amazing tutor for my daughter. The booking process was so simple!”",
+  },
+  {
+    name: "Karan M.",
+    location: "Delhi, India",
+    rating: 5,
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+    comment: "“The electrician arrived on time and fixed everything perfectly. Great service!”",
+  },
+  {
+    name: "Aisha S.",
+    location: "Bangalore, India",
+    rating: 5,
+    avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
+    comment: "“I regularly book a cleaner through BookMyProfessional. Very reliable!”",
+  },
+  {
+    name: "Rohan Mehta",
+    location: "Hyderabad, India",
+    rating: 5,
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
+    comment: "“Outstanding platform! Hired a tax consultant within an hour and got all my queries resolved.”",
+  },
+  {
+    name: "Ananya Iyer",
+    location: "Pune, India",
+    rating: 5,
+    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
+    comment: "“The beautician was super professional and friendly. Very happy with the seamless booking!”",
+  },
+];
+
+export const DEFAULT_SOCIAL = {
+  facebook: "",
+  instagram: "",
+  twitter: "",
+  linkedin: "",
+  youtube: "",
+};
+
+// ponytail: defaults on error / missing rows so every page renders while the settings are unset.
+export async function getSiteContent() {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("settings")
+      .select("key, value")
+      .in("key", ["marketing", "testimonials", "social"]);
+    if (error) throw error;
+
+    const map = Object.fromEntries((data || []).map((row) => [row.key, row.value]));
+    const marketing = map.marketing || {};
+
+    return {
+      marketing: {
+        home: Array.isArray(marketing.home) && marketing.home.length ? marketing.home : DEFAULT_MARKETING.home,
+        about: Array.isArray(marketing.about) && marketing.about.length ? marketing.about : DEFAULT_MARKETING.about,
+        ctaCustomers: marketing.ctaCustomers || DEFAULT_MARKETING.ctaCustomers,
+      },
+      testimonials:
+        Array.isArray(map.testimonials) && map.testimonials.length
+          ? map.testimonials
+          : DEFAULT_TESTIMONIALS,
+      social: { ...DEFAULT_SOCIAL, ...(map.social || {}) },
+    };
+  } catch {
+    return {
+      marketing: DEFAULT_MARKETING,
+      testimonials: DEFAULT_TESTIMONIALS,
+      social: DEFAULT_SOCIAL,
+    };
+  }
+}

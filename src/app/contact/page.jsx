@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
@@ -23,6 +23,7 @@ import {
   Facebook,
   Instagram,
   Linkedin,
+  Youtube,
   Navigation,
   Train,
   ExternalLink,
@@ -31,8 +32,19 @@ import {
   Compass,
 } from "lucide-react";
 import { insertContactMessage } from "@/lib/data/contacts";
+import { getSiteContent } from "@/lib/data/site-content";
 
 export default function ContactPage() {
+  const [social, setSocial] = useState({});
+
+  useEffect(() => {
+    let active = true;
+    getSiteContent().then((content) => {
+      if (active) setSocial(content.social);
+    });
+    return () => { active = false; };
+  }, []);
+
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -795,15 +807,25 @@ export default function ContactPage() {
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-white/60 gap-3">
             <p>© {new Date().getFullYear()} BookMyProfessional. All rights reserved.</p>
             <div className="flex items-center gap-4">
-              <a href="#facebook" aria-label="Facebook" className="hover:text-white transition-colors">
-                <Facebook className="w-4 h-4" />
-              </a>
-              <a href="#instagram" aria-label="Instagram" className="hover:text-white transition-colors">
-                <Instagram className="w-4 h-4" />
-              </a>
-              <a href="#linkedin" aria-label="LinkedIn" className="hover:text-white transition-colors">
-                <Linkedin className="w-4 h-4" />
-              </a>
+              {[
+                { key: "facebook", Icon: Facebook, label: "Facebook" },
+                { key: "instagram", Icon: Instagram, label: "Instagram" },
+                { key: "linkedin", Icon: Linkedin, label: "LinkedIn" },
+                { key: "youtube", Icon: Youtube, label: "YouTube" },
+              ]
+                .filter(({ key }) => social[key])
+                .map(({ key, Icon, label }) => (
+                  <a
+                    key={key}
+                    href={social[key]}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={label}
+                    className="hover:text-white transition-colors"
+                  >
+                    <Icon className="w-4 h-4" />
+                  </a>
+                ))}
             </div>
           </div>
         </div>

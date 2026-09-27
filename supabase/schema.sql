@@ -441,6 +441,9 @@ create table if not exists public.messages (
 );
 create index if not exists messages_booking_idx on public.messages (booking_id, created_at);
 
+-- direct messages: no booking required (chat started from a professional's profile)
+alter table public.messages alter column booking_id drop not null;
+
 alter table public.messages enable row level security;
 drop policy if exists messages_read on public.messages;
 create policy messages_read on public.messages for select
@@ -451,6 +454,33 @@ create policy messages_insert on public.messages for insert
 drop policy if exists messages_mark_read on public.messages;
 create policy messages_mark_read on public.messages for update
   using (auth.uid() = recipient_id);
+
+-- notify the recipient when a message arrives (native, no app code needed)
+create or replace function public.notify_message_event() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  sender_name text;
+begin
+  if new.recipient_id = new.sender_id then
+    return null;
+  end if;
+  select full_name into sender_name from public.profiles where id = new.sender_id;
+  insert into public.notifications (user_id, title, body, type, link)
+  values (new.recipient_id,
+          'New message from ' || coalesce(sender_name, 'a user'),
+          left(new.body, 140),
+          'message',
+          case when new.booking_id is null
+               then '/messages?dm=' || new.sender_id::text
+               else '/messages?booking=' || new.booking_id
+          end);
+  return null;
+end; $$;
+
+drop trigger if exists messages_notify on public.messages;
+create trigger messages_notify
+  after insert on public.messages
+  for each row execute function public.notify_message_event();
 
 -- profile extras
 alter table public.profiles add column if not exists notification_prefs jsonb not null default '{}'::jsonb;

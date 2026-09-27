@@ -71,6 +71,7 @@ export default function MarketplaceDirectory() {
   } = useMarketplace();
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const [categoryIds, setCategoryIds] = useState(DEFAULT_CATEGORIES);
 
   useEffect(() => {
@@ -90,6 +91,12 @@ export default function MarketplaceDirectory() {
     ],
     [categoryIds]
   );
+
+  // Collapsed: "All" + first 7 categories (keep the active chip visible); expanded: every category.
+  const visibleCategories = showAllCategories
+    ? categories
+    : categories.slice(0, 8).concat(categories.slice(8).filter((c) => c.id === selectedCategory));
+  const hiddenCategoryCount = categories.length - 8;
 
   const locationOptions = useMemo(
     () => [{ id: "all", label: "All Locations" }, ...locations.map((loc) => ({ id: loc.id, label: loc.label }))],
@@ -252,8 +259,8 @@ export default function MarketplaceDirectory() {
           </div>
 
           {/* CATEGORY FILTER CHIPS */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar">
-            {categories.map((cat) => {
+          <div className={`flex items-center gap-2 pb-1 pt-1 no-scrollbar ${showAllCategories ? "flex-wrap" : "overflow-x-auto"}`}>
+            {visibleCategories.map((cat) => {
               const isActive = selectedCategory.toLowerCase() === cat.id.toLowerCase();
               return (
                 <button
@@ -270,6 +277,16 @@ export default function MarketplaceDirectory() {
                 </button>
               );
             })}
+            {hiddenCategoryCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAllCategories((v) => !v)}
+                className="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-semibold border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
+              >
+                {showAllCategories ? "Show Less" : `View All (+${hiddenCategoryCount})`}
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAllCategories ? "rotate-180" : ""}`} />
+              </button>
+            )}
           </div>
 
           {/* EXPANDABLE SECONDARY FILTERS DRAWER */}

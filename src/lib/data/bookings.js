@@ -174,6 +174,10 @@ export async function createBooking(payload, client) {
     paymentMethod,
   } = payload || {};
 
+  if (pro?.id && pro.id === auth.user.id) {
+    throw userFacing("You cannot book your own service.");
+  }
+
   const servicePrice = Number(service?.price ?? pro?.price ?? 0);
   const platformFee = 0;
   const totalPaid = servicePrice + platformFee;
@@ -194,7 +198,7 @@ export async function createBooking(payload, client) {
     address: address ?? null,
     notes: notes ?? null,
     status: "upcoming",
-    payment_status: payload.paymentStatus || "paid",
+    payment_status: payload.paymentStatus || "unpaid",
     payment_method: paymentMethod ?? null,
     starts_at: toUtcInstant(date, timeSlot, timezone),
   };

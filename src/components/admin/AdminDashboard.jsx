@@ -34,9 +34,11 @@ import {
   ScrollText,
   CheckCircle2,
   TrendingUp,
+  Quote,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { uploadImage, ikImage } from "@/lib/imagekit";
+import { DEFAULT_MARKETING, DEFAULT_TESTIMONIALS, DEFAULT_SOCIAL } from "@/lib/data/site-content";
 
 // Lightweight avatar uploader reused by the Add Professional / Add Customer forms.
 function PhotoPicker({ value, onChange, label = "Photo" }) {
@@ -143,10 +145,7 @@ export default function AdminDashboard({
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlTab = searchParams.get("tab") || initialTab;
-  
-  // Filter out pending/abandoned bookings (upcoming but unpaid) from the admin view
-  const validBookings = bookings.filter((b) => !(b.status === "upcoming" && b.payment_status === "unpaid"));
-  
+
   const { showToast } = useAuth();
   const [activeSection, setActiveSection] = useState(urlTab);
 
@@ -157,7 +156,7 @@ export default function AdminDashboard({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [busy, setBusy] = useState(null);
-  const [categoryForm, setCategoryForm] = useState({ name: "", sort: "" });
+  const [categoryForm, setCategoryForm] = useState({ name: "", sort: "", icon: "" });
   const [editingCategory, setEditingCategory] = useState(null);
   const [showAddPro, setShowAddPro] = useState(false);
   const [proForm, setProForm] = useState({
@@ -187,6 +186,21 @@ export default function AdminDashboard({
   );
   const [announcementForm, setAnnouncementForm] = useState({ title: "", body: "" });
   const [selectedContact, setSelectedContact] = useState(null);
+  const [marketingForm, setMarketingForm] = useState(settings?.marketing || DEFAULT_MARKETING);
+  const [socialForm, setSocialForm] = useState({ ...DEFAULT_SOCIAL, ...(settings?.social || {}) });
+  const [testimonialList, setTestimonialList] = useState(
+    Array.isArray(settings?.testimonials) && settings.testimonials.length
+      ? settings.testimonials
+      : DEFAULT_TESTIMONIALS
+  );
+  const [editingTestimonial, setEditingTestimonial] = useState(null);
+  const [newTestimonial, setNewTestimonial] = useState({
+    name: "",
+    location: "",
+    rating: 5,
+    comment: "",
+    avatar: "",
+  });
 
   const post = async (url, body, method = "POST") => {
     const res = await fetch(url, {
@@ -209,6 +223,18 @@ export default function AdminDashboard({
       showToast(error?.message || "Action failed", "error");
     } finally {
       setBusy(null);
+    }
+  };
+
+  // Shared uploader for category tile images (ImageKit, same as the profile photo picker).
+  const handleCategoryFile = async (e, apply) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      apply(await uploadImage(file));
+    } catch (error) {
+      showToast(error?.message || "Upload failed", "error");
     }
   };
 
@@ -236,6 +262,7 @@ export default function AdminDashboard({
       label: "System",
       items: [
         { id: "announcements", label: "Announcements", icon: Megaphone },
+        { id: "testimonials", label: "Testimonials", icon: Quote },
         { id: "contacts", label: "Contact Messages", icon: MessageSquare, count: contactMessages.filter(m => m.status === "open").length },
         { id: "settings", label: "Settings", icon: SlidersHorizontal },
         { id: "audit", label: "Audit Log", icon: ScrollText },
@@ -282,7 +309,7 @@ export default function AdminDashboard({
     },
   ];
 
-  const recentBookings = validBookings.slice(0, 8);
+  const recentBookings = bookings.slice(0, 8);
 
   const goTo = (id) => {
     setActiveSection(id);
@@ -304,7 +331,7 @@ export default function AdminDashboard({
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-dark-50/80 border-r border-border transition-all duration-200 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-dark-50/80 border-r border-border transition-all duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } ${collapsed ? "w-64 lg:w-[76px]" : "w-64"}`}
       >
@@ -675,7 +702,7 @@ export default function AdminDashboard({
                 <h2 className="font-heading text-2xl font-bold text-dark-900">Bookings</h2>
                 <p className="text-sm text-muted mt-1">Every booking placed on the marketplace.</p>
               </div>
-              {validBookings.length === 0 ? (
+              {bookings.length === 0 ? (
                 <EmptyState
                   icon={Calendar}
                   title="No bookings yet"
@@ -698,13 +725,13 @@ export default function AdminDashboard({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {validBookings.map((booking) => {
+                      {bookings.map((booking) => {
                         const key = `booking:${booking.id}`;
                         const isBusy = busy === key;
                         return (
                           <tr key={booking.id} className="hover:bg-dark-50/50 transition-colors">
                             <td className="px-5 py-3.5 font-mono font-bold text-dark-900">{booking.id}</td>
-                            <td className="px-5 py-3.5 text-dark-700 max-w-[160px] truncate">
+                            <td className="px-5 py-3.5 text-dark-700">
                               {booking.service_title || "—"}
                             </td>
                             <td className="px-5 py-3.5 text-dark-700">{booking.customer?.full_name || "—"}</td>
@@ -1078,11 +1105,11 @@ export default function AdminDashboard({
                   run(
                     "category:new",
                     "/api/admin/categories",
-                    { name, sort: categoryForm.sort },
+                    { name, sort: categoryForm.sort, icon: categoryForm.icon },
                     "Category added"
-                  ).then(() => setCategoryForm({ name: "", sort: "" }));
+                  ).then(() => setCategoryForm({ name: "", sort: "", icon: "" }));
                 }}
-                className="flex flex-col sm:flex-row gap-3 p-4 bg-surface rounded-2xl border border-border shadow-card"
+                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-surface rounded-2xl border border-border shadow-card"
               >
                 <input
                   value={categoryForm.name}
@@ -1098,6 +1125,24 @@ export default function AdminDashboard({
                   placeholder="Order (optional)"
                   className="w-full sm:w-36 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                 />
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-lg bg-dark-100 border border-border overflow-hidden flex items-center justify-center shrink-0">
+                    {categoryForm.icon ? (
+                      <img src={ikImage(categoryForm.icon)} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <Tag className="w-4 h-4 text-dark-400" />
+                    )}
+                  </div>
+                  <label className="cursor-pointer py-2.5 px-3 rounded-xl border border-border text-xs font-semibold text-dark-700 hover:bg-dark-50">
+                    Tile image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleCategoryFile(e, (url) => setCategoryForm((f) => ({ ...f, icon: url })))}
+                    />
+                  </label>
+                </div>
                 <button
                   type="submit"
                   disabled={busy === "category:new"}
@@ -1119,6 +1164,7 @@ export default function AdminDashboard({
                     <thead className="text-muted">
                       <tr className="border-b border-border">
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Name</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Image</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Sort</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Status</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide text-right">Actions</th>
@@ -1142,6 +1188,48 @@ export default function AdminDashboard({
                                 />
                               ) : (
                                 <span className="font-semibold text-dark-900">{category.name}</span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              {isEditing ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-10 h-10 rounded-lg bg-dark-100 border border-border overflow-hidden flex items-center justify-center shrink-0">
+                                    {editingCategory.icon ? (
+                                      <img src={ikImage(editingCategory.icon)} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <Tag className="w-4 h-4 text-dark-400" />
+                                    )}
+                                  </div>
+                                  <input
+                                    value={editingCategory.icon}
+                                    onChange={(e) =>
+                                      setEditingCategory((c) => ({ ...c, icon: e.target.value }))
+                                    }
+                                    placeholder="Image URL"
+                                    className="w-40 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900"
+                                  />
+                                  <label className="cursor-pointer py-1.5 px-2.5 rounded-lg border border-border text-[11px] font-semibold text-dark-700 hover:bg-dark-50">
+                                    Upload
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) =>
+                                        handleCategoryFile(e, (url) =>
+                                          setEditingCategory((c) => ({ ...c, icon: url }))
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                </div>
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-dark-100 border border-border overflow-hidden flex items-center justify-center">
+                                  {category.icon ? (
+                                    <img src={ikImage(category.icon)} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <Tag className="w-4 h-4 text-dark-400" />
+                                  )}
+                                </div>
                               )}
                             </td>
                             <td className="px-5 py-3.5">
@@ -1184,6 +1272,7 @@ export default function AdminDashboard({
                                             id: category.id,
                                             name: editingCategory.name,
                                             sort: editingCategory.sort,
+                                            icon: editingCategory.icon,
                                           },
                                           "Category updated",
                                           "PATCH"
@@ -1226,6 +1315,7 @@ export default function AdminDashboard({
                                           id: category.id,
                                           name: category.name,
                                           sort: category.sort,
+                                          icon: category.icon || "",
                                         })
                                       }
                                       className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold flex items-center gap-1.5"
@@ -1762,11 +1852,257 @@ export default function AdminDashboard({
             </div>
           )}
 
+          {activeSection === "testimonials" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="font-heading text-2xl font-bold text-dark-900">Testimonials</h2>
+                <p className="text-sm text-muted mt-1">
+                  Customer quotes shown on the home page carousel. Edit the existing ones or add new.
+                </p>
+              </div>
+
+              {/* Add new testimonial */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const name = newTestimonial.name.trim();
+                  const comment = newTestimonial.comment.trim();
+                  if (!name || !comment) {
+                    showToast("Name and quote are required.", "error");
+                    return;
+                  }
+                  const updated = [
+                    { ...newTestimonial, name, comment, rating: Number(newTestimonial.rating) || 5 },
+                    ...testimonialList,
+                  ];
+                  run(
+                    "testimonials:add",
+                    "/api/admin/settings",
+                    { key: "testimonials", value: updated },
+                    "Testimonial added"
+                  ).then(() => {
+                    setTestimonialList(updated);
+                    setNewTestimonial({ name: "", location: "", rating: 5, comment: "", avatar: "" });
+                  });
+                }}
+                className="p-4 bg-surface rounded-2xl border border-border shadow-card space-y-3"
+              >
+                <p className="text-xs font-semibold text-dark-700">Add a testimonial</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input
+                    value={newTestimonial.name}
+                    onChange={(e) => setNewTestimonial((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="Customer name"
+                    className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                  />
+                  <input
+                    value={newTestimonial.location}
+                    onChange={(e) => setNewTestimonial((f) => ({ ...f, location: e.target.value }))}
+                    placeholder="City, Country"
+                    className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                  />
+                  <select
+                    value={newTestimonial.rating}
+                    onChange={(e) => setNewTestimonial((f) => ({ ...f, rating: e.target.value }))}
+                    aria-label="Rating"
+                    className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                  >
+                    {[5, 4, 3, 2, 1].map((r) => (
+                      <option key={r} value={r}>
+                        {r} star{r > 1 ? "s" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <textarea
+                  value={newTestimonial.comment}
+                  onChange={(e) => setNewTestimonial((f) => ({ ...f, comment: e.target.value }))}
+                  placeholder="Quote"
+                  rows={2}
+                  className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 resize-none"
+                />
+                <div className="flex flex-wrap items-end gap-4">
+                  <PhotoPicker
+                    value={newTestimonial.avatar}
+                    onChange={(url) => setNewTestimonial((f) => ({ ...f, avatar: url }))}
+                    label="Photo"
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy === "testimonials:add"}
+                    className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold disabled:opacity-50"
+                  >
+                    Add Testimonial
+                  </button>
+                </div>
+              </form>
+
+              {testimonialList.length === 0 ? (
+                <EmptyState
+                  icon={Quote}
+                  title="No testimonials"
+                  hint="Add your first customer quote above — it appears on the home page immediately."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {testimonialList.map((t, idx) => {
+                    const key = `testimonial:${idx}`;
+                    const isBusy = busy === key;
+                    const isEditing = editingTestimonial?.index === idx;
+                    const saveList = (updated, message) =>
+                      run(key, "/api/admin/settings", { key: "testimonials", value: updated }, message).then(
+                        () => setTestimonialList(updated)
+                      );
+                    return (
+                      <div
+                        key={idx}
+                        className="p-4 bg-surface rounded-2xl border border-border shadow-card space-y-3"
+                      >
+                        {isEditing ? (
+                          <>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <input
+                                value={editingTestimonial.name}
+                                onChange={(e) =>
+                                  setEditingTestimonial((c) => ({ ...c, name: e.target.value }))
+                                }
+                                placeholder="Customer name"
+                                className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                              />
+                              <input
+                                value={editingTestimonial.location}
+                                onChange={(e) =>
+                                  setEditingTestimonial((c) => ({ ...c, location: e.target.value }))
+                                }
+                                placeholder="City, Country"
+                                className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                              />
+                              <select
+                                value={editingTestimonial.rating}
+                                onChange={(e) =>
+                                  setEditingTestimonial((c) => ({ ...c, rating: e.target.value }))
+                                }
+                                aria-label="Rating"
+                                className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                              >
+                                {[5, 4, 3, 2, 1].map((r) => (
+                                  <option key={r} value={r}>
+                                    {r} star{r > 1 ? "s" : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <textarea
+                              value={editingTestimonial.comment}
+                              onChange={(e) =>
+                                setEditingTestimonial((c) => ({ ...c, comment: e.target.value }))
+                              }
+                              rows={2}
+                              className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 resize-none"
+                            />
+                            <div className="flex flex-wrap items-end justify-between gap-4">
+                              <PhotoPicker
+                                value={editingTestimonial.avatar}
+                                onChange={(url) => setEditingTestimonial((c) => ({ ...c, avatar: url }))}
+                                label="Photo"
+                              />
+                              <div className="flex items-center gap-2.5">
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => {
+                                    const updated = testimonialList.map((row, i) =>
+                                      i === idx
+                                        ? {
+                                            name: editingTestimonial.name,
+                                            location: editingTestimonial.location,
+                                            rating: Number(editingTestimonial.rating) || 5,
+                                            comment: editingTestimonial.comment,
+                                            avatar: editingTestimonial.avatar,
+                                          }
+                                        : row
+                                    );
+                                    saveList(updated, "Testimonial updated").then(() =>
+                                      setEditingTestimonial(null)
+                                    );
+                                  }}
+                                  className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingTestimonial(null)}
+                                  className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex items-start gap-4">
+                            <div className="w-11 h-11 rounded-full bg-dark-100 border border-border overflow-hidden flex items-center justify-center shrink-0">
+                              {t.avatar ? (
+                                <img src={ikImage(t.avatar)} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <User className="w-5 h-5 text-dark-400" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold text-dark-900">{t.name}</p>
+                                <span className="text-[11px] text-muted">
+                                  {t.location} • {t.rating || 5}★
+                                </span>
+                              </div>
+                              <p className="text-xs text-dark-600 mt-1">{t.comment}</p>
+                            </div>
+                            <div className="flex items-center gap-2.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditingTestimonial({
+                                    index: idx,
+                                    name: t.name || "",
+                                    location: t.location || "",
+                                    rating: t.rating || 5,
+                                    comment: t.comment || "",
+                                    avatar: t.avatar || "",
+                                  })
+                                }
+                                className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold flex items-center gap-1.5"
+                              >
+                                <Pencil className="w-3.5 h-3.5" /> Edit
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => {
+                                  if (!window.confirm("Delete this testimonial?")) return;
+                                  const updated = testimonialList.filter((_, i) => i !== idx);
+                                  saveList(updated, "Testimonial deleted");
+                                }}
+                                className="py-2 px-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Delete
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeSection === "settings" && (
             <div className="space-y-4">
               <div>
                 <h2 className="font-heading text-2xl font-bold text-dark-900">Settings</h2>
-                <p className="text-sm text-muted mt-1">Platform-wide commission and cancellation policy.</p>
+                <p className="text-sm text-muted mt-1">Commission, cancellation policy, marketing numbers and social links.</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <form
@@ -1832,6 +2168,175 @@ export default function AdminDashboard({
                     className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold disabled:opacity-50"
                   >
                     Save Window
+                  </button>
+                </form>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    run(
+                      "settings:marketing",
+                      "/api/admin/settings",
+                      { key: "marketing", value: marketingForm },
+                      "Marketing numbers updated"
+                    );
+                  }}
+                  className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-4 lg:col-span-2"
+                >
+                  <div>
+                    <h3 className="font-heading text-sm font-bold text-dark-900">Marketing Numbers</h3>
+                    <p className="text-[11px] text-muted mt-0.5">
+                      Shown on the home banner and the About page.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="space-y-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-muted">Home banner</p>
+                      {marketingForm.home.map((row, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input
+                            value={row.value}
+                            onChange={(e) =>
+                              setMarketingForm((f) => ({
+                                ...f,
+                                home: f.home.map((r, i) => (i === idx ? { ...r, value: e.target.value } : r)),
+                              }))
+                            }
+                            placeholder="Value"
+                            aria-label={`Home stat ${idx + 1} value`}
+                            className="w-28 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                          />
+                          <input
+                            value={row.label}
+                            onChange={(e) =>
+                              setMarketingForm((f) => ({
+                                ...f,
+                                home: f.home.map((r, i) => (i === idx ? { ...r, label: e.target.value } : r)),
+                              }))
+                            }
+                            placeholder="Label"
+                            aria-label={`Home stat ${idx + 1} label`}
+                            className="flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="space-y-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-muted">About page metrics</p>
+                      {marketingForm.about.map((row, idx) => (
+                        <div key={idx} className="space-y-1.5 rounded-xl border border-border p-2.5">
+                          <div className="flex gap-2">
+                            <input
+                              value={row.value}
+                              onChange={(e) =>
+                                setMarketingForm((f) => ({
+                                  ...f,
+                                  about: f.about.map((r, i) => (i === idx ? { ...r, value: e.target.value } : r)),
+                                }))
+                              }
+                              placeholder="Value"
+                              aria-label={`About stat ${idx + 1} value`}
+                              className="w-28 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                            />
+                            <input
+                              value={row.label}
+                              onChange={(e) =>
+                                setMarketingForm((f) => ({
+                                  ...f,
+                                  about: f.about.map((r, i) => (i === idx ? { ...r, label: e.target.value } : r)),
+                                }))
+                              }
+                              placeholder="Label"
+                              aria-label={`About stat ${idx + 1} label`}
+                              className="flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                            />
+                          </div>
+                          <input
+                            value={row.detail}
+                            onChange={(e) =>
+                              setMarketingForm((f) => ({
+                                ...f,
+                                about: f.about.map((r, i) => (i === idx ? { ...r, detail: e.target.value } : r)),
+                              }))
+                            }
+                            placeholder="Detail line"
+                            aria-label={`About stat ${idx + 1} detail`}
+                            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <label htmlFor="cta-customers" className="text-xs font-semibold text-dark-700">
+                      About CTA: “Join over … customers”
+                    </label>
+                    <input
+                      id="cta-customers"
+                      value={marketingForm.ctaCustomers}
+                      onChange={(e) =>
+                        setMarketingForm((f) => ({ ...f, ctaCustomers: e.target.value }))
+                      }
+                      className="w-32 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={busy === "settings:marketing"}
+                    className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold disabled:opacity-50"
+                  >
+                    Save Marketing Numbers
+                  </button>
+                </form>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    run(
+                      "settings:social",
+                      "/api/admin/settings",
+                      { key: "social", value: socialForm },
+                      "Social links updated"
+                    );
+                  }}
+                  className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-3 lg:col-span-2"
+                >
+                  <div>
+                    <h3 className="font-heading text-sm font-bold text-dark-900">Social Media Links</h3>
+                    <p className="text-[11px] text-muted mt-0.5">
+                      Shown as icons in the site footer. Leave a field blank to hide that icon.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      ["facebook", "Facebook"],
+                      ["instagram", "Instagram"],
+                      ["twitter", "X (Twitter)"],
+                      ["linkedin", "LinkedIn"],
+                      ["youtube", "YouTube"],
+                    ].map(([key, label]) => (
+                      <div key={key}>
+                        <label htmlFor={`social-${key}`} className="block text-[11px] font-semibold text-dark-700 mb-1">
+                          {label}
+                        </label>
+                        <input
+                          id={`social-${key}`}
+                          value={socialForm[key] || ""}
+                          onChange={(e) => setSocialForm((f) => ({ ...f, [key]: e.target.value }))}
+                          placeholder={`https://${key === "twitter" ? "x" : key}.com/your-page`}
+                          className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={busy === "settings:social"}
+                    className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold disabled:opacity-50"
+                  >
+                    Save Social Links
                   </button>
                 </form>
               </div>

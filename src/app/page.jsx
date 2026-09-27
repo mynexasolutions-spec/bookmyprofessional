@@ -9,7 +9,8 @@ import MarketplaceDirectory from "@/components/MarketplaceDirectory";
 import { useAuth } from "@/context/AuthContext";
 import { useMarketplace } from "@/context/MarketplaceContext";
 import { subscribeNewsletter } from "@/lib/data/contacts";
-import { listCategories } from "@/lib/data/categories";
+import { listCategoryTiles } from "@/lib/data/categories";
+import { getSiteContent, DEFAULT_MARKETING, DEFAULT_TESTIMONIALS } from "@/lib/data/site-content";
 import { listMyWishlist, addWish, removeWish } from "@/lib/data/wishlist";
 import {
   ShieldCheck,
@@ -72,10 +73,24 @@ export default function HomePage() {
   const [isSubscribing, setIsSubscribing] = useState(false);
   // ponytail: active categories come from DB; styling map below provides image + color for known names.
   const [activeCategories, setActiveCategories] = useState([]);
+  const [categoryIcons, setCategoryIcons] = useState({});
+  const [marketing, setMarketing] = useState(DEFAULT_MARKETING);
+  const [testimonials, setTestimonials] = useState(DEFAULT_TESTIMONIALS);
+  const [social, setSocial] = useState({});
   useEffect(() => {
     let active = true;
-    listCategories().then((cats) => {
-      if (active) setActiveCategories(cats);
+    listCategoryTiles().then((tiles) => {
+      if (!active) return;
+      setActiveCategories(tiles.map((t) => t.name));
+      setCategoryIcons(
+        Object.fromEntries(tiles.filter((t) => t.icon).map((t) => [t.name, t.icon]))
+      );
+    });
+    getSiteContent().then((content) => {
+      if (!active) return;
+      setMarketing(content.marketing);
+      setTestimonials(content.testimonials);
+      setSocial(content.social);
     });
     return () => { active = false; };
   }, []);
@@ -163,56 +178,6 @@ export default function HomePage() {
       element.scrollIntoView({ behavior: "smooth" });
     }
   };
-
-  const testimonials = [
-    {
-      name: "Priya S.",
-      location: "Mumbai, India",
-      avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
-      rating: 5,
-      comment:
-        "“Found an amazing tutor for my daughter. The booking process was so simple!”",
-    },
-    {
-      name: "Karan M.",
-      location: "Delhi, India",
-      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
-      rating: 5,
-      comment:
-        "“The electrician arrived on time and fixed everything perfectly. Great service!”",
-    },
-    {
-      name: "Aisha S.",
-      location: "Bangalore, India",
-      avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
-      rating: 5,
-      comment:
-        "“I regularly book a cleaner through BookMyProfessional. Very reliable!”",
-    },
-    {
-      name: "Rohan Mehta",
-      location: "Hyderabad, India",
-      avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
-      rating: 5,
-      comment:
-        "“Outstanding platform! Hired a tax consultant within an hour and got all my queries resolved.”",
-    },
-    {
-      name: "Ananya Iyer",
-      location: "Pune, India",
-      avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
-      rating: 5,
-      comment:
-        "“The beautician was super professional and friendly. Very happy with the seamless booking!”",
-    },
-  ];
-
-  const stats = [
-    { value: "15,000+", label: "Verified Professionals" },
-    { value: "98.4%", label: "Satisfaction Rate" },
-    { value: "45 mins", label: "Average Response Time" },
-    { value: "120,000+", label: "Completed Bookings" },
-  ];
 
   const topCategories = [
     {
@@ -464,6 +429,7 @@ export default function HomePage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
               {(activeCategories.length > 0 ? activeCategories : topCategories.map((c) => c.title)).map((name, idx) => {
                 const cat = categoryStylesFor(name);
+                const tileImage = categoryIcons[name] || cat.image;
                 return (
                   <div
                     key={name}
@@ -475,7 +441,7 @@ export default function HomePage() {
                       className="w-full aspect-square rounded-[10px] overflow-hidden flex items-center justify-center mb-2.5 bg-dark-100"
                     >
                       <img
-                        src={cat.image}
+                        src={tileImage}
                         alt={cat.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         loading="lazy"
@@ -793,10 +759,10 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="font-heading text-xl sm:text-2xl font-bold text-white leading-none">
-                      10,000+
+                      {marketing.home[0]?.value}
                     </p>
                     <p className="text-xs sm:text-sm text-dark-200 mt-1 font-medium leading-tight">
-                      Verified Professionals
+                      {marketing.home[0]?.label}
                     </p>
                   </div>
                 </div>
@@ -808,10 +774,10 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="font-heading text-xl sm:text-2xl font-bold text-white leading-none">
-                      50,000+
+                      {marketing.home[1]?.value}
                     </p>
                     <p className="text-xs sm:text-sm text-dark-200 mt-1 font-medium leading-tight">
-                      Happy Customers
+                      {marketing.home[1]?.label}
                     </p>
                   </div>
                 </div>
@@ -823,10 +789,10 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="font-heading text-xl sm:text-2xl font-bold text-white leading-none">
-                      100+
+                      {marketing.home[2]?.value}
                     </p>
                     <p className="text-xs sm:text-sm text-dark-200 mt-1 font-medium leading-tight">
-                      Service Categories
+                      {marketing.home[2]?.label}
                     </p>
                   </div>
                 </div>
@@ -838,10 +804,10 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="font-heading text-xl sm:text-2xl font-bold text-white leading-none">
-                      4.8/5
+                      {marketing.home[3]?.value}
                     </p>
                     <p className="text-xs sm:text-sm text-dark-200 mt-1 font-medium leading-tight">
-                      Average Rating
+                      {marketing.home[3]?.label}
                     </p>
                   </div>
                 </div>
@@ -1335,36 +1301,27 @@ export default function HomePage() {
                 </p>
               </div>
 
-              {/* Social Media Icons */}
+              {/* Social Media Icons (admin-managed in Settings → Social Media Links) */}
               <div className="flex items-center gap-4 mt-6 text-white">
-                <a
-                  href="#facebook"
-                  aria-label="Facebook"
-                  className="hover:text-[#0070F3] transition-colors p-1"
-                >
-                  <Facebook className="w-5 h-5 fill-current" />
-                </a>
-                <a
-                  href="#instagram"
-                  aria-label="Instagram"
-                  className="hover:text-[#0070F3] transition-colors p-1"
-                >
-                  <Instagram className="w-5 h-5 stroke-[2.2]" />
-                </a>
-                <a
-                  href="#linkedin"
-                  aria-label="LinkedIn"
-                  className="hover:text-[#0070F3] transition-colors p-1"
-                >
-                  <Linkedin className="w-5 h-5 fill-current" />
-                </a>
-                <a
-                  href="#youtube"
-                  aria-label="YouTube"
-                  className="hover:text-[#0070F3] transition-colors p-1"
-                >
-                  <Youtube className="w-5 h-5 fill-current" />
-                </a>
+                {[
+                  { key: "facebook", Icon: Facebook, label: "Facebook", cls: "fill-current" },
+                  { key: "instagram", Icon: Instagram, label: "Instagram", cls: "stroke-[2.2]" },
+                  { key: "linkedin", Icon: Linkedin, label: "LinkedIn", cls: "fill-current" },
+                  { key: "youtube", Icon: Youtube, label: "YouTube", cls: "fill-current" },
+                ]
+                  .filter(({ key }) => social[key])
+                  .map(({ key, Icon, label, cls }) => (
+                    <a
+                      key={key}
+                      href={social[key]}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={label}
+                      className="hover:text-[#0070F3] transition-colors p-1"
+                    >
+                      <Icon className={`w-5 h-5 ${cls}`} />
+                    </a>
+                  ))}
               </div>
             </div>
 

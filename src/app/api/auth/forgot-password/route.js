@@ -5,7 +5,8 @@ import { sendEmailViaBrevo } from '@/lib/brevo';
 
 export async function POST(req) {
   try {
-    const { email } = await req.json();
+    const { email: rawEmail } = await req.json();
+    const email = String(rawEmail || '').trim();
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -15,6 +16,16 @@ export async function POST(req) {
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('email', email)
+      .maybeSingle();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'No account found with this email address.' }, { status: 404 });
+    }
 
     // Generate a reset token
     const token = crypto.randomBytes(32).toString('hex');
@@ -30,7 +41,11 @@ export async function POST(req) {
       await supabase.from('settings').insert({ key, value: { token, expiresAt } });
     }
 
-    const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    // Prefer the origin the request came from so the link always points at the site the user is on.
+    const headerOrigin = req.headers.get('origin');
+    const origin = (headerOrigin && headerOrigin !== 'null' ? headerOrigin : null)
+      || process.env.NEXT_PUBLIC_SITE_URL
+      || new URL(req.url).origin;
     const resetLink = `${origin}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
 
     const subject = "Password Reset Request";

@@ -46,6 +46,7 @@ function BookingPageContent({ params }) {
     professionals.find((p) => p.id === proId) ||
     professionals.find((p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(proId));
   const pro = matchedPro || professionals[0];
+  const isOwnProfile = !!(user && matchedPro && user.id === matchedPro.id);
 
   // Wizard Step: 1 = Service, 2 = Date/Slot, 3 = Address, 4 = Payment, 5 = Confirmation
   const [currentStep, setCurrentStep] = useState(1);
@@ -116,6 +117,10 @@ function BookingPageContent({ params }) {
       return;
     }
     if (!selectedTimeSlot) return;
+    if (isOwnProfile) {
+      setPaymentError("You cannot book your own service.");
+      return;
+    }
     
     setPaymentError("");
     setIsProcessingPayment(true);
@@ -194,7 +199,7 @@ function BookingPageContent({ params }) {
   const platformFee = 0;
   const totalAmount = servicePrice + platformFee;
 
-  const isPaymentDisabled = isProcessingPayment;
+  const isPaymentDisabled = isProcessingPayment || isOwnProfile;
 
   if (isLoadingProfessionals && !matchedPro) {
     return (
@@ -258,6 +263,14 @@ function BookingPageContent({ params }) {
 
       <main className="flex-1 py-8 sm:py-12">
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+          {isOwnProfile && (
+            <div className="mb-6 max-w-2xl mx-auto p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                This is your own professional profile — you cannot book yourself. Manage your work from the vendor dashboard.
+              </span>
+            </div>
+          )}
           {/* STEPPER PROGRESS HEADER */}
           {currentStep < 5 && (
             <div className="mb-8 max-w-2xl mx-auto">

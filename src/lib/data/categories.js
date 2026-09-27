@@ -30,6 +30,29 @@ export async function listCategories() {
   }
 }
 
+// Active categories with their admin-uploaded tile image (icon). Falls back to bare names.
+export async function listCategoryTiles() {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("categories")
+      .select("name, icon")
+      .eq("active", true)
+      .order("sort", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      return DEFAULT_CATEGORIES.map((name) => ({ name, icon: "" }));
+    }
+
+    const tiles = data
+      .filter((row) => row.name)
+      .map((row) => ({ name: row.name, icon: row.icon || "" }));
+    return tiles.length > 0 ? tiles : DEFAULT_CATEGORIES.map((name) => ({ name, icon: "" }));
+  } catch {
+    return DEFAULT_CATEGORIES.map((name) => ({ name, icon: "" }));
+  }
+}
+
 // ponytail: [] on error -> admin Categories tab shows its empty state until schema is applied.
 export async function listAllCategories(client) {
   try {
