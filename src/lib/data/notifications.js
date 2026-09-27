@@ -78,6 +78,15 @@ export async function markAllRead() {
   }
 }
 
+export async function deleteNotification(id) {
+  const res = await fetch(`/api/notifications/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    return { ok: false, error: json?.error || "Delete failed" };
+  }
+  return { ok: true };
+}
+
 // ponytail: stubbed — real delivery needs a provider (Resend/SES) key and a server route or
 // Edge Function to hold the secret. Swap this single function when that exists.
 export async function sendEmail(to, subject, body) {

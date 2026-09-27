@@ -2,13 +2,14 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   listMyNotifications,
   unreadCount,
   markRead,
   markAllRead,
+  deleteNotification,
   mapNotification,
 } from "@/lib/data/notifications";
 
@@ -184,13 +185,15 @@ export default function NotificationsMenu() {
               </div>
             ) : (
               items.map((item) => (
-                <button
+                <div
                   key={item.id}
-                  type="button"
-                  onClick={() => handleOpenItem(item)}
-                  className="w-full border-b border-border px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-dark-50 focus:bg-dark-50 focus:outline-none"
+                  className="relative group w-full border-b border-border px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-dark-50 focus-within:bg-dark-50"
                 >
-                  <div className="flex items-start gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenItem(item)}
+                    className="flex w-full items-start gap-2.5 text-left"
+                  >
                     <span
                       className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
                         item.read ? "bg-transparent" : "bg-primary-500"
@@ -206,8 +209,24 @@ export default function NotificationsMenu() {
                         {timeAgo(item.createdAt)}
                       </span>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setItems((prev) => prev.filter((n) => n.id !== item.id));
+                      setUnread((count) => (item.read ? count : Math.max(0, count - 1)));
+                      const { ok } = await deleteNotification(item.id);
+                      if (!ok) {
+                        setItems((prev) => [item, ...prev]);
+                      }
+                    }}
+                    aria-label="Dismiss notification"
+                    className="absolute right-2 top-2 hidden group-hover:flex h-6 w-6 items-center justify-center rounded-full text-dark-400 hover:bg-dark-200 hover:text-dark-700"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               ))
             )}
           </div>

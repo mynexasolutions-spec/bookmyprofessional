@@ -14,6 +14,7 @@ import {
   requestPayout as requestPayoutRow,
   releasePayment,
   refundPayment,
+  getEarningsSummary,
 } from "@/lib/data/payments";
 import { submitReview as submitReviewRow } from "@/lib/data/reviews";
 import { formatMoney } from "@/lib/money";
@@ -101,14 +102,11 @@ export function MarketplaceProvider({ children }) {
     id: "pro-1",
     name: "Dr. Ayesha Khan",
     verificationStatus: "verified", // "verified" | "pending_verification"
-    totalGrossEarnings: 1850,
+    totalGrossEarnings: 0,
     commissionRate: 0.1, // 10%
-    paidOutAmount: 1000,
-    availablePayout: 665,
-    payoutHistory: [
-      { id: "PAY-101", date: "01 Sep 2026", amount: 600, status: "Completed", method: "SEPA Bank (DE89...4401)" },
-      { id: "PAY-102", date: "15 Aug 2026", amount: 400, status: "Completed", method: "SEPA Bank (DE89...4401)" },
-    ],
+    paidOutAmount: 0,
+    availablePayout: 0,
+    payoutHistory: [],
     uploadedDocuments: [
       { name: "Government_ID_Passport.pdf", type: "ID Proof", date: "10 Jan 2024", verified: true },
       { name: "Medical_Board_License_2024.pdf", type: "Professional License", date: "12 Jan 2024", verified: true },
@@ -126,6 +124,24 @@ export function MarketplaceProvider({ children }) {
       }));
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user?.role !== "professional" || !user?.id) return;
+    let active = true;
+    getEarningsSummary(user.id).then((summary) => {
+      if (!active || !summary) return;
+      setProVendorState((prev) => ({
+        ...prev,
+        totalGrossEarnings: summary.gross,
+        paidOutAmount: summary.paidOut,
+        availablePayout: summary.available,
+        commissionRate: summary.commissionRate,
+      }));
+    });
+    return () => {
+      active = false;
+    };
+  }, [user?.id, user?.role]);
 
   // Load the full catalog once for the detail/booking pages and the slot picker.
   useEffect(() => {
@@ -419,7 +435,7 @@ export function MarketplaceProvider({ children }) {
     }
     
     try {
-      await requestPayoutRow(user.id, amt, "SEPA Bank (DE89...4401)");
+      await requestPayoutRow(user.id, amt, "Bank Transfer (NEFT/IMPS)");
       showToast(`Payout request of ${formatMoney(amt)} submitted successfully!`, "success");
       return true;
     } catch (error) {

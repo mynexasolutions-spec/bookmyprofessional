@@ -69,8 +69,10 @@ export default function VendorPortalPage() {
 
   useEffect(() => {
     if (!isLoading) {
-      if (!user || user.role !== "professional") {
-        router.push("/");
+      if (!user) {
+        router.push("/login?next=/vendor&role=professional");
+      } else if (user.role !== "professional") {
+        router.push("/register?role=professional");
       }
     }
   }, [isLoading, user, router]);
@@ -179,7 +181,7 @@ export default function VendorPortalPage() {
           date: p.requested_at ? new Date(p.requested_at).toLocaleDateString() : "",
           amount: Number(p.amount) || 0,
           status: p.status,
-          method: p.method || "SEPA Bank",
+          method: p.method || "Bank Transfer",
         }))
       : proVendorState.payoutHistory;
 
@@ -427,7 +429,7 @@ export default function VendorPortalPage() {
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h1 className="font-heading text-xl sm:text-2xl font-bold text-dark-900">
-                      {vendorProfile?.name || "Professional"}
+                      {user?.name || vendorProfile?.name || "Professional"}
                     </h1>
                     {allApproved ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
@@ -440,7 +442,7 @@ export default function VendorPortalPage() {
                     )}
                   </div>
                   <p className="text-xs text-dark-500 mt-0.5">
-                    Vendor ID: {user?.id?.substring(0, 8) || "..."} • 10% Platform Commission Tier
+                    Vendor ID: {user?.id?.substring(0, 8) || "..."} • {Math.round((stats.commissionRate ?? 0.1) * 100)}% Platform Commission Tier
                   </p>
                 </div>
               </div>
@@ -579,7 +581,7 @@ export default function VendorPortalPage() {
                         {formatMoney(stats.paidOut)}
                       </span>
                       <span className="text-xs text-dark-400 mt-1 block">
-                        Direct to verified IBAN
+                        Direct to verified bank account
                       </span>
                     </div>
                   </div>
@@ -591,7 +593,7 @@ export default function VendorPortalPage() {
                         Withdraw Net Earnings to Bank Account
                       </h3>
                       <p className="text-xs text-white/80 mt-1">
-                        Transfers sent via SEPA Instant directly to your verified IBAN (DE89...4401).
+                        Transfers sent via IMPS/NEFT directly to your verified bank account.
                       </p>
                     </div>
 

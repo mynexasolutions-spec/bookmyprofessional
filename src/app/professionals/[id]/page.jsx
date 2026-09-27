@@ -7,6 +7,7 @@ import Button from "@/components/Button";
 import { useMarketplace } from "@/context/MarketplaceContext";
 import { useAuth } from "@/context/AuthContext";
 import { reportReview } from "@/lib/data/reviews";
+import { isWished, addWish, removeWish } from "@/lib/data/wishlist";
 import { ikImage } from "@/lib/imagekit";
 import {
   Star,
@@ -37,29 +38,11 @@ export default function ProfessionalDetailPage({ params }) {
   const unwrappedParams = use(params);
   const proId = unwrappedParams.id;
   const { professionals, startBooking, isLoadingProfessionals } = useMarketplace();
-  const { showToast } = useAuth();
+  const { showToast, user, openAuthModal } = useAuth();
 
   const [activeTab, setActiveTab] = useState("services"); // "services" | "about" | "credentials" | "reviews" | "schedule"
   const [isSaved, setIsSaved] = useState(false);
   const [reported, setReported] = useState({});
-
-  useEffect(() => {
-    const key = `saved_pro_${proId}`;
-    setIsSaved(window.localStorage.getItem(key) === "true");
-  }, [proId]);
-
-  const toggleSave = () => {
-    const key = `saved_pro_${proId}`;
-    const newState = !isSaved;
-    setIsSaved(newState);
-    if (newState) {
-      window.localStorage.setItem(key, "true");
-      showToast("Added to your wishlist", "success");
-    } else {
-      window.localStorage.removeItem(key);
-      showToast("Removed from your wishlist", "info");
-    }
-  };
 
   const handleReport = async (review) => {
     try {
@@ -75,6 +58,38 @@ export default function ProfessionalDetailPage({ params }) {
   const pro =
     professionals.find((p) => p.id === proId) ||
     professionals.find((p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(proId));
+
+  useEffect(() => {
+    let active = true;
+    if (user && pro) {
+      isWished(pro.id).then((wished) => {
+        if (active) setIsSaved(!!wished);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [pro, user]);
+
+  const toggleSave = async () => {
+    if (!user) {
+      showToast("Sign in to save professionals", "info");
+      openAuthModal("login", "customer");
+      return;
+    }
+    const next = !isSaved;
+    setIsSaved(next);
+    const ok = next ? await addWish(pro.id) : await removeWish(pro.id);
+    if (!ok) {
+      setIsSaved(!next);
+      showToast("Unable to update your wishlist right now.", "error");
+      return;
+    }
+    showToast(
+      next ? "Added to your wishlist" : "Removed from your wishlist",
+      next ? "success" : "info"
+    );
+  };
 
   if (!pro) {
     return (
@@ -162,11 +177,17 @@ export default function ProfessionalDetailPage({ params }) {
                 {/* Avatar & Title */}
                 <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                   <div className="relative shrink-0">
-                    <img
-                      src={ikImage(pro.image)}
-                      alt={pro.name}
-                      className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-surface shadow-xl bg-dark-100"
-                    />
+                    {pro.image ? (
+                      <img
+                        src={ikImage(pro.image)}
+                        alt={pro.name}
+                        className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-surface shadow-xl bg-dark-100"
+                      />
+                    ) : (
+                      <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl border-4 border-surface shadow-xl bg-dark-100 flex items-center justify-center font-heading font-bold text-4xl text-dark-400">
+                        {pro.name?.charAt(0) || "P"}
+                      </div>
+                    )}
                     {pro.verified && (
                       <div
                         className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-surface shadow-md"

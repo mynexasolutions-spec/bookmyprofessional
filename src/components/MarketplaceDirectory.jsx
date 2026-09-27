@@ -436,12 +436,18 @@ export default function MarketplaceDirectory() {
                 {/* Top Image + Badges */}
                 <div className="relative">
                   <div className="w-full h-44 sm:h-48 overflow-hidden bg-dark-100">
-                    <img
-                      src={ikImage(pro.image)}
-                      alt={pro.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
+                    {pro.image ? (
+                      <img
+                        src={ikImage(pro.image)}
+                        alt={pro.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center font-heading font-bold text-4xl text-dark-400">
+                        {pro.name?.charAt(0) || "P"}
+                      </div>
+                    )}
                   </div>
 
                   {/* Gradient bottom shadow over image */}

@@ -83,12 +83,6 @@ export async function saveService(professionalId, service) {
 }
 
 export async function deleteService(professionalId, serviceId) {
-  if (DEMO_MODE) {
-    const demo = readDemo();
-    demo.services = demo.services.filter((s) => s.id !== serviceId);
-    writeDemo(demo);
-    return demo.services;
-  }
   const supabase = createClient();
   const { error } = await supabase.from("services").delete().eq("id", serviceId);
   if (error) throw error;
@@ -103,13 +97,6 @@ export async function saveCredential(professionalId, credential) {
   };
   if (!row.title) throw new Error("Qualification title is required.");
 
-  if (DEMO_MODE) {
-    const demo = readDemo();
-    demo.credentials = [...demo.credentials, { id: `demo-cred-${Date.now()}`, professional_id: professionalId, ...row }];
-    writeDemo(demo);
-    return demo.credentials;
-  }
-
   const supabase = createClient();
   const { error } = await supabase
     .from("credentials")
@@ -119,12 +106,6 @@ export async function saveCredential(professionalId, credential) {
 }
 
 export async function deleteCredential(professionalId, credentialId) {
-  if (DEMO_MODE) {
-    const demo = readDemo();
-    demo.credentials = demo.credentials.filter((c) => c.id !== credentialId);
-    writeDemo(demo);
-    return demo.credentials;
-  }
   const supabase = createClient();
   const { error } = await supabase.from("credentials").delete().eq("id", credentialId);
   if (error) throw error;

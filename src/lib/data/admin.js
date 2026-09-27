@@ -234,6 +234,79 @@ export async function updateProfessional(client, id, patch) {
   return data;
 }
 
+// Admin creates a professional end-to-end: auth user (email confirmed) -> profile trigger ->
+// professionals row. Rolls the auth user back if the professionals insert fails.
+export async function createProfessional(client, payload = {}) {
+  const supabase = client || (await createClient());
+  const { name, email, password, category, city, hourlyRate, phone, imageUrl } = payload;
+
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: name, role: "professional", phone: phone || null, city: city || null },
+  });
+  if (authError) throw authError;
+
+  const userId = authData.user.id;
+
+  // Keep the account avatar (navbar) in sync with the public profile photo.
+  if (imageUrl) {
+    await supabase.from("profiles").update({ avatar_url: imageUrl }).eq("id", userId);
+  }
+
+  const { data, error } = await supabase
+    .from("professionals")
+    .insert({
+      id: userId,
+      name,
+      category,
+      city: city || null,
+      hourly_rate: Number(hourlyRate) || 0,
+      image_url: imageUrl || null,
+      verification_status: "pending",
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    try {
+      await supabase.auth.admin.deleteUser(userId);
+    } catch {
+      // best-effort rollback
+    }
+    throw error;
+  }
+  return data;
+}
+
+// Admin creates a customer account (email confirmed) + optional photo/phone/city on the profile.
+export async function createCustomer(client, payload = {}) {
+  const supabase = client || (await createClient());
+  const { name, email, password, phone, city, imageUrl } = payload;
+
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: name, role: "customer", phone: phone || null, city: city || null },
+  });
+  if (authError) throw authError;
+
+  const userId = authData.user.id;
+  const patch = {};
+  if (imageUrl) patch.avatar_url = imageUrl;
+  if (phone) patch.phone = phone;
+  if (city) patch.city = city;
+  if (Object.keys(patch).length) {
+    await supabase.from("profiles").update(patch).eq("id", userId);
+  }
+
+  const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
+  return data;
+}
+
 export async function updateBookingStatusAdmin(client, id, status) {
   let dbError = null;
   try {
@@ -284,12 +357,13 @@ async function countRows(supabase, table, apply) {
 export async function getAnalytics(client) {
   const supabase = client || (await createClient());
 
-  const [users, professionals, bookings, completedBookings, pendingDocs, pendingReviews] =
+  const [users, professionals, bookings, completedBookings, cancelledBookings, pendingDocs, pendingReviews] =
     await Promise.all([
       countRows(supabase, "profiles"),
       countRows(supabase, "professionals"),
       countRows(supabase, "bookings"),
       countRows(supabase, "bookings", (q) => q.eq("status", "completed")),
+      countRows(supabase, "bookings", (q) => q.eq("status", "cancelled")),
       countRows(supabase, "documents", (q) => q.eq("status", "pending")),
       countRows(supabase, "reviews", (q) => q.eq("status", "pending")),
     ]);
@@ -311,10 +385,68 @@ export async function getAnalytics(client) {
     professionals,
     bookings,
     completedBookings,
+    cancelledBookings,
+    completionRate: bookings ? Math.round((completedBookings / bookings) * 100) : 0,
     pendingDocs,
     pendingReviews,
     grossRevenue: Math.round(grossRevenue * 100) / 100,
   };
+}
+
+// ponytail: an announcement is one notification row per user. Group by title+body so the admin
+// sees a single entry; deleting removes every row with that title+body. Add an announcement_id
+// column if two identical announcements must ever be tracked separately.
+export async function listAnnouncements(client) {
+  try {
+    const supabase = client || (await createClient());
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("id, title, body, created_at")
+      .eq("type", "announcement")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+
+    const groups = new Map();
+    for (const row of data || []) {
+      const key = `${row.title}\u0000${row.body || ""}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          title: row.title,
+          body: row.body || "",
+          count: 0,
+          createdAt: row.created_at,
+        });
+      }
+      groups.get(key).count += 1;
+    }
+    return Array.from(groups.values());
+  } catch {
+    return [];
+  }
+}
+
+export async function listAuditLog(client, limit = 50) {
+  try {
+    const supabase = client || (await createClient());
+    const { data, error } = await supabase
+      .from("audit_log")
+      .select("id, admin_id, action, entity, entity_id, meta, created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteAnnouncement(client, { title, body } = {}) {
+  const supabase = client || (await createClient());
+  let query = supabase.from("notifications").delete().eq("type", "announcement").eq("title", title);
+  query = body ? query.eq("body", body) : query.is("body", null);
+  const { error } = await query;
+  if (error) throw error;
+  return true;
 }
 
 // ponytail: best-effort audit write — a failed log must not fail the admin action itself.

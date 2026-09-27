@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { listCategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
 import {
   Mail,
   Lock,
@@ -23,7 +24,7 @@ import Button from "@/components/Button";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { signup, showToast } = useAuth();
+  const { signup, showToast, user, isLoading: isAuthLoading } = useAuth();
 
   const [authRole, setAuthRole] = useState("customer"); // "customer" | "professional"
   const [showPassword, setShowPassword] = useState(false);
@@ -31,6 +32,17 @@ export default function RegisterPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [step, setStep] = useState("form");
   const [otp, setOtp] = useState("");
+
+  // Honor ?role= and bounce already-signed-in users to their dashboard.
+  // ponytail: a signed-in customer can't self-upgrade to professional here — that needs a real
+  // upgrade flow. Until then, send them to their dashboard instead of a second signup.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("role") === "professional") setAuthRole("professional");
+    if (!isAuthLoading && user) {
+      router.replace(user.role === "professional" ? "/vendor" : "/dashboard");
+    }
+  }, [isAuthLoading, user, router]);
 
   const [form, setForm] = useState({
     fullName: "",
@@ -42,18 +54,20 @@ export default function RegisterPage() {
     agreeTerms: true,
   });
 
-  const categories = [
-    "Doctors",
-    "Tutors",
-    "IT Professionals",
-    "Electricians",
-    "Plumbers",
-    "Beauticians",
-    "Cleaners",
-    "Consultants",
-    "Carpenters",
-    "Painters",
-  ];
+  // Professional categories come from the DB (active rows), seeded to defaults until loaded.
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  useEffect(() => {
+    let active = true;
+    listCategories().then((cats) => {
+      if (!active || !cats?.length) return;
+      setCategories(cats);
+      // Keep the selected specialty valid if the DB list no longer contains it.
+      setForm((f) => (cats.includes(f.category) ? f : { ...f, category: cats[0] }));
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -178,7 +192,7 @@ export default function RegisterPage() {
 
           <p className="text-sm text-white/80 leading-relaxed">
             {authRole === "professional"
-              ? "Earn top market rates, manage your weekly availability, and receive guaranteed milestone payouts straight to your IBAN."
+              ? "Earn top market rates, manage your weekly availability, and receive guaranteed milestone payouts straight to your bank account."
               : "Compare prices, schedule in-person or remote consultations, and enjoy guaranteed escrow protection for every booking."}
           </p>
         </div>

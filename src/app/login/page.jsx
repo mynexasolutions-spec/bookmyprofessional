@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { getProfile } from "@/lib/data/profiles";
 import {
   Mail,
   Lock,
@@ -21,7 +22,7 @@ import Button from "@/components/Button";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loginWithProvider, resendVerificationEmail, showToast } = useAuth();
+  const { login, loginWithProvider, resendVerificationEmail, showToast, user, isLoading: isAuthLoading, logout } = useAuth();
 
   const [authRole, setAuthRole] = useState("customer"); // "customer" | "professional"
   const [showPassword, setShowPassword] = useState(false);
@@ -33,6 +34,16 @@ export default function LoginPage() {
     password: "",
     rememberMe: true,
   });
+
+  // Honor ?role= / ?next= and bounce already-signed-in users to their dashboard.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("role") === "professional") setAuthRole("professional");
+    if (!isAuthLoading && user) {
+      const next = params.get("next");
+      router.replace(next || (user.role === "professional" ? "/vendor" : "/dashboard"));
+    }
+  }, [isAuthLoading, user, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,8 +60,20 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      await login({ identifier: form.identifier, password: form.password, role: authRole });
-      router.push(authRole === "professional" ? "/vendor" : "/dashboard");
+      // Reject a sign-in whose real role doesn't match the selected tab; the effect above handles redirects.
+      const loggedIn = await login({ identifier: form.identifier, password: form.password, role: authRole });
+      const profile = await getProfile(loggedIn?.id);
+      const actualRole = profile?.role || loggedIn?.user_metadata?.role || "customer";
+      const isPortalRole = actualRole === "customer" || actualRole === "professional";
+      if (isPortalRole && actualRole !== authRole) {
+        await logout();
+        setErrorMessage(
+          actualRole === "professional"
+            ? "This account is registered as a Professional. Switch to the Professional tab to sign in."
+            : "This account is registered as a Customer. Switch to the Customer tab to sign in."
+        );
+        return;
+      }
     } catch (err) {
       setErrorMessage(err.message || "Sign in failed. Please try again.");
     } finally {

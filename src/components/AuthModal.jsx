@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { createClient } from "@/lib/supabase/client";
+import { listCategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
 import {
   X,
   Mail,
@@ -93,6 +94,20 @@ export default function AuthModal() {
       document.body.style.overflow = "unset";
     };
   }, [isAuthModalOpen]);
+
+  // Professional categories come from the DB (active rows), seeded to defaults until loaded.
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  useEffect(() => {
+    let active = true;
+    listCategories().then((cats) => {
+      if (!active || !cats?.length) return;
+      setCategories(cats);
+      setSignupForm((f) => (cats.includes(f.category) ? f : { ...f, category: cats[0] }));
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (!isAuthModalOpen) return <ToastNotification toastMessage={toastMessage} />;
 
@@ -191,21 +206,6 @@ export default function AuthModal() {
   const handleSocialAuth = (provider) => {
     showToast(`${provider} sign-in is not enabled yet. Please use email and password.`, "info");
   };
-
-  const categories = [
-    "Doctors",
-    "Tutors",
-    "IT Professionals",
-    "Electricians",
-    "Plumbers",
-    "Beauticians",
-    "Cleaners",
-    "Consultants",
-    "Carpenters",
-    "Painters",
-    "Event Planners",
-    "Fitness Trainers",
-  ];
 
   return (
     <>
@@ -695,11 +695,11 @@ export default function AuthModal() {
                       />
                       <span className="text-[11px] text-dark-600 leading-tight">
                         I agree to BookMyProfessional's{" "}
-                        <a href="#terms" className="text-primary-600 hover:underline">
+                        <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">
                           Terms
                         </a>{" "}
                         &{" "}
-                        <a href="#privacy" className="text-primary-600 hover:underline">
+                        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">
                           Privacy Policy
                         </a>
                         .

@@ -1,12 +1,28 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateRefundHash, getPayuConfig, toPayuAmount } from '@/lib/payu';
+import { sendUserEmail } from '@/lib/email';
+import { formatMoney } from '@/lib/money';
 
 function supabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
+}
+
+// ponytail: email is best-effort — a mail failure must never fail the refund.
+async function emailRefundCustomer(bookingId, customerId, amount) {
+  if (!customerId) return;
+  try {
+    await sendUserEmail(customerId, {
+      kind: 'bookings',
+      subject: 'Refund processed',
+      text: `Your refund of ${formatMoney(amount)} for booking ${bookingId} has been processed.\nIt should reflect in your original payment method within 5-7 business days.\n— BookMyProfessional`,
+    });
+  } catch {
+    // ignore
+  }
 }
 
 export async function POST(req) {
@@ -30,8 +46,21 @@ export async function POST(req) {
 
     const mihpayid = payment.provider_ref;
 
+    let customerId = null;
+    try {
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('customer_id')
+        .eq('id', bookingId)
+        .maybeSingle();
+      customerId = booking?.customer_id || null;
+    } catch {
+      // ignore — the refund still proceeds without the notification
+    }
+
     if (!mihpayid || mihpayid.startsWith('STUB-')) {
       console.warn(`[PayU Refund] Bypassing real refund for stubbed payment: ${mihpayid}`);
+      await emailRefundCustomer(bookingId, customerId, payment.amount);
       return NextResponse.json({ status: 1, message: 'Mock refund successful' });
     }
 
@@ -61,6 +90,7 @@ export async function POST(req) {
     const responseData = await response.json();
 
     if (responseData.status === 1) {
+      await emailRefundCustomer(bookingId, customerId, payment.amount);
       return NextResponse.json({ status: 1, message: 'Refund initiated successfully', data: responseData });
     }
 

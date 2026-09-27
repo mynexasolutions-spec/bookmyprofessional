@@ -25,10 +25,22 @@ export async function POST(request) {
 
   try {
     const supabase = createAdminClient();
+
+    // Blank sort -> append after the highest existing sort instead of defaulting to 0.
+    let sort = body.sort;
+    if (sort === "" || sort === null || sort === undefined) {
+      const { data: rows } = await supabase
+        .from("categories")
+        .select("sort")
+        .order("sort", { ascending: false })
+        .limit(1);
+      sort = (rows?.[0]?.sort ?? 0) + 1;
+    }
+
     const category = await createCategory(supabase, {
       name,
       icon: body.icon,
-      sort: body.sort,
+      sort,
       active: body.active,
     });
     await logAdminAction(

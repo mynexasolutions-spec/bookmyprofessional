@@ -37,3 +37,8 @@ export function getPayuConfig() {
 export function toPayuAmount(value) {
   return (Number(value) || 0).toFixed(2);
 }
+
+// True when PayU's reported amount matches the booking total (both 2-dp strings).
+export function amountsMatch(bookingTotal, payuAmount) {
+  return toPayuAmount(bookingTotal) === toPayuAmount(payuAmount);
+}

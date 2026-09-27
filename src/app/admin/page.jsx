@@ -8,6 +8,8 @@ import {
   getSettings,
   listAllBookings,
   listAllProfessionals,
+  listAnnouncements,
+  listAuditLog,
   listPayouts,
   listPendingDocuments,
   listPendingReviews,
@@ -40,7 +42,8 @@ export default async function AdminPage({ searchParams }) {
     categories,
     professionals,
     settings,
-    contactMessages
+    contactMessages,
+    auditLog
   ] = await Promise.all([
     getAnalytics(supabase),
     listPendingDocuments(supabase),
@@ -52,7 +55,10 @@ export default async function AdminPage({ searchParams }) {
     listAllProfessionals(supabase),
     getSettings(supabase),
     getContactMessages(supabase),
+    listAuditLog(supabase),
   ]);
+
+  const announcements = await listAnnouncements(supabase);
 
   return (
     <AdminDashboard
@@ -66,6 +72,8 @@ export default async function AdminPage({ searchParams }) {
       professionals={professionals}
       settings={settings}
       contactMessages={contactMessages}
+      announcements={announcements}
+      auditLog={auditLog}
       adminId={session.id}
       initialTab={tab}
     />

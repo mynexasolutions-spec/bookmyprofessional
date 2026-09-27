@@ -8,6 +8,9 @@ import Card from "@/components/Card";
 import MarketplaceDirectory from "@/components/MarketplaceDirectory";
 import { useAuth } from "@/context/AuthContext";
 import { useMarketplace } from "@/context/MarketplaceContext";
+import { subscribeNewsletter } from "@/lib/data/contacts";
+import { listCategories } from "@/lib/data/categories";
+import { listMyWishlist, addWish, removeWish } from "@/lib/data/wishlist";
 import {
   ShieldCheck,
   Zap,
@@ -46,6 +49,7 @@ import {
   Youtube,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
+import { ikImage } from "@/lib/imagekit";
 
 export default function HomePage() {
   const { openAuthModal, user, showToast } = useAuth();
@@ -64,28 +68,80 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState("all");
   const [testimonialIndex, setTestimonialIndex] = useState(0);
   const [savedPros, setSavedPros] = useState({});
-
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  // ponytail: active categories come from DB; styling map below provides image + color for known names.
+  const [activeCategories, setActiveCategories] = useState([]);
   useEffect(() => {
-    const saved = {};
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key && key.startsWith("saved_pro_") && window.localStorage.getItem(key) === "true") {
-        saved[key.replace("saved_pro_", "")] = true;
-      }
-    }
-    setSavedPros(saved);
+    let active = true;
+    listCategories().then((cats) => {
+      if (active) setActiveCategories(cats);
+    });
+    return () => { active = false; };
   }, []);
 
-  const toggleSave = (id, name) => {
-    const isSaved = !!savedPros[id];
-    const key = `saved_pro_${id}`;
-    if (isSaved) {
-      window.localStorage.removeItem(key);
-      setSavedPros(prev => { const n = {...prev}; delete n[id]; return n; });
+  const handleNewsletterSubmit = async (e) => {
+    e.preventDefault();
+    if (isSubscribing) return;
+    setIsSubscribing(true);
+    try {
+      await subscribeNewsletter(newsletterEmail);
+      showToast("Subscribed! You'll get the latest updates and offers.", "success");
+      setNewsletterEmail("");
+    } catch (err) {
+      showToast(err?.message || "Subscription failed. Please try again.", "error");
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setSavedPros({});
+      return () => {
+        active = false;
+      };
+    }
+    listMyWishlist().then((ids) => {
+      if (active) setSavedPros(Object.fromEntries(ids.map((id) => [id, true])));
+    });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const toggleSave = async (id, name) => {
+    if (!user) {
+      showToast("Sign in to save professionals", "info");
+      openAuthModal("login", "customer");
+      return;
+    }
+    if (savedPros[id]) {
+      setSavedPros((prev) => {
+        const n = { ...prev };
+        delete n[id];
+        return n;
+      });
+      const ok = await removeWish(id);
+      if (!ok) {
+        setSavedPros((prev) => ({ ...prev, [id]: true }));
+        showToast("Unable to update your wishlist right now.", "error");
+        return;
+      }
       showToast(`${name} removed from your favorites!`, "info");
     } else {
-      window.localStorage.setItem(key, "true");
-      setSavedPros(prev => ({ ...prev, [id]: true }));
+      setSavedPros((prev) => ({ ...prev, [id]: true }));
+      const ok = await addWish(id);
+      if (!ok) {
+        setSavedPros((prev) => {
+          const n = { ...prev };
+          delete n[id];
+          return n;
+        });
+        showToast("Unable to update your wishlist right now.", "error");
+        return;
+      }
       showToast(`${name} saved to your favorites!`, "success");
     }
   };
@@ -216,6 +272,16 @@ export default function HomePage() {
       image: "/images/cat_consultant.jpg",
     },
   ];
+  // ponytail: DB categories drive the visible list (admin deactivate → disappears); this map supplies
+  // the visual chrome for known names. Unknown categories fall back to a neutral card.
+  const categoryStyleByKey = Object.fromEntries(topCategories.map((c) => [c.title, c]));
+  const categoryStylesFor = (name) => categoryStyleByKey[name] || {
+    title: name,
+    subtitle: "Professional service",
+    bgGradient: "from-slate-200 to-slate-100",
+    cardBg: "bg-slate-50/70 border-slate-200",
+    image: `/images/cat_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}.jpg`,
+  };
 
   const features = [
     {
@@ -253,69 +319,6 @@ export default function HomePage() {
       title: "Satisfaction Guarantee",
       desc: "Not fully satisfied with the initial consultation? We offer hassle-free rematching or full refunds.",
       tag: "Guarantee",
-    },
-  ];
-
-  const professionals = [
-    {
-      name: "Dr. Ayesha Khan",
-      role: "General Physician",
-      rating: "4.9",
-      reviews: "120",
-      location: "Mumbai, India",
-      price: formatMoney(50, 0),
-      originalPrice: formatMoney(60, 0),
-      unit: "session",
-      image: "/images/pro_doctor.jpg",
-      verified: true,
-    },
-    {
-      name: "Rohit Sharma",
-      role: "Math Tutor",
-      rating: "4.8",
-      reviews: "98",
-      location: "Mumbai, India",
-      price: formatMoney(30, 0),
-      originalPrice: formatMoney(40, 0),
-      unit: "hour",
-      image: "/images/pro_tutor.jpg",
-      verified: true,
-    },
-    {
-      name: "Ahmed Ali",
-      role: "Electrician",
-      rating: "4.7",
-      reviews: "86",
-      location: "Mumbai, India",
-      price: formatMoney(40, 0),
-      originalPrice: formatMoney(60, 0),
-      unit: "hour",
-      image: "/images/pro_electrician.jpg",
-      verified: true,
-    },
-    {
-      name: "Sara Khan",
-      role: "Beautician",
-      rating: "4.9",
-      reviews: "112",
-      location: "Mumbai, India",
-      price: formatMoney(35, 0),
-      originalPrice: formatMoney(50, 0),
-      unit: "session",
-      image: "/images/pro_beautician.jpg",
-      verified: true,
-    },
-    {
-      name: "Ramesh Kumar",
-      role: "Plumber",
-      rating: "4.8",
-      reviews: "74",
-      location: "Mumbai, India",
-      price: formatMoney(45, 0),
-      originalPrice: formatMoney(65, 0),
-      unit: "hour",
-      image: "/images/pro_plumber.jpg",
-      verified: true,
     },
   ];
 
@@ -419,14 +422,7 @@ export default function HomePage() {
                   <span className="font-semibold text-dark-700 mr-1">
                     Popular:
                   </span>
-                  {[
-                    "Electricians",
-                    "Plumbers",
-                    "Tutors",
-                    "Doctors",
-                    "Beauticians",
-                    "Cleaners",
-                  ].map((service) => (
+                  {(activeCategories.length > 0 ? activeCategories.slice(0, 6) : []).map((service) => (
                     <button
                       key={service}
                       type="button"
@@ -466,33 +462,37 @@ export default function HomePage() {
 
             {/* Categories Grid / Horizontal Scroll on small screens */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
-              {topCategories.map((cat, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => handleCategoryClick(cat.title)}
-                  className={`group relative flex flex-col items-center text-center rounded-[14px] border ${cat.cardBg} p-2.5 sm:p-3 transition-all duration-200 hover:-translate-y-1 hover:shadow-card cursor-pointer`}
-                >
-                  {/* Image Container with Soft Pastel Background */}
+              {(activeCategories.length > 0 ? activeCategories : topCategories.map((c) => c.title)).map((name, idx) => {
+                const cat = categoryStylesFor(name);
+                return (
                   <div
-                    className="w-full aspect-square rounded-[10px] overflow-hidden flex items-center justify-center mb-2.5 bg-dark-100"
+                    key={name}
+                    onClick={() => handleCategoryClick(cat.title)}
+                    className={`group relative flex flex-col items-center text-center rounded-[14px] border ${cat.cardBg} p-2.5 sm:p-3 transition-all duration-200 hover:-translate-y-1 hover:shadow-card cursor-pointer`}
                   >
-                    <img
-                      src={cat.image}
-                      alt={cat.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                      loading="lazy"
-                    />
-                  </div>
+                    {/* Image Container with Soft Pastel Background */}
+                    <div
+                      className="w-full aspect-square rounded-[10px] overflow-hidden flex items-center justify-center mb-2.5 bg-dark-100"
+                    >
+                      <img
+                        src={cat.image}
+                        alt={cat.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        loading="lazy"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    </div>
 
-                  {/* Text Details */}
-                  <h3 className="font-heading text-xs sm:text-sm font-bold text-dark-900 leading-tight">
-                    {cat.title}
-                  </h3>
-                  <p className="mt-1 text-[10px] sm:text-[11px] text-muted leading-tight line-clamp-1">
-                    {cat.subtitle}
-                  </p>
-                </div>
-              ))}
+                    {/* Text Details */}
+                    <h3 className="font-heading text-xs sm:text-sm font-bold text-dark-900 leading-tight">
+                      {cat.title}
+                    </h3>
+                    <p className="mt-1 text-[10px] sm:text-[11px] text-muted leading-tight line-clamp-1">
+                      {cat.subtitle}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -662,34 +662,38 @@ export default function HomePage() {
             </div>
 
             {/* 5 Cards Grid: 1 col on mobile, 2 cols on sm, 3 cols on md, 5 cols on xl */}
+            {marketplacePros.length === 0 ? (
+              <p className="text-sm text-muted">New professionals are being verified — check back soon.</p>
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {professionals.map((pro, index) => {
-                const targetPro = marketplacePros?.length > 0
-                  ? (marketplacePros.find((p) =>
-                      p.name.toLowerCase().includes(pro.name.toLowerCase())
-                    ) || marketplacePros[index % marketplacePros.length])
-                  : { id: "pro-1" };
-
-                return (
+              {marketplacePros.slice(0, 5).map((pro) => (
                   <div
-                    key={index}
+                    key={pro.id}
                     className="group bg-surface rounded-card border border-border shadow-card hover:shadow-soft hover:border-primary-200 transition-all duration-200 overflow-hidden flex flex-col justify-between"
                   >
-                    <Link href={`/professionals/${targetPro.id}`} className="block">
+                    <Link href={`/professionals/${pro.id}`} className="block">
                       {/* Image Container with Badges */}
                       <div className="relative aspect-square w-full bg-dark-100 overflow-hidden">
-                        <img
-                          src={pro.image}
-                          alt={pro.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          loading="lazy"
-                        />
+                        {pro.image ? (
+                          <img
+                            src={ikImage(pro.image)}
+                            alt={pro.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center font-heading font-bold text-3xl text-dark-400">
+                            {pro.name?.charAt(0) || "P"}
+                          </div>
+                        )}
 
                         {/* Top Left Verified Badge */}
-                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-white/90 backdrop-blur-xs rounded-full px-2 py-0.5 shadow-xs">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-500" />
-                          <span className="text-[10px] font-bold text-dark-800">Verified</span>
-                        </div>
+                        {pro.verified && (
+                          <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-white/90 backdrop-blur-xs rounded-full px-2 py-0.5 shadow-xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-primary-500" />
+                            <span className="text-[10px] font-bold text-dark-800">Verified</span>
+                          </div>
+                        )}
 
                         <button
                           type="button"
@@ -697,11 +701,11 @@ export default function HomePage() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            toggleSave(targetPro.id, pro.name);
+                            toggleSave(pro.id, pro.name);
                           }}
                           className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center text-dark-500 hover:text-danger hover:bg-white transition-colors shadow-xs"
                         >
-                          <Heart className={`w-3.5 h-3.5 ${savedPros[targetPro.id] ? "fill-red-500 text-red-500" : ""}`} />
+                          <Heart className={`w-3.5 h-3.5 ${savedPros[pro.id] ? "fill-red-500 text-red-500" : ""}`} />
                         </button>
                       </div>
 
@@ -712,7 +716,7 @@ export default function HomePage() {
                           <h3 className="font-heading font-bold text-sm text-dark-900 leading-tight truncate group-hover:text-primary-600 transition-colors">
                             {pro.name}
                           </h3>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+                          {pro.verified && <CheckCircle2 className="w-3.5 h-3.5 text-primary-500 shrink-0" />}
                         </div>
 
                         {/* Profession / Role */}
@@ -721,11 +725,15 @@ export default function HomePage() {
                         </p>
 
                         {/* Rating & Reviews */}
-                        <div className="flex items-center gap-1 mt-2 text-xs font-semibold text-dark-800">
-                          <Star className="w-3.5 h-3.5 fill-warning text-warning" />
-                          <span>{pro.rating}</span>
-                          <span className="text-muted font-normal">({pro.reviews} reviews)</span>
-                        </div>
+                        {pro.reviewCount > 0 && pro.rating ? (
+                          <div className="flex items-center gap-1 mt-2 text-xs font-semibold text-dark-800">
+                            <Star className="w-3.5 h-3.5 fill-warning text-warning" />
+                            <span>{pro.rating}</span>
+                            <span className="text-muted font-normal">({pro.reviewCount} reviews)</span>
+                          </div>
+                        ) : (
+                          <span className="block mt-2 text-xs font-semibold text-muted">New</span>
+                        )}
 
                         {/* Location */}
                         <div className="flex items-center gap-1 mt-1 text-[11px] text-muted">
@@ -737,13 +745,10 @@ export default function HomePage() {
                         <div className="mt-3 flex items-baseline gap-2 pt-2 border-t border-border">
                           <div className="flex items-baseline gap-1">
                             <span className="font-heading font-bold text-sm text-dark-900">
-                              {pro.price}
+                              {formatMoney(pro.price, 0)}
                             </span>
                             <span className="text-[11px] text-muted">/{pro.unit}</span>
                           </div>
-                          <span className="text-[11px] text-muted line-through">
-                            {pro.originalPrice}/{pro.unit}
-                          </span>
                         </div>
                       </div>
                     </Link>
@@ -751,16 +756,16 @@ export default function HomePage() {
                     {/* Bottom Action Button */}
                     <div className="p-3.5 pt-0">
                       <Link
-                        href={`/book/${targetPro.id}`}
+                        href={`/book/${pro.id}`}
                         className="w-full inline-flex items-center justify-center rounded-[6px] py-2 text-xs font-semibold shadow-button bg-primary-500 hover:bg-primary-600 text-white transition-colors"
                       >
                         Book Now
                       </Link>
                     </div>
                   </div>
-                );
-              })}
+              ))}
             </div>
+            )}
           </div>
         </section>
 
@@ -848,7 +853,7 @@ export default function HomePage() {
         </section>
 
         {/* WHY CHOOSE BOOKMYPROFESSIONAL SECTION */}
-        <section className="py-14 sm:py-16 bg-surface border-b border-border">
+        <section id="trust" className="py-14 sm:py-16 bg-surface border-b border-border scroll-mt-14">
           <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8">
             {/* Main Header */}
             <div className="text-center mb-10 sm:mb-14">
@@ -1425,9 +1430,9 @@ export default function HomePage() {
                   </Link>
                 </li>
                 <li>
-                  <a href="#support" className="hover:text-white transition-colors">
+                  <Link href="/contact" className="hover:text-white transition-colors">
                     Help & Support
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
@@ -1460,14 +1465,14 @@ export default function HomePage() {
                   </a>
                 </li>
                 <li>
-                  <a href="#terms" className="hover:text-white transition-colors">
+                  <Link href="/terms" className="hover:text-white transition-colors">
                     Terms & Conditions
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#privacy" className="hover:text-white transition-colors">
+                  <Link href="/privacy" className="hover:text-white transition-colors">
                     Privacy Policy
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
@@ -1481,20 +1486,28 @@ export default function HomePage() {
                 Get the latest updates and offers.
               </p>
               <form
-                onSubmit={(e) => e.preventDefault()}
+                onSubmit={handleNewsletterSubmit}
                 className="flex items-center bg-white rounded-[8px] p-1 shadow-sm max-w-sm"
               >
                 <input
                   type="email"
+                  required
+                  value={newsletterEmail}
+                  onChange={(e) => setNewsletterEmail(e.target.value)}
                   placeholder="Your email address"
                   className="w-full bg-transparent px-3 py-1.5 text-xs sm:text-sm text-dark-900 placeholder:text-dark-400 focus:outline-none"
                 />
                 <button
                   type="submit"
+                  disabled={isSubscribing}
                   aria-label="Subscribe"
-                  className="bg-[#0070F3] hover:bg-[#0060df] text-white p-2.5 rounded-[6px] transition-colors shrink-0 flex items-center justify-center shadow-xs"
+                  className="bg-[#0070F3] hover:bg-[#0060df] disabled:opacity-60 text-white p-2.5 rounded-[6px] transition-colors shrink-0 flex items-center justify-center shadow-xs"
                 >
-                  <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+                  {isSubscribing ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+                  )}
                 </button>
               </form>
             </div>
@@ -1503,7 +1516,7 @@ export default function HomePage() {
 
           {/* Bottom Row: Copyright right-aligned matching screenshot */}
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-end text-xs text-white/60">
-            <p>© 2024 BookMyProfessional. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} BookMyProfessional. All rights reserved.</p>
           </div>
 
         </div>

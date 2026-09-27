@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { logAdminAction } from "@/lib/data/admin";
+import { logAdminAction, deleteAnnouncement } from "@/lib/data/admin";
+
+async function readBody(request) {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request) {
   if (!(await isAdminRequest())) {
@@ -16,8 +24,7 @@ export async function POST(request) {
   }
 
   const title = (body?.title || "").trim();
-  const text = (body?.body || "").trim();
-  if (!title) {
+  const text = (body?.body || "").trim();  if (!title) {
     return NextResponse.json({ error: "title is required" }, { status: 400 });
   }
 
@@ -51,5 +58,28 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, recipients: rows.length });
   } catch (error) {
     return NextResponse.json({ error: error?.message || "Broadcast failed" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  if (!(await isAdminRequest())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await readBody(request);
+  const title = (body?.title || "").trim();
+  if (!title) return NextResponse.json({ error: "title is required" }, { status: 400 });
+  const text = (body?.body || "").trim();
+
+  try {
+    const supabase = createAdminClient();
+    await deleteAnnouncement(supabase, { title, body: text });
+    await logAdminAction(
+      { action: "broadcast.delete", entity: "notifications", meta: { title } },
+      supabase
+    );
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error?.message || "Delete failed" }, { status: 500 });
   }
 }

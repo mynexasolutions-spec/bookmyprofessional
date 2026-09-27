@@ -793,7 +793,7 @@ export default function ContactPage() {
           </div>
 
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-white/60 gap-3">
-            <p>© 2024 BookMyProfessional. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} BookMyProfessional. All rights reserved.</p>
             <div className="flex items-center gap-4">
               <a href="#facebook" aria-label="Facebook" className="hover:text-white transition-colors">
                 <Facebook className="w-4 h-4" />

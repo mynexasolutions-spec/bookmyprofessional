@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { generatePaymentHash, verifyPaymentHash, generateRefundHash, toPayuAmount } from "../src/lib/payu.js";
+import { generatePaymentHash, verifyPaymentHash, generateRefundHash, toPayuAmount, amountsMatch } from "../src/lib/payu.js";
 
 const sha512 = (s) => crypto.createHash("sha512").update(s).digest("hex");
 
@@ -45,4 +45,30 @@ test("toPayuAmount always yields a 2-decimal string", () => {
   assert.equal(toPayuAmount(499), "499.00");
   assert.equal(toPayuAmount("499.5"), "499.50");
   assert.equal(toPayuAmount(0), "0.00");
+});
+
+test("amountsMatch accepts equal numeric amounts", () => {
+  assert.equal(amountsMatch(50, 50), true);
+});
+
+test("amountsMatch accepts a 2-dp string against its numeric equivalent", () => {
+  assert.equal(amountsMatch("50.00", 50), true);
+});
+
+test("amountsMatch rejects different amounts", () => {
+  assert.equal(amountsMatch(50, 49.99), false);
+});
+
+test("amountsMatch compares through toPayuAmount's rounding (50.005 -> 50.01)", () => {
+  assert.equal(toPayuAmount(50.005), "50.01");
+  assert.equal(toPayuAmount(50.01), "50.01");
+  assert.equal(amountsMatch(50.005, 50.01), true);
+});
+
+test("amountsMatch returns a boolean and never throws on invalid or missing input", () => {
+  for (const value of [null, undefined, "abc"]) {
+    assert.equal(typeof amountsMatch(value, 50), "boolean");
+    assert.equal(typeof amountsMatch(50, value), "boolean");
+  }
+  assert.equal(amountsMatch(null, "abc"), true);
 });

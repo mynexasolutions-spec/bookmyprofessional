@@ -18,6 +18,16 @@ export default async function proxy(request) {
 
 
 
+  const isProtected =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/vendor") ||
+    pathname.startsWith("/messages") ||
+    pathname.startsWith("/book") ||
+    pathname.startsWith("/invoice");
+
+  // ponytail: public pages skip the auth round-trip (kills the 403 storm on stale cookies); sessions still refresh on protected navigations or client-side.
+  if (!isProtected) return NextResponse.next();
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -43,15 +53,12 @@ export default async function proxy(request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isProtected =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/vendor") ||
-    pathname.startsWith("/messages") ||
-    pathname.startsWith("/book");
-
   if (isProtected && !user) {
     const url = request.nextUrl.clone();
+    const next = `${url.pathname}${url.search}`;
     url.pathname = "/login";
+    url.search = "";
+    url.searchParams.set("next", next);
     return NextResponse.redirect(url);
   }
 

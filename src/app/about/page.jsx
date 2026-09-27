@@ -33,7 +33,7 @@ export default function AboutPage() {
     {
       year: "2022",
       title: "The Founding Vision",
-      desc: "Founded with the mission to eliminate friction in finding certified home, health, and tech professionals across Europe.",
+      desc: "Founded with the mission to eliminate friction in finding certified home, health, and tech professionals across India.",
     },
     {
       year: "2023",
@@ -43,11 +43,11 @@ export default function AboutPage() {
     {
       year: "2024",
       title: "AI-Powered Matching",
-      desc: "Introduced smart matching algorithms, instant SEPA vendor payouts, and verified client review integrity verification.",
+      desc: "Introduced smart matching algorithms, instant vendor payouts, and verified client review integrity verification.",
     },
     {
       year: "2026",
-      title: "Europe's Trusted Hub",
+      title: "India's Trusted Hub",
       desc: "Over 120,000 completed appointments with a 98.4% customer satisfaction score and round-the-clock dispute concierge.",
     },
   ];
@@ -209,7 +209,7 @@ export default function AboutPage() {
                   Finding a dependable electrician in an emergency, an empathetic general physician for a quick consultation, or a seasoned tutor for your children used to involve hours of uncertain calls, unvetted recommendations, and opaque pricing.
                 </p>
                 <p className="mt-3 text-xs sm:text-sm text-dark-600 leading-relaxed">
-                  We engineered BookMyProfessional to change that entirely. By holding service providers to strict verification standards and protecting every single euro via milestone escrow, we foster genuine trust in the gig and service economy.
+                  We engineered BookMyProfessional to change that entirely. By holding service providers to strict verification standards and protecting every single rupee via milestone escrow, we foster genuine trust in the gig and service economy.
                 </p>
 
                 <div className="mt-6 space-y-3">
@@ -494,7 +494,7 @@ export default function AboutPage() {
           </div>
 
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-white/60 gap-3">
-            <p>© 2024 BookMyProfessional. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} BookMyProfessional. All rights reserved.</p>
             <div className="flex items-center gap-4">
               <a href="#facebook" aria-label="Facebook" className="hover:text-white transition-colors">
                 <Facebook className="w-4 h-4" />

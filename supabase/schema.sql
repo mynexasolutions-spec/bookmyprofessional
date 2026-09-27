@@ -540,3 +540,18 @@ CREATE POLICY "Allow admin to read contacts"
   ON public.contacts
   FOR SELECT
   USING (true);
+
+-- ---------- wishlists ----------
+create table if not exists public.wishlists (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  professional_id uuid not null references public.professionals(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, professional_id)
+);
+alter table public.wishlists enable row level security;
+drop policy if exists wishlists_select_own on public.wishlists;
+create policy wishlists_select_own on public.wishlists for select using (user_id = auth.uid());
+drop policy if exists wishlists_insert_own on public.wishlists;
+create policy wishlists_insert_own on public.wishlists for insert with check (user_id = auth.uid());
+drop policy if exists wishlists_delete_own on public.wishlists;
+create policy wishlists_delete_own on public.wishlists for delete using (user_id = auth.uid());

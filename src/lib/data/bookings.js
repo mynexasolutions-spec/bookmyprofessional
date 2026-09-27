@@ -305,3 +305,73 @@ export async function cancelBooking(bookingId, client) {
   if (error) throw error;
   return mapBooking(data);
 }
+
+export async function rescheduleBooking(bookingId, { date, timeSlot }, client) {
+  const supabase = client || createClient();
+
+  const { data: row, error: readError } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", bookingId)
+    .single();
+  if (readError) throw readError;
+
+  if (row?.status !== "upcoming" || row?.payment_status !== "paid") {
+    throw userFacing("Only paid, upcoming bookings can be rescheduled.");
+  }
+
+  let timezone = null;
+  let startsAt = row?.starts_at ? new Date(row.starts_at) : null;
+  if (!startsAt) {
+    timezone = await fetchTimezone(supabase, row?.professional_id);
+    const iso = toUtcInstant(row?.date, row?.time_slot, timezone);
+    startsAt = iso ? new Date(iso) : null;
+  }
+
+  if (startsAt && !Number.isNaN(startsAt.getTime())) {
+    const windowHours = await getCancellationWindowHours(supabase);
+    const cutoff = startsAt.getTime() - windowHours * 60 * 60 * 1000;
+    if (Date.now() > cutoff) {
+      throw userFacing(
+        `Reschedule window has passed. Bookings can only be changed more than ${windowHours} hours before the appointment.`
+      );
+    }
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !timeSlot) {
+    throw userFacing("Please pick a new date and time slot.");
+  }
+  if (date === row.date && timeSlot === row.time_slot) {
+    throw userFacing("That's already your current slot. Please pick another slot.");
+  }
+
+  if (!timezone) timezone = await fetchTimezone(supabase, row?.professional_id);
+  const patch = { date, time_slot: timeSlot, starts_at: toUtcInstant(date, timeSlot, timezone) };
+
+  let { data, error } = await supabase
+    .from("bookings")
+    .update(patch)
+    .eq("id", bookingId)
+    .select("*, professionals(name, role_title, image_url)")
+    .single();
+
+  if (error && /starts_at/.test(error.message || "")) {
+    const withoutStartsAt = { ...patch };
+    delete withoutStartsAt.starts_at;
+    ({ data, error } = await supabase
+      .from("bookings")
+      .update(withoutStartsAt)
+      .eq("id", bookingId)
+      .select("*, professionals(name, role_title, image_url)")
+      .single());
+  }
+
+  if (error) {
+    if (error.code === "23505") {
+      throw userFacing("That slot was just taken. Please pick another slot.");
+    }
+    throw error;
+  }
+
+  return mapBooking(data);
+}

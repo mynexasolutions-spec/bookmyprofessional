@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { logAdminAction, updateUserSuspended, deleteUser } from "@/lib/data/admin";
+import { logAdminAction, updateUserSuspended, deleteUser, createCustomer } from "@/lib/data/admin";
 
 async function readBody(request) {
   try {
@@ -20,6 +20,31 @@ export async function POST(request) {
   if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
 
   const { userId, action } = body;
+
+  if (action === "create") {
+    const name = (body.name || "").trim();
+    const email = (body.email || "").trim();
+    const password = body.password || "";
+    if (!name || !email || !email.includes("@")) {
+      return NextResponse.json({ error: "name and a valid email are required" }, { status: 400 });
+    }
+    if (password.length < 6) {
+      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
+    }
+    try {
+      const supabase = createAdminClient();
+      const profile = await createCustomer(supabase, { ...body, name, email });
+      await logAdminAction(
+        { action: "user.create", entity: "profiles", entityId: profile?.id, meta: { name, email } },
+        supabase
+      );
+      return NextResponse.json({ ok: true, profile });
+    } catch (error) {
+      const status = error?.code === "email_exists" ? 409 : 500;
+      return NextResponse.json({ error: error?.message || "Could not add customer" }, { status });
+    }
+  }
+
   if (!userId || !["suspend", "unsuspend"].includes(action)) {
     return NextResponse.json(
       { error: "userId and action ('suspend'|'unsuspend') are required" },

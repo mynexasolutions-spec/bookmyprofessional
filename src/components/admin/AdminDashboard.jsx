@@ -31,8 +31,53 @@ import {
   Megaphone,
   MessageSquare,
   RefreshCw,
+  ScrollText,
+  CheckCircle2,
+  TrendingUp,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
+import { uploadImage, ikImage } from "@/lib/imagekit";
+
+// Lightweight avatar uploader reused by the Add Professional / Add Customer forms.
+function PhotoPicker({ value, onChange, label = "Photo" }) {
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setErr("");
+    setUploading(true);
+    try {
+      onChange(await uploadImage(file));
+    } catch (error) {
+      setErr(error?.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-dark-700 mb-1">{label}</label>
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-dark-100 border border-border overflow-hidden flex items-center justify-center shrink-0">
+          {value ? (
+            <img src={ikImage(value)} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <User className="w-5 h-5 text-dark-400" />
+          )}
+        </div>
+        <label className="cursor-pointer py-2 px-3 rounded-xl border border-border text-xs font-semibold text-dark-700 hover:bg-dark-50">
+          {uploading ? "Uploading…" : value ? "Change photo" : "Upload photo"}
+          <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
+        </label>
+      </div>
+      {err && <p className="text-[11px] text-red-600 mt-1">{err}</p>}
+    </div>
+  );
+}
 
 const statusStyles = {
   pending: "text-amber-700 bg-amber-100",
@@ -90,6 +135,8 @@ export default function AdminDashboard({
   professionals = [],
   settings = {},
   contactMessages = [],
+  announcements = [],
+  auditLog = [],
   adminId = "admin",
   initialTab = "overview",
 }) {
@@ -112,6 +159,26 @@ export default function AdminDashboard({
   const [busy, setBusy] = useState(null);
   const [categoryForm, setCategoryForm] = useState({ name: "", sort: "" });
   const [editingCategory, setEditingCategory] = useState(null);
+  const [showAddPro, setShowAddPro] = useState(false);
+  const [proForm, setProForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    category: "",
+    city: "",
+    phone: "",
+    hourlyRate: "",
+    imageUrl: "",
+  });
+  const [showAddCust, setShowAddCust] = useState(false);
+  const [custForm, setCustForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "",
+    city: "",
+    imageUrl: "",
+  });
   const [commissionRate, setCommissionRate] = useState(
     String(Number(settings?.commission?.rate ?? 0.1) * 100)
   );
@@ -170,6 +237,7 @@ export default function AdminDashboard({
         { id: "announcements", label: "Announcements", icon: Megaphone },
         { id: "contacts", label: "Contact Messages", icon: MessageSquare, count: contactMessages.filter(m => m.status === "open").length },
         { id: "settings", label: "Settings", icon: SlidersHorizontal },
+        { id: "audit", label: "Audit Log", icon: ScrollText },
       ],
     },
   ];
@@ -198,6 +266,18 @@ export default function AdminDashboard({
       value: analytics.professionals ?? 0,
       icon: ShieldCheck,
       tint: "bg-violet-100 text-violet-600",
+    },
+    {
+      label: "Completed",
+      value: analytics.completedBookings ?? 0,
+      icon: CheckCircle2,
+      tint: "bg-emerald-100 text-emerald-600",
+    },
+    {
+      label: "Completion Rate",
+      value: `${analytics.completionRate ?? 0}%`,
+      icon: TrendingUp,
+      tint: "bg-blue-100 text-blue-600",
     },
   ];
 
@@ -357,7 +437,7 @@ export default function AdminDashboard({
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {cards.map((card) => {
                   const Icon = card.icon;
                   return (
@@ -673,10 +753,109 @@ export default function AdminDashboard({
 
           {activeSection === "users" && (
             <div className="space-y-4">
-              <div>
-                <h2 className="font-heading text-2xl font-bold text-dark-900">Users</h2>
-                <p className="text-sm text-muted mt-1">Registered customer and professional profiles.</p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-heading text-2xl font-bold text-dark-900">Users</h2>
+                  <p className="text-sm text-muted mt-1">Registered customer and professional profiles.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCust((v) => !v)}
+                  className="py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm"
+                >
+                  {showAddCust ? "Cancel" : "+ Add New Customer"}
+                </button>
               </div>
+
+              {showAddCust && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (busy === "cust:new") return;
+                    run(
+                      "cust:new",
+                      "/api/admin/users",
+                      { action: "create", ...custForm },
+                      "Customer added"
+                    ).then(() => {
+                      setShowAddCust(false);
+                      setCustForm({ name: "", email: "", password: "", phone: "", city: "", imageUrl: "" });
+                    });
+                  }}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4 bg-surface rounded-2xl border border-border shadow-card"
+                >
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <PhotoPicker
+                      label="Profile photo (optional)"
+                      value={custForm.imageUrl}
+                      onChange={(url) => setCustForm((f) => ({ ...f, imageUrl: url }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">Full name</label>
+                    <input
+                      required
+                      value={custForm.name}
+                      onChange={(e) => setCustForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. Neha Sharma"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">Email (login)</label>
+                    <input
+                      required
+                      type="email"
+                      value={custForm.email}
+                      onChange={(e) => setCustForm((f) => ({ ...f, email: e.target.value }))}
+                      placeholder="customer@example.com"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">Temp password</label>
+                    <input
+                      required
+                      minLength={6}
+                      value={custForm.password}
+                      onChange={(e) => setCustForm((f) => ({ ...f, password: e.target.value }))}
+                      placeholder="Min 6 characters"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">Phone</label>
+                    <input
+                      value={custForm.phone}
+                      onChange={(e) => setCustForm((f) => ({ ...f, phone: e.target.value }))}
+                      placeholder="e.g. 9876543210"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">City</label>
+                    <input
+                      value={custForm.city}
+                      onChange={(e) => setCustForm((f) => ({ ...f, city: e.target.value }))}
+                      placeholder="e.g. Mumbai"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-muted">
+                      Creates the customer login. Share the temp password with them.
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={busy === "cust:new"}
+                      className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold disabled:opacity-50"
+                    >
+                      {busy === "cust:new" ? "Adding…" : "Add Customer"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
               {users.length === 0 ? (
                 <EmptyState
                   icon={Users}
@@ -914,8 +1093,9 @@ export default function AdminDashboard({
                   value={categoryForm.sort}
                   onChange={(e) => setCategoryForm((f) => ({ ...f, sort: e.target.value }))}
                   type="number"
-                  placeholder="Sort"
-                  className="w-full sm:w-28 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                  title="Display order — lower numbers show first. Leave blank to add at the end."
+                  placeholder="Order (optional)"
+                  className="w-full sm:w-36 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                 />
                 <button
                   type="submit"
@@ -1058,7 +1238,7 @@ export default function AdminDashboard({
                                         if (!window.confirm("Delete this category?")) return;
                                         run(
                                           key,
-                                          "/api/admin/categories",
+                                          `/api/admin/categories?id=${encodeURIComponent(category.id)}`,
                                           { id: category.id },
                                           "Category deleted",
                                           "DELETE"
@@ -1091,14 +1271,132 @@ export default function AdminDashboard({
                     Approve verification and toggle marketplace visibility.
                   </p>
                 </div>
-                <Link
-                  href="/register"
-                  target="_blank"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddPro((v) => !v);
+                    setProForm((f) => ({ ...f, category: f.category || categories[0]?.name || "" }));
+                  }}
                   className="py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm"
                 >
-                  + Add New Professional
-                </Link>
+                  {showAddPro ? "Cancel" : "+ Add New Professional"}
+                </button>
               </div>
+
+              {showAddPro && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (busy === "pro:new") return;
+                    run(
+                      "pro:new",
+                      "/api/admin/professionals",
+                      { action: "create", ...proForm },
+                      "Professional added"
+                    ).then(() => {
+                      setShowAddPro(false);
+                      setProForm({ name: "", email: "", password: "", category: "", city: "", phone: "", hourlyRate: "", imageUrl: "" });
+                    });
+                  }}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4 bg-surface rounded-2xl border border-border shadow-card"
+                >
+                   <div className="sm:col-span-2 lg:col-span-3">
+                     <PhotoPicker
+                       label="Profile photo (optional)"
+                       value={proForm.imageUrl}
+                       onChange={(url) => setProForm((f) => ({ ...f, imageUrl: url }))}
+                     />
+                   </div>
+                   <div>
+                     <label className="block text-xs font-semibold text-dark-700 mb-1">Full name</label>
+                     <input
+                       required
+                       value={proForm.name}
+                       onChange={(e) => setProForm((f) => ({ ...f, name: e.target.value }))}
+                       placeholder="e.g. Ravi Kumar"
+                       className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                     />
+                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">Email (login)</label>
+                    <input
+                      required
+                      type="email"
+                      value={proForm.email}
+                      onChange={(e) => setProForm((f) => ({ ...f, email: e.target.value }))}
+                      placeholder="pro@example.com"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">Temp password</label>
+                    <input
+                      required
+                      minLength={6}
+                      value={proForm.password}
+                      onChange={(e) => setProForm((f) => ({ ...f, password: e.target.value }))}
+                      placeholder="Min 6 characters"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">Category</label>
+                    <select
+                      required
+                      value={proForm.category}
+                      onChange={(e) => setProForm((f) => ({ ...f, category: e.target.value }))}
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    >
+                      <option value="">Select category…</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">City</label>
+                    <input
+                      value={proForm.city}
+                      onChange={(e) => setProForm((f) => ({ ...f, city: e.target.value }))}
+                      placeholder="e.g. Mumbai"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">Phone</label>
+                    <input
+                      value={proForm.phone}
+                      onChange={(e) => setProForm((f) => ({ ...f, phone: e.target.value }))}
+                      placeholder="e.g. 9876543210"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">Hourly rate (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={proForm.hourlyRate}
+                      onChange={(e) => setProForm((f) => ({ ...f, hourlyRate: e.target.value }))}
+                      placeholder="0"
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-3 flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-muted">
+                      Creates the login account + profile. They start as <strong>pending</strong> — approve below once verified.
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={busy === "pro:new"}
+                      className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold disabled:opacity-50"
+                    >
+                      {busy === "pro:new" ? "Adding…" : "Add Professional"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
               {professionals.length === 0 ? (
                 <EmptyState
                   icon={ShieldCheck}
@@ -1348,6 +1646,58 @@ export default function AdminDashboard({
                   {busy === "announcement:new" ? "Sending…" : "Send Announcement"}
                 </button>
               </form>
+
+              <div>
+                <h3 className="font-heading text-base font-bold text-dark-900 mb-2">Sent Announcements</h3>
+                {announcements.length === 0 ? (
+                  <EmptyState
+                    icon={Megaphone}
+                    title="No announcements sent"
+                    hint="Announcements you send will be listed here so you can delete them."
+                  />
+                ) : (
+                  <div className="space-y-2 max-w-2xl">
+                    {announcements.map((a) => {
+                      const key = `announcement:${a.title}:${a.body}`;
+                      const isBusy = busy === key;
+                      return (
+                        <div
+                          key={key}
+                          className="flex items-start justify-between gap-3 p-4 bg-surface rounded-2xl border border-border shadow-card"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-dark-900 truncate">{a.title}</p>
+                            {a.body && (
+                              <p className="text-xs text-dark-600 mt-0.5 line-clamp-2">{a.body}</p>
+                            )}
+                            <p suppressHydrationWarning className="text-[11px] text-dark-400 mt-1">
+                              {a.count} recipient{a.count === 1 ? "" : "s"} ·{" "}
+                              {a.createdAt ? new Date(a.createdAt).toLocaleString() : ""}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => {
+                              if (!window.confirm("Delete this announcement for all users?")) return;
+                              run(
+                                key,
+                                "/api/admin/broadcast",
+                                { title: a.title, body: a.body },
+                                "Announcement deleted",
+                                "DELETE"
+                              );
+                            }}
+                            className="shrink-0 py-2 px-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1424,6 +1774,58 @@ export default function AdminDashboard({
                   </button>
                 </form>
               </div>
+            </div>
+          )}
+
+          {activeSection === "audit" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="font-heading text-2xl font-bold text-dark-900">Audit Log</h2>
+                <p className="text-sm text-muted mt-1">Recent admin actions recorded by the platform.</p>
+              </div>
+              {auditLog.length === 0 ? (
+                <EmptyState
+                  icon={ScrollText}
+                  title="No admin actions logged yet"
+                  hint="Actions such as approvals, payouts and settings changes will appear here."
+                />
+              ) : (
+                <div className="overflow-x-auto bg-surface border border-border rounded-2xl shadow-card">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-muted">
+                      <tr className="border-b border-border">
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">When</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Admin</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Action</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Entity</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Entity ID</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {auditLog.map((a) => {
+                        const meta = JSON.stringify(a.meta);
+                        return (
+                          <tr key={a.id} className="hover:bg-dark-50/50 transition-colors">
+                            <td className="px-5 py-3.5 text-dark-500 whitespace-nowrap" suppressHydrationWarning>
+                              {a.created_at ? new Date(a.created_at).toLocaleString() : "—"}
+                            </td>
+                            <td className="px-5 py-3.5 font-mono text-dark-600 max-w-[180px] truncate">
+                              {a.admin_id || "—"}
+                            </td>
+                            <td className="px-5 py-3.5 font-semibold text-dark-900">{a.action}</td>
+                            <td className="px-5 py-3.5 text-dark-600">{a.entity || "—"}</td>
+                            <td className="px-5 py-3.5 font-mono text-dark-600">{a.entity_id || "—"}</td>
+                            <td className="px-5 py-3.5 text-dark-500 max-w-[240px] truncate" title={meta}>
+                              {meta}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </main>

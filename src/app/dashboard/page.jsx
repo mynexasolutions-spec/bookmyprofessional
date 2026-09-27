@@ -34,11 +34,14 @@ import {
 } from "lucide-react";
 import { uploadImage, ikImage } from "@/lib/imagekit";
 import { formatMoney } from "@/lib/money";
+import { nextBookingDates, getAvailableSlots, rescheduleBooking } from "@/lib/data/bookings";
+import { listMyWishlist, removeWish } from "@/lib/data/wishlist";
 
 export default function CustomerDashboardPage() {
   const {
     bookings,
     cancelBooking,
+    addBooking,
     customerProfile,
     setCustomerProfile,
     professionals: marketplacePros,
@@ -52,6 +55,13 @@ export default function CustomerDashboardPage() {
   const [prefs, setPrefs] = useState(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [savedProIds, setSavedProIds] = useState([]);
+  const [rescheduleTarget, setRescheduleTarget] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleSlots, setRescheduleSlots] = useState([]);
+  const [rescheduleSlot, setRescheduleSlot] = useState("");
+  const [isLoadingRescheduleSlots, setIsLoadingRescheduleSlots] = useState(false);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const rescheduleRequestRef = React.useRef(0);
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -84,16 +94,14 @@ export default function CustomerDashboardPage() {
     if (saved) {
       setActiveTab(saved);
     }
-    
-    // Load wishlist from localStorage
-    const savedIds = [];
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key && key.startsWith("saved_pro_") && window.localStorage.getItem(key) === "true") {
-        savedIds.push(key.replace("saved_pro_", ""));
-      }
-    }
-    setSavedProIds(savedIds);
+
+    let active = true;
+    listMyWishlist().then((ids) => {
+      if (active) setSavedProIds(ids);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleTabChange = (tabId) => {
@@ -223,15 +231,55 @@ export default function CustomerDashboardPage() {
     }
   };
 
-  const handleDownloadReceipt = (booking) => {
-    showToast(`Downloading Receipt_${booking.id}.pdf ...`, "info");
-  };
-
   const handleCancel = async (bookingId) => {
     try {
       await cancelBooking(bookingId);
     } catch (err) {
       showToast(err?.message || "Unable to cancel this booking.", "error");
+    }
+  };
+
+  const rescheduleDates = nextBookingDates(14);
+
+  const openReschedule = (booking) => {
+    setRescheduleTarget(booking);
+    setRescheduleDate("");
+    setRescheduleSlot("");
+    setRescheduleSlots([]);
+  };
+
+  const closeReschedule = () => {
+    setRescheduleTarget(null);
+  };
+
+  const handleRescheduleDate = async (date) => {
+    setRescheduleDate(date);
+    setRescheduleSlot("");
+    setRescheduleSlots([]);
+    setIsLoadingRescheduleSlots(true);
+    const requestId = ++rescheduleRequestRef.current;
+    const pro = marketplacePros?.find((p) => p.id === rescheduleTarget?.proId);
+    const slots = await getAvailableSlots(rescheduleTarget.proId, date, pro?.availability);
+    if (requestId !== rescheduleRequestRef.current) return;
+    setRescheduleSlots(slots);
+    setIsLoadingRescheduleSlots(false);
+  };
+
+  const handleRescheduleConfirm = async () => {
+    if (!rescheduleTarget || !rescheduleDate || !rescheduleSlot) return;
+    setIsRescheduling(true);
+    try {
+      const updated = await rescheduleBooking(rescheduleTarget.id, {
+        date: rescheduleDate,
+        timeSlot: rescheduleSlot,
+      });
+      addBooking(updated);
+      showToast("Booking rescheduled", "success");
+      setRescheduleTarget(null);
+    } catch (err) {
+      showToast(err?.message || "Could not reschedule", "error");
+    } finally {
+      setIsRescheduling(false);
     }
   };
 
@@ -461,6 +509,16 @@ export default function CustomerDashboardPage() {
                                 </button>
                               )}
 
+                              {b.status === "upcoming" && b.paymentStatus === "paid" && (
+                                <button
+                                  type="button"
+                                  onClick={() => openReschedule(b)}
+                                  className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold transition-colors"
+                                >
+                                  Reschedule
+                                </button>
+                              )}
+
                               {b.status === "completed" && !b.hasReview && (
                                 <Link
                                   href={`/review/${b.id}`}
@@ -486,14 +544,15 @@ export default function CustomerDashboardPage() {
                                 <span>Message</span>
                               </Link>
 
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadReceipt(b)}
+                              <Link
+                                href={`/invoice/${b.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="py-2 px-3.5 rounded-xl border border-border hover:bg-dark-50 text-dark-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
                               >
                                 <Download className="w-3.5 h-3.5" />
                                 <span>Receipt PDF</span>
-                              </button>
+                              </Link>
 
                               <Link
                                 href={`/book/${b.proId}`}
@@ -752,13 +811,14 @@ export default function CustomerDashboardPage() {
                               </span>
                             </td>
                             <td className="p-4 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadReceipt(b)}
+                              <Link
+                                href={`/invoice/${b.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1.5 text-primary-600 hover:text-primary-800 font-bold"
                               >
                                 <Download className="w-3.5 h-3.5" /> PDF
-                              </button>
+                              </Link>
                             </td>
                           </tr>
                         ))}
@@ -800,17 +860,23 @@ export default function CustomerDashboardPage() {
                           <div key={pro.id} className="group bg-surface rounded-card border border-border shadow-card hover:shadow-soft hover:border-primary-200 transition-all duration-200 overflow-hidden flex flex-col justify-between">
                             <Link href={`/professionals/${pro.id}`} className="block">
                               <div className="relative aspect-square w-full bg-dark-100 overflow-hidden">
-                                <img
-                                  src={ikImage(pro.image || "")}
-                                  alt={pro.name}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                />
+                                {pro.image ? (
+                                  <img
+                                    src={ikImage(pro.image)}
+                                    alt={pro.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center font-heading font-bold text-3xl text-dark-400">
+                                    {pro.name?.charAt(0) || "P"}
+                                  </div>
+                                )}
                                 <button
                                   type="button"
-                                  onClick={(e) => {
+                                  onClick={async (e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    window.localStorage.removeItem(`saved_pro_${pro.id}`);
+                                    await removeWish(pro.id);
                                     setSavedProIds(prev => prev.filter(pId => pId !== pro.id));
                                     showToast(`${pro.name} removed from wishlist`, "info");
                                   }}
@@ -839,6 +905,107 @@ export default function CustomerDashboardPage() {
           </div>
         </div>
       </main>
+
+      {rescheduleTarget && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-dark-900/70 backdrop-blur-sm"
+            onClick={closeReschedule}
+            aria-hidden="true"
+          />
+
+          <div
+            className="relative w-full max-w-lg my-auto bg-surface rounded-2xl shadow-2xl border border-border/80 overflow-hidden z-10 p-6 sm:p-7 space-y-5"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="font-heading text-lg font-bold text-dark-900">Reschedule Booking</h3>
+                <p className="text-xs text-dark-500 mt-1">
+                  Booking <span className="font-mono font-bold text-dark-900">#{rescheduleTarget.id}</span> · currently{" "}
+                  {formatWhen(rescheduleTarget)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeReschedule}
+                className="text-dark-400 hover:text-dark-800 text-xl leading-none font-bold"
+                aria-label="Close reschedule modal"
+              >
+                ×
+              </button>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-dark-700 mb-2">Pick a new date</p>
+              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {rescheduleDates.map((d) => (
+                  <button
+                    key={d.date}
+                    type="button"
+                    onClick={() => handleRescheduleDate(d.date)}
+                    className={`shrink-0 min-w-[64px] px-3 py-2 rounded-xl border text-center transition-all ${
+                      rescheduleDate === d.date
+                        ? "bg-primary-500 border-primary-500 text-white shadow-xs"
+                        : "bg-surface border-border text-dark-600 hover:bg-dark-50"
+                    }`}
+                  >
+                    <span className="block text-[11px] font-semibold">{d.label}</span>
+                    <span className="block text-sm font-bold">{d.num}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-dark-700 mb-2">Pick a new time slot</p>
+              {!rescheduleDate ? (
+                <p className="text-xs text-dark-400">Select a date to see available slots.</p>
+              ) : isLoadingRescheduleSlots ? (
+                <p className="text-xs text-dark-400">Loading slots…</p>
+              ) : rescheduleSlots.length === 0 ? (
+                <p className="text-xs text-dark-400">No slots available on this date.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {rescheduleSlots.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setRescheduleSlot(s)}
+                      className={`px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all ${
+                        rescheduleSlot === s
+                          ? "bg-primary-500 border-primary-500 text-white shadow-xs"
+                          : "bg-surface border-border text-dark-600 hover:bg-dark-50"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={closeReschedule}
+                className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold transition-colors"
+              >
+                Keep Current Slot
+              </button>
+              <button
+                type="button"
+                onClick={handleRescheduleConfirm}
+                disabled={!rescheduleSlot || isRescheduling}
+                className="py-2 px-4 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold shadow-button transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {isRescheduling ? "Rescheduling…" : "Confirm Reschedule"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

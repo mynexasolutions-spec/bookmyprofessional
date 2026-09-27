@@ -38,3 +38,29 @@ export async function getContactMessages(client) {
   if (error) return [];
   return data || [];
 }
+
+// ponytail: reuses the contacts table (topic "newsletter") so no new table/migration is needed.
+// Move to a dedicated subscribers table if you need to export/segment the list.
+export async function subscribeNewsletter(email) {
+  const trimmed = (email || "").trim().toLowerCase();
+  if (!trimmed || !trimmed.includes("@")) throw new Error("Please enter a valid email address");
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("contacts").insert([
+    {
+      ticket_number: `NL-${Date.now()}`,
+      name: "Newsletter Subscriber",
+      email: trimmed,
+      topic: "newsletter",
+      subject: "Newsletter subscription",
+      message: trimmed,
+      status: "open",
+    },
+  ]);
+
+  if (error) {
+    console.error("Newsletter insert error:", error);
+    throw new Error("Could not subscribe right now. Please try again.");
+  }
+  return true;
+}
