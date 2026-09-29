@@ -129,6 +129,7 @@ export function AuthProvider({ children }) {
     category,
     subcategory,
     city,
+    pincode,
   } = {}) => {
     const displayName = (fullName || name || "").trim();
 
@@ -140,7 +141,7 @@ export function AuthProvider({ children }) {
       email,
       password,
       options: {
-        data: { full_name: displayName, role, phone, city },
+        data: { full_name: displayName, role, phone, city, pincode },
       },
     });
 
@@ -150,16 +151,25 @@ export function AuthProvider({ children }) {
     }
 
     if (role === "professional" && data?.user) {
-      try {
-        const { error: proError } = await supabase.from("professionals").insert({
+      const insertProfile = (fields) =>
+        supabase.from("professionals").insert({
           id: data.user.id,
           name: displayName,
           category,
           subcategory: subcategory || null,
           city,
           verification_status: "pending",
+          ...fields,
         });
-        if (proError) throw proError;
+      try {
+        const { error: proError } = await insertProfile(pincode ? { pincode } : {});
+        if (proError && pincode) {
+          // ponytail: pincode column may not exist yet (schema not applied) — save the rest.
+          const { error: retryError } = await insertProfile({});
+          if (retryError) throw retryError;
+        } else if (proError) {
+          throw proError;
+        }
       } catch {
         // ponytail: professionals row is best-effort — the table may not exist yet, and with
         // email confirmation on there is no session so RLS blocks the insert. Move this into a

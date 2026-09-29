@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
+import { byPincodeProximity } from "@/lib/pincode";
+import { byDistanceFrom } from "@/lib/geo";
 import { listLocations, DEFAULT_LOCATIONS } from "./locations";
 
 const DEFAULT_REVIEW_AVATAR =
@@ -89,6 +91,8 @@ function mapProfessional(row, locMap) {
         description: s.description,
         price: Number(s.price) || 0,
         duration: s.duration,
+        inclusions: Array.isArray(s.inclusions) ? s.inclusions : [],
+        exclusions: Array.isArray(s.exclusions) ? s.exclusions : [],
       })),
     availability: normalizeAvailability(row.availability),
     reviews,
@@ -216,19 +220,31 @@ function clientSort(rows, sortBy) {
   return sorted;
 }
 
-function fallbackList(seed, locations, opts, sortBy, page, pageSize) {
+function fallbackList(seed, locations, opts, sortBy, page, pageSize, near = null) {
   const locMap = buildLocationMap(locations || DEFAULT_LOCATIONS);
   const all = (seed || []).map((pro) => {
     const p = withCoordinates(pro, locMap);
     return { ...p, ...summarizeReviews(p.reviews) };
   });
-  const filtered = clientSort(clientFilter(all, opts), sortBy);
+  let filtered = clientSort(clientFilter(all, opts), sortBy);
+  let relaxedPincode = false;
+  if (opts.pincode && filtered.length === 0) {
+    // Nobody in the entered PIN — keep the other filters, drop the PIN and rank by postal proximity.
+    filtered = clientSort(clientFilter(all, { ...opts, pincode: "" }), sortBy).sort(
+      byPincodeProximity(opts.pincode)
+    );
+    relaxedPincode = true;
+  }
+  if (near) {
+    filtered = filtered.slice().sort(byDistanceFrom(near));
+  }
   const start = (page - 1) * pageSize;
   return {
     rows: filtered.slice(start, start + pageSize),
     total: filtered.length,
     page,
     pageSize,
+    relaxedPincode,
   };
 }
 
@@ -250,6 +266,7 @@ export async function listProfessionals(options = {}) {
     pageSize = DEFAULT_PAGE_SIZE,
     seed = [],
     locations = null,
+    near = null,
   } = options;
 
   const safePage = Math.max(1, Number(page) || 1);
@@ -258,7 +275,8 @@ export async function listProfessionals(options = {}) {
     search,
     category,
     location,
-    pincode,
+    // Near-me supersedes the pincode filter — distance already orders the results.
+    pincode: near ? "" : pincode,
     minRating,
     minExperience,
     priceRange,
@@ -277,24 +295,74 @@ export async function listProfessionals(options = {}) {
     query = applyFilters(query, opts);
     query = applySort(query, sortBy);
 
-    const from = (safePage - 1) * safeSize;
-    const { data, error, count } = await query.range(from, from + safeSize - 1);
+    if (near) {
+      // ponytail: nearest-first needs the whole filtered set client-side (500-row cap).
+      // Swap for a PostGIS/RPC distance order once the catalog outgrows it.
+      const { data: nearby, error: nearbyError } = await query.limit(500);
+      if (!nearbyError && nearby && nearby.length > 0) {
+        const locs = locations || (await listLocations());
+        const locMap = buildLocationMap(locs);
+        const rows = nearby
+          .map((row) => mapProfessional(row, locMap))
+          .sort(byDistanceFrom(near));
+        const start = (safePage - 1) * safeSize;
+        return {
+          rows: rows.slice(start, start + safeSize),
+          total: rows.length,
+          page: safePage,
+          pageSize: safeSize,
+          relaxedPincode: false,
+        };
+      }
+    } else {
+      const from = (safePage - 1) * safeSize;
+      const { data, error, count } = await query.range(from, from + safeSize - 1);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    if (data && data.length > 0) {
-      const locs = locations || (await listLocations());
-      const locMap = buildLocationMap(locs);
-      return {
-        rows: data.map((row) => mapProfessional(row, locMap)),
-        total: typeof count === "number" ? count : data.length,
-        page: safePage,
-        pageSize: safeSize,
-      };
+      if (data && data.length > 0) {
+        const locs = locations || (await listLocations());
+        const locMap = buildLocationMap(locs);
+        return {
+          rows: data.map((row) => mapProfessional(row, locMap)),
+          total: typeof count === "number" ? count : data.length,
+          page: safePage,
+          pageSize: safeSize,
+          relaxedPincode: false,
+        };
+      }
+    }
+
+    if (pincode && !near) {
+      // ponytail: nobody in the entered PIN — refetch without it and rank by postal
+      // proximity client-side (500-row cap). Move to an RPC when the catalog grows.
+      let nearbyQuery = supabase
+        .from("professionals")
+        .select("*, services(*), credentials(*), reviews(*)")
+        .eq("verification_status", "approved")
+        .eq("is_active", true);
+      nearbyQuery = applyFilters(nearbyQuery, { ...opts, pincode: "" });
+      nearbyQuery = applySort(nearbyQuery, sortBy);
+      const { data: nearby, error: nearbyError } = await nearbyQuery.limit(500);
+      if (!nearbyError && nearby && nearby.length > 0) {
+        const locs = locations || (await listLocations());
+        const locMap = buildLocationMap(locs);
+        const rows = nearby
+          .map((row) => mapProfessional(row, locMap))
+          .sort(byPincodeProximity(pincode));
+        const start = (safePage - 1) * safeSize;
+        return {
+          rows: rows.slice(start, start + safeSize),
+          total: rows.length,
+          page: safePage,
+          pageSize: safeSize,
+          relaxedPincode: true,
+        };
+      }
     }
   } catch {
     // fall through to the seed fallback below
   }
 
-  return fallbackList(seed, locations, opts, sortBy, safePage, safeSize);
+  return fallbackList(seed, locations, opts, sortBy, safePage, safeSize, near);
 }

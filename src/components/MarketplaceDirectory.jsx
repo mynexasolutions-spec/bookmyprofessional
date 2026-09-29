@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMarketplace } from "@/context/MarketplaceContext";
+import { useAuth } from "@/context/AuthContext";
+import { distanceKm } from "@/lib/geo";
 import { listCategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
 import { ikImage } from "@/lib/imagekit";
 import {
@@ -21,6 +23,7 @@ import {
   ChevronDown,
   Tag,
   Award,
+  LocateFixed,
 } from "lucide-react";
 import Button from "./Button";
 import { formatMoney } from "@/lib/money";
@@ -52,6 +55,9 @@ export default function MarketplaceDirectory({ preview = false }) {
     setSelectedLocation,
     pincode,
     setPincode,
+    pincodeRelaxed,
+    nearCoords,
+    setNearCoords,
     minRating,
     setMinRating,
     minExperience,
@@ -72,9 +78,11 @@ export default function MarketplaceDirectory({ preview = false }) {
     startBooking,
   } = useMarketplace();
 
+  const { showToast } = useAuth();
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [categoryIds, setCategoryIds] = useState(DEFAULT_CATEGORIES);
+  const [isLocating, setIsLocating] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -138,6 +146,7 @@ export default function MarketplaceDirectory({ preview = false }) {
     setSelectedCategory("all");
     setSelectedLocation("all");
     setPincode("");
+    setNearCoords(null);
     setMinRating(0);
     setMinExperience(0);
     setPriceRange("all");
@@ -146,11 +155,37 @@ export default function MarketplaceDirectory({ preview = false }) {
     setSortBy("featured");
   };
 
+  const handleNearMe = () => {
+    if (nearCoords) {
+      setNearCoords(null);
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      showToast("Location is not supported in this browser.", "error");
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        setPincode("");
+        setNearCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        showToast("Showing professionals closest to you.", "success");
+      },
+      () => {
+        setIsLocating(false);
+        showToast("Couldn't get your location. Allow location access and try again.", "error");
+      },
+      { timeout: 10000 }
+    );
+  };
+
   const hasActiveFilters =
     searchQuery ||
     selectedCategory !== "all" ||
     selectedLocation !== "all" ||
     pincode ||
+    nearCoords ||
     minRating > 0 ||
     minExperience > 0 ||
     priceRange !== "all" ||
@@ -316,6 +351,30 @@ export default function MarketplaceDirectory({ preview = false }) {
           {/* EXPANDABLE SECONDARY FILTERS DRAWER */}
           {isFilterDrawerOpen && (
             <div className="pt-3 border-t border-border grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in slide-in-from-top-2 duration-150">
+              {/* Near Me Toggle */}
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1">
+                  Nearby Professionals
+                </label>
+                <button
+                  type="button"
+                  onClick={handleNearMe}
+                  disabled={isLocating}
+                  className={`w-full inline-flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-lg border transition-all disabled:opacity-60 ${
+                    nearCoords
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-700 font-semibold"
+                      : "bg-white border-border text-dark-700 hover:bg-dark-50"
+                  }`}
+                >
+                  <LocateFixed className="h-3.5 w-3.5 shrink-0" />
+                  {isLocating
+                    ? "Locating…"
+                    : nearCoords
+                      ? "Nearest First — Tap to Clear"
+                      : "Show Pros Near Me"}
+                </button>
+              </div>
+
               {/* Rating Filter */}
               <div>
                 <label className="block text-xs font-semibold text-dark-700 mb-1">
@@ -470,6 +529,29 @@ export default function MarketplaceDirectory({ preview = false }) {
           )}
         </div>
 
+        {/* RELAXED PINCODE NOTICE */}
+        {pincodeRelaxed && pincode && filteredProfessionals.length > 0 && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2.5">
+            <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
+            <p className="text-xs text-dark-700">
+              No professionals inside pincode{" "}
+              <span className="font-semibold">{pincode}</span>. Showing the closest
+              available experts instead.
+            </p>
+          </div>
+        )}
+
+        {/* NEAR ME NOTICE */}
+        {nearCoords && filteredProfessionals.length > 0 && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
+            <LocateFixed className="h-4 w-4 mt-0.5 shrink-0 text-emerald-600" />
+            <p className="text-xs text-dark-700">
+              Showing professionals closest to your location first. Distances are
+              straight-line estimates.
+            </p>
+          </div>
+        )}
+
         {/* RESULTS GRID OR EMPTY STATE */}
         {filteredProfessionals.length === 0 ? (
           <div className="bg-surface rounded-2xl border border-dashed border-border p-12 text-center my-6">
@@ -488,7 +570,9 @@ export default function MarketplaceDirectory({ preview = false }) {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-            {(preview ? filteredProfessionals.slice(0, 8) : filteredProfessionals).map((pro) => (
+            {(preview ? filteredProfessionals.slice(0, 8) : filteredProfessionals).map((pro) => {
+              const distanceToUserKm = nearCoords ? distanceKm(nearCoords, pro) : null;
+              return (
               <div
                 key={pro.id}
                 className="group relative flex flex-col justify-between bg-surface rounded-2xl border border-border/90 hover:border-primary-300 shadow-card hover:shadow-soft transition-all duration-200 overflow-hidden hover:-translate-y-1"
@@ -570,6 +654,11 @@ export default function MarketplaceDirectory({ preview = false }) {
                     <div className="flex items-center gap-1 text-xs text-dark-500 mt-1.5">
                       <MapPin className="h-3.5 w-3.5 text-dark-400 shrink-0" />
                       <span className="truncate">{pro.location}</span>
+                      {distanceToUserKm != null && (
+                        <span className="shrink-0 font-semibold text-emerald-600">
+                          · {distanceToUserKm < 1 ? "<1" : Math.round(distanceToUserKm)} km away
+                        </span>
+                      )}
                     </div>
 
                     {/* Bio snippet */}
@@ -623,7 +712,8 @@ export default function MarketplaceDirectory({ preview = false }) {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

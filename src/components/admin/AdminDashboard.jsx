@@ -37,6 +37,7 @@ import {
   Quote,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
+import { parseInclusions, formatInclusions } from "@/lib/inclusions";
 import { uploadImage, ikImage } from "@/lib/imagekit";
 import { DEFAULT_MARKETING, DEFAULT_TESTIMONIALS, DEFAULT_SOCIAL } from "@/lib/data/site-content";
 import { subcategoriesByParent } from "@/lib/subcategories";
@@ -1201,7 +1202,8 @@ export default function AdminDashboard({
                           ? categories.find((c) => c.id === category.parent_id)?.name
                           : null;
                         return (
-                          <tr key={category.id} className="hover:bg-dark-50/50 transition-colors">
+                          <React.Fragment key={category.id}>
+                          <tr className="hover:bg-dark-50/50 transition-colors">
                             <td className="px-5 py-3.5">
                               {isEditing ? (
                                 <div className="space-y-1.5">
@@ -1326,6 +1328,8 @@ export default function AdminDashboard({
                                             sort: editingCategory.sort,
                                             icon: editingCategory.icon,
                                             parent_id: editingCategory.parent_id || null,
+                                            inclusions: parseInclusions(editingCategory.inclusions),
+                                            exclusions: parseInclusions(editingCategory.exclusions),
                                           },
                                           "Category updated",
                                           "PATCH"
@@ -1370,6 +1374,8 @@ export default function AdminDashboard({
                                           sort: category.sort,
                                           icon: category.icon || "",
                                           parent_id: category.parent_id || null,
+                                          inclusions: formatInclusions(category.inclusions),
+                                          exclusions: formatInclusions(category.exclusions),
                                         })
                                       }
                                       className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold flex items-center gap-1.5"
@@ -1398,6 +1404,43 @@ export default function AdminDashboard({
                               </div>
                             </td>
                           </tr>
+                          {isEditing && (
+                            <tr className="bg-dark-50/40">
+                              <td colSpan={5} className="px-5 py-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-[11px] font-semibold text-dark-700 mb-1">
+                                      Default inclusions — what a price covers (one per line)
+                                    </label>
+                                    <textarea
+                                      rows={3}
+                                      value={editingCategory.inclusions || ""}
+                                      onChange={(e) =>
+                                        setEditingCategory((c) => ({ ...c, inclusions: e.target.value }))
+                                      }
+                                      placeholder={"Visit & diagnosis\nEstimated 45 mins of work\nBasic tools"}
+                                      className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 resize-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] font-semibold text-dark-700 mb-1">
+                                      Default extra charges / not included (one per line)
+                                    </label>
+                                    <textarea
+                                      rows={3}
+                                      value={editingCategory.exclusions || ""}
+                                      onChange={(e) =>
+                                        setEditingCategory((c) => ({ ...c, exclusions: e.target.value }))
+                                      }
+                                      placeholder={"Spare parts at actuals\nTravel beyond 5 km: ₹10/km"}
+                                      className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 resize-none"
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>

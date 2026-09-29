@@ -351,6 +351,21 @@ export default function BookingModal() {
                           <p className="text-xs text-dark-600 mt-1 leading-relaxed">
                             {srv.description}
                           </p>
+                          {Array.isArray(srv.inclusions) && srv.inclusions.length > 0 && (
+                            <ul className="text-[11px] text-dark-600 mt-1.5 space-y-0.5">
+                              {srv.inclusions.map((line) => (
+                                <li key={line} className="flex items-start gap-1.5">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 mt-0.5 shrink-0" />
+                                  {line}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {Array.isArray(srv.exclusions) && srv.exclusions.length > 0 && (
+                            <p className="text-[11px] text-amber-700 mt-1.5">
+                              Extra charges: {srv.exclusions.join(" • ")}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -583,6 +598,16 @@ export default function BookingModal() {
                   <span>{selectedService?.title || "Professional Service"}</span>
                   <span className="font-semibold text-dark-900">{formatMoney(servicePrice)}</span>
                 </div>
+                {selectedService?.inclusions?.length > 0 && (
+                  <p className="text-[11px] text-dark-500 leading-relaxed">
+                    Includes: {selectedService.inclusions.join(" • ")}
+                  </p>
+                )}
+                {selectedService?.exclusions?.length > 0 && (
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
+                    Extra charges: {selectedService.exclusions.join(" • ")}
+                  </p>
+                )}
                 <div className="flex items-center justify-between text-xs text-dark-600">
                   <span>Platform Escrow Protection Fee</span>
                   <span className="text-emerald-600 font-semibold">FREE</span>

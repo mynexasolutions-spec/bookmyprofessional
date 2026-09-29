@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { subcategoriesByParent } from "@/lib/subcategories";
+import { parseInclusions } from "@/lib/inclusions";
 
 export const DEFAULT_CATEGORIES = [
   "Doctors",
@@ -60,10 +61,19 @@ export async function listCategoryTiles() {
 export async function listAllCategories(client) {
   try {
     const supabase = client || createClient();
-    const { data, error } = await supabase
+    const WITH_LISTS = "id, name, icon, sort, active, parent_id, inclusions, exclusions, created_at";
+    const BASE = "id, name, icon, sort, active, parent_id, created_at";
+    let { data, error } = await supabase
       .from("categories")
-      .select("id, name, icon, sort, active, parent_id, created_at")
+      .select(WITH_LISTS)
       .order("sort", { ascending: true });
+    if (error) {
+      // inclusions/exclusions columns may not exist yet (schema not applied) — load without them
+      ({ data, error } = await supabase
+        .from("categories")
+        .select(BASE)
+        .order("sort", { ascending: true }));
+    }
     if (error) throw error;
     return data || [];
   } catch {
@@ -71,19 +81,28 @@ export async function listAllCategories(client) {
   }
 }
 
-export async function createCategory(client, { name, icon, sort, active, parent_id } = {}) {
+export async function createCategory(client, { name, icon, sort, active, parent_id, inclusions, exclusions } = {}) {
   const supabase = client || createClient();
-  const { data, error } = await supabase
+  const row = {
+    name,
+    icon: icon || null,
+    sort: Number(sort) || 0,
+    active: active !== false,
+    parent_id: parent_id || null,
+  };
+  let { data, error } = await supabase
     .from("categories")
-    .insert({
-      name,
-      icon: icon || null,
-      sort: Number(sort) || 0,
-      active: active !== false,
-      parent_id: parent_id || null,
-    })
-    .select("id, name, icon, sort, active, parent_id")
+    .insert({ ...row, inclusions: parseInclusions(inclusions), exclusions: parseInclusions(exclusions) })
+    .select("id, name, icon, sort, active, parent_id, inclusions, exclusions")
     .single();
+  if (error) {
+    // inclusions/exclusions columns may not exist yet (schema not applied) — create without them
+    ({ data, error } = await supabase
+      .from("categories")
+      .insert(row)
+      .select("id, name, icon, sort, active, parent_id")
+      .single());
+  }
   if (error) throw error;
   return data;
 }
@@ -96,13 +115,25 @@ export async function updateCategory(client, id, patch = {}) {
   if (patch.sort !== undefined) clean.sort = Number(patch.sort) || 0;
   if (patch.active !== undefined) clean.active = !!patch.active;
   if (patch.parent_id !== undefined) clean.parent_id = patch.parent_id || null;
+  const lists = {};
+  if (patch.inclusions !== undefined) lists.inclusions = parseInclusions(patch.inclusions);
+  if (patch.exclusions !== undefined) lists.exclusions = parseInclusions(patch.exclusions);
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("categories")
-    .update(clean)
+    .update({ ...clean, ...lists })
     .eq("id", id)
-    .select("id, name, icon, sort, active, parent_id")
+    .select("id, name, icon, sort, active, parent_id, inclusions, exclusions")
     .single();
+  if (error) {
+    // inclusions/exclusions columns may not exist yet (schema not applied) — update the rest
+    ({ data, error } = await supabase
+      .from("categories")
+      .update(clean)
+      .eq("id", id)
+      .select("id, name, icon, sort, active, parent_id")
+      .single());
+  }
   if (error) throw error;
   return data;
 }

@@ -83,6 +83,17 @@ function BookingPageContent({ params }) {
     }));
   }, [customerProfile]);
 
+  // Preselect the service once professionals finish loading (direct page load / refresh),
+  // unless the customer already picked one.
+  useEffect(() => {
+    if (selectedService) return;
+    if (!pro?.services?.length) return;
+    const preselected =
+      (preselectedServiceId && pro.services.find((s) => s.id === preselectedServiceId)) ||
+      pro.services[0];
+    setSelectedService(preselected);
+  }, [pro?.services, preselectedServiceId, selectedService]);
+
   // Payment method
   const [paymentMethod, setPaymentMethod] = useState("payu"); // "payu"
   const [cardDetails, setCardDetails] = useState({
@@ -352,6 +363,21 @@ function BookingPageContent({ params }) {
                                 <p className="text-xs text-dark-600 mt-1 leading-relaxed">
                                   {srv.description}
                                 </p>
+                                {Array.isArray(srv.inclusions) && srv.inclusions.length > 0 && (
+                                  <ul className="text-[11px] text-dark-600 mt-1.5 space-y-0.5">
+                                    {srv.inclusions.map((line) => (
+                                      <li key={line} className="flex items-start gap-1.5">
+                                        <Check className="w-3 h-3 text-emerald-600 mt-0.5 shrink-0" />
+                                        {line}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                                {Array.isArray(srv.exclusions) && srv.exclusions.length > 0 && (
+                                  <p className="text-[11px] text-amber-700 mt-1.5">
+                                    Extra charges: {srv.exclusions.join(" • ")}
+                                  </p>
+                                )}
                               </div>
                             </div>
 
@@ -791,6 +817,27 @@ function BookingPageContent({ params }) {
                     <span className="font-semibold text-primary-600">{selectedTimeSlot}</span>
                   </div>
                 </div>
+
+                {/* What's included in the selected price */}
+                {((selectedService?.inclusions?.length || 0) > 0 || (selectedService?.exclusions?.length || 0) > 0) && (
+                  <div className="p-3.5 bg-dark-50 rounded-xl border border-border text-[11px] text-dark-700 space-y-1">
+                    {(selectedService?.inclusions?.length || 0) > 0 && (
+                      <>
+                        <span className="font-semibold text-dark-900">What&apos;s included</span>
+                        <ul className="space-y-0.5">
+                          {selectedService.inclusions.map((line) => (
+                            <li key={line}>✓ {line}</li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    {(selectedService?.exclusions?.length || 0) > 0 && (
+                      <p className="text-amber-700">
+                        Extra charges: {selectedService.exclusions.join(" • ")}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Price Breakdown */}
                 <div className="space-y-2 pt-2 border-t border-border text-xs">

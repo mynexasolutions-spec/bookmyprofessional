@@ -61,6 +61,7 @@ export default function AuthModal() {
     category: "Doctors",
     subcategory: "",
     city: "Mumbai",
+    pincode: "",
     agreeTerms: true,
   });
 
@@ -174,6 +175,7 @@ export default function AuthModal() {
         category: authRole === "professional" ? signupForm.category : undefined,
         subcategory: authRole === "professional" ? signupForm.subcategory || undefined : undefined,
         city: authRole === "professional" ? signupForm.city : undefined,
+        pincode: authRole === "professional" ? signupForm.pincode : undefined,
       });
     } catch (error) {
       setErrorMessage(error?.message || "Unable to create your account. Please try again.");
@@ -637,6 +639,28 @@ export default function AuthModal() {
                                 setSignupForm({ ...signupForm, city: e.target.value })
                               }
                               placeholder="Enter your city"
+                              className="w-full pl-8 pr-2.5 py-2 bg-white border border-primary-200 rounded-lg text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-primary-900 mb-1">
+                            Pincode
+                          </label>
+                          <div className="relative">
+                            <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary-500" />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={6}
+                              value={signupForm.pincode}
+                              onChange={(e) =>
+                                setSignupForm({
+                                  ...signupForm,
+                                  pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
+                                })
+                              }
+                              placeholder="e.g. 400001"
                               className="w-full pl-8 pr-2.5 py-2 bg-white border border-primary-200 rounded-lg text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                             />
                           </div>

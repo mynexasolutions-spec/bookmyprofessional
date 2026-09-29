@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
 import MarketplaceDirectory from "@/components/MarketplaceDirectory";
+import CountUp from "@/components/CountUp";
 import { useAuth } from "@/context/AuthContext";
 import { useMarketplace } from "@/context/MarketplaceContext";
 import { useComingSoon } from "@/context/ComingSoonContext";
@@ -27,7 +28,6 @@ import {
   Lock,
   Clock,
   Sparkles,
-  ChevronRight,
   TrendingUp,
   Briefcase,
   MapPin,
@@ -41,7 +41,6 @@ import {
   CreditCard,
   LayoutGrid,
   Headphones,
-  ChevronLeft,
   Timer,
   CalendarCheck2,
   Bell,
@@ -53,6 +52,43 @@ import {
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { ikImage } from "@/lib/imagekit";
+
+// Scrolls the placeholder text only when it is wider than the input; static otherwise.
+function ScrollingPlaceholder({ text, className = "" }) {
+  const boxRef = useRef(null);
+  const textRef = useRef(null);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const check = () => {
+      const box = boxRef.current;
+      const t = textRef.current;
+      if (!box || !t) return;
+      setDuration(t.scrollWidth > box.clientWidth ? t.scrollWidth / 30 : 0);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [text]);
+
+  return (
+    <div
+      ref={boxRef}
+      className="pointer-events-none absolute inset-0 flex items-center overflow-hidden"
+      aria-hidden="true"
+    >
+      <div
+        className={`flex w-max ${duration ? "animate-marquee-scroll" : ""}`}
+        style={duration ? { animationDuration: `${duration}s` } : undefined}
+      >
+        <span ref={textRef} className={`pr-10 whitespace-nowrap text-muted ${className}`}>
+          {text}
+        </span>
+        <span className={`pr-10 whitespace-nowrap text-muted ${className}`}>{text}</span>
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -70,9 +106,8 @@ export default function HomePage() {
 
   const [heroLocation, setHeroLocation] = useState("");
   const [heroService, setHeroService] = useState("");
+  const [heroFocus, setHeroFocus] = useState("");
   const [activeTab, setActiveTab] = useState("all");
-  const [testimonialIndex, setTestimonialIndex] = useState(0);
-  const [carouselPaused, setCarouselPaused] = useState(false);
   const [savedPros, setSavedPros] = useState({});
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -130,16 +165,6 @@ export default function HomePage() {
       active = false;
     };
   }, [user]);
-
-  useEffect(() => {
-    if (carouselPaused || testimonials.length < 2) return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const id = setInterval(
-      () => setTestimonialIndex((prev) => (prev + 1) % testimonials.length),
-      5000
-    );
-    return () => clearInterval(id);
-  }, [carouselPaused, testimonials.length, testimonialIndex]);
 
   const toggleSave = async (id, name) => {
     if (!user) {
@@ -367,25 +392,45 @@ export default function HomePage() {
                   {/* Location Input */}
                   <div className="flex items-center gap-2.5 px-3.5 py-2.5 sm:w-[38%] border-b sm:border-b-0 sm:border-r border-border">
                     <MapPin className="h-5 w-5 text-primary-500 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Your Location or Pincode"
-                      value={heroLocation}
-                      onChange={(e) => setHeroLocation(e.target.value)}
-                      className="w-full bg-transparent text-sm text-dark-900 placeholder:text-muted focus:outline-none"
-                    />
+                    <div className="relative flex-1 min-w-0">
+                      <input
+                        type="text"
+                        placeholder="Your Location or Pincode"
+                        value={heroLocation}
+                        onChange={(e) => setHeroLocation(e.target.value)}
+                        onFocus={() => setHeroFocus("location")}
+                        onBlur={() => setHeroFocus("")}
+                        className="w-full bg-transparent text-sm text-dark-900 placeholder:text-transparent focus:outline-none"
+                      />
+                      {!heroLocation && heroFocus !== "location" && (
+                        <ScrollingPlaceholder
+                          text="Your Location or Pincode"
+                          className="text-sm"
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {/* Service Input */}
                   <div className="flex flex-1 items-center gap-2 px-3.5 py-2.5">
                     <Search className="h-4 w-4 text-muted shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Search for a service (e.g. Plumber, Tutor, Doctor...)"
-                      value={heroService}
-                      onChange={(e) => setHeroService(e.target.value)}
-                      className="w-full bg-transparent text-xs sm:text-sm text-dark-900 placeholder:text-muted focus:outline-none"
-                    />
+                    <div className="relative flex-1 min-w-0">
+                      <input
+                        type="text"
+                        placeholder="Search for a service (e.g. Plumber, Tutor, Doctor...)"
+                        value={heroService}
+                        onChange={(e) => setHeroService(e.target.value)}
+                        onFocus={() => setHeroFocus("service")}
+                        onBlur={() => setHeroFocus("")}
+                        className="w-full bg-transparent text-xs sm:text-sm text-dark-900 placeholder:text-transparent focus:outline-none"
+                      />
+                      {!heroService && heroFocus !== "service" && (
+                        <ScrollingPlaceholder
+                          text="Search for a service (e.g. Plumber, Tutor, Doctor...)"
+                          className="text-xs sm:text-sm"
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {/* Search Button */}
@@ -793,7 +838,7 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="font-heading text-xl sm:text-2xl font-bold text-white leading-none">
-                      {marketing.home[0]?.value}
+                      <CountUp value={marketing.home[0]?.value} />
                     </p>
                     <p className="text-xs sm:text-sm text-dark-200 mt-1 font-medium leading-tight">
                       {marketing.home[0]?.label}
@@ -808,7 +853,7 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="font-heading text-xl sm:text-2xl font-bold text-white leading-none">
-                      {marketing.home[1]?.value}
+                      <CountUp value={marketing.home[1]?.value} delay={150} />
                     </p>
                     <p className="text-xs sm:text-sm text-dark-200 mt-1 font-medium leading-tight">
                       {marketing.home[1]?.label}
@@ -823,7 +868,7 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="font-heading text-xl sm:text-2xl font-bold text-white leading-none">
-                      {marketing.home[2]?.value}
+                      <CountUp value={marketing.home[2]?.value} delay={300} />
                     </p>
                     <p className="text-xs sm:text-sm text-dark-200 mt-1 font-medium leading-tight">
                       {marketing.home[2]?.label}
@@ -838,7 +883,7 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="font-heading text-xl sm:text-2xl font-bold text-white leading-none">
-                      {marketing.home[3]?.value}
+                      <CountUp value={marketing.home[3]?.value} delay={450} />
                     </p>
                     <p className="text-xs sm:text-sm text-dark-200 mt-1 font-medium leading-tight">
                       {marketing.home[3]?.label}
@@ -944,7 +989,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* WHAT OUR CUSTOMERS SAY (TESTIMONIALS CAROUSEL) */}
+        {/* WHAT OUR CUSTOMERS SAY (TESTIMONIALS MARQUEE) */}
         <section className="py-14 sm:py-18 bg-surface border-b border-border overflow-hidden">
           <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8">
             {/* Section Header */}
@@ -954,150 +999,73 @@ export default function HomePage() {
               </h2>
             </div>
 
-            {/* Testimonials Carousel Container */}
-            <div
-              className="relative px-0 sm:px-12 lg:px-14"
-              onMouseEnter={() => setCarouselPaused(true)}
-              onMouseLeave={() => setCarouselPaused(false)}
-              onFocusCapture={() => setCarouselPaused(true)}
-              onBlurCapture={() => setCarouselPaused(false)}
-            >
-              {/* Left Arrow Button */}
-              <button
-                type="button"
-                onClick={() =>
-                  setTestimonialIndex((prev) =>
-                    prev === 0 ? testimonials.length - 1 : prev - 1
-                  )
-                }
-                aria-label="Previous testimonial"
-                className="absolute left-0 sm:left-1 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full border border-primary-300 bg-surface text-primary-500 hover:bg-primary-50 hover:border-primary-500 shadow-soft flex items-center justify-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-400"
-              >
-                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
-              </button>
-
-              {/* Right Arrow Button */}
-              <button
-                type="button"
-                onClick={() =>
-                  setTestimonialIndex((prev) =>
-                    (prev + 1) % testimonials.length
-                  )
-                }
-                aria-label="Next testimonial"
-                className="absolute right-0 sm:right-1 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full border border-primary-300 bg-surface text-primary-500 hover:bg-primary-50 hover:border-primary-500 shadow-soft flex items-center justify-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-400"
-              >
-                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
-              </button>
-
-              {/* Cards View: Responsive multi-card sliding */}
-              <div className="overflow-hidden py-2 px-1">
-                {/* Desktop view: 3 visible cards based on current index */}
-                <div className="hidden md:grid md:grid-cols-3 gap-5">
-                  {[0, 1, 2].map((offset) => {
-                    const item =
-                      testimonials[(testimonialIndex + offset) % testimonials.length];
-                    return (
-                      <div
-                        key={offset}
-                        className="bg-surface rounded-card border border-border/80 shadow-card p-6 flex flex-col justify-between hover:shadow-soft hover:border-primary-200 transition-all duration-200"
-                      >
-                        <div>
-                          {/* 5 Yellow Stars */}
-                          <div className="flex items-center gap-1 mb-4">
-                            {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                className="w-4 h-4 fill-warning text-warning"
-                              />
-                            ))}
-                          </div>
-
-                          {/* Review Quote */}
-                          <p className="font-heading text-sm font-medium text-dark-800 leading-relaxed min-h-[58px]">
-                            {item.comment}
-                          </p>
-                        </div>
-
-                        {/* Author info */}
-                        <div className="flex items-center gap-3 mt-6 pt-4 border-t border-border/60">
-                          <img
-                            src={item.avatar}
-                            alt={item.name}
-                            className="w-11 h-11 rounded-full object-cover border border-border"
-                          />
+            {/* Two infinite rows: first drifts right, second drifts left */}
+            <div className="flex flex-col gap-5">
+              {[
+                {
+                  items: testimonials.filter((_, i) => i % 2 === 0),
+                  anim: "animate-marquee-right",
+                },
+                {
+                  items: testimonials.filter((_, i) => i % 2 === 1),
+                  anim: "animate-marquee-left",
+                },
+              ].map(({ items, anim }) => {
+                if (!items.length) return null;
+                const loop = [...items, ...items, ...items, ...items];
+                return (
+                  <div
+                    key={anim}
+                    className="overflow-hidden py-2 motion-reduce:overflow-x-auto"
+                  >
+                    <div
+                      className={`flex w-max ${anim} motion-reduce:animate-none`}
+                      style={{ animationDuration: `${items.length * 12}s` }}
+                    >
+                      {loop.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="mr-5 w-[300px] sm:w-[340px] lg:w-[380px] shrink-0 bg-surface rounded-card border border-border/80 shadow-card p-6 flex flex-col justify-between"
+                        >
                           <div>
-                            <h4 className="font-heading font-bold text-sm text-dark-900 leading-tight">
-                              {item.name}
-                            </h4>
-                            <p className="font-heading text-xs text-muted mt-0.5">
-                              {item.location}
+                            {/* 5 Yellow Stars */}
+                            <div className="flex items-center gap-1 mb-4">
+                              {[...Array(5)].map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className="w-4 h-4 fill-warning text-warning"
+                                />
+                              ))}
+                            </div>
+
+                            {/* Review Quote */}
+                            <p className="font-heading text-sm font-medium text-dark-800 leading-relaxed min-h-[58px]">
+                              {item.comment}
                             </p>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
 
-                {/* Mobile / Tablet View: 1 single centered active card */}
-                <div className="md:hidden px-4">
-                  {(() => {
-                    const item = testimonials[testimonialIndex];
-                    return (
-                      <div className="bg-surface rounded-card border border-border shadow-card p-6 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center gap-1 mb-4">
-                            {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                className="w-4 h-4 fill-warning text-warning"
-                              />
-                            ))}
-                          </div>
-                          <p className="font-heading text-sm font-medium text-dark-800 leading-relaxed min-h-[58px]">
-                            {item.comment}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-3 mt-6 pt-4 border-t border-border/60">
-                          <img
-                            src={item.avatar}
-                            alt={item.name}
-                            className="w-11 h-11 rounded-full object-cover border border-border"
-                          />
-                          <div>
-                            <h4 className="font-heading font-bold text-sm text-dark-900 leading-tight">
-                              {item.name}
-                            </h4>
-                            <p className="font-heading text-xs text-muted mt-0.5">
-                              {item.location}
-                            </p>
+                          {/* Author info */}
+                          <div className="flex items-center gap-3 mt-6 pt-4 border-t border-border/60">
+                            <img
+                              src={item.avatar}
+                              alt={item.name}
+                              className="w-11 h-11 rounded-full object-cover border border-border"
+                            />
+                            <div>
+                              <h4 className="font-heading font-bold text-sm text-dark-900 leading-tight">
+                                {item.name}
+                              </h4>
+                              <p className="font-heading text-xs text-muted mt-0.5">
+                                {item.location}
+                              </p>
+                            </div>
                           </div>
                         </div>
-
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* Indicator Dots */}
-              <div className="flex items-center justify-center gap-2 mt-8">
-                {testimonials.map((_, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setTestimonialIndex(idx)}
-                    aria-label={`Go to slide ${idx + 1}`}
-                    className={`h-2 rounded-full transition-all duration-200 ${
-                      testimonialIndex === idx
-                        ? "w-6 bg-primary-500"
-                        : "w-2 bg-dark-200 hover:bg-dark-300"
-                    }`}
-                  />
-                ))}
-              </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>

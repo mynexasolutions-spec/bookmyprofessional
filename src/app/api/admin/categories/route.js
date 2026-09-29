@@ -43,6 +43,8 @@ export async function POST(request) {
       sort,
       active: body.active,
       parent_id: body.parent_id || null,
+      inclusions: body.inclusions,
+      exclusions: body.exclusions,
     });
     await logAdminAction(
       { action: "category.create", entity: "categories", entityId: category?.id, meta: { name } },

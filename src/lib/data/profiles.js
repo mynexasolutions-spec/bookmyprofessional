@@ -35,12 +35,16 @@ export async function getMyProfile() {
 
 export async function updateProfile(userId, patch) {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .update(patch)
-    .eq("id", userId)
-    .select()
-    .maybeSingle();
+  const run = (fields) =>
+    supabase.from("profiles").update(fields).eq("id", userId).select().maybeSingle();
+
+  let { data, error } = await run(patch);
+
+  if (error && patch && "pincode" in patch) {
+    // ponytail: pincode column may not exist yet (schema not applied) — retry without it.
+    const { pincode, ...rest } = patch;
+    ({ data, error } = await run(rest));
+  }
 
   if (error) throw error;
 

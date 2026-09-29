@@ -326,6 +326,21 @@ export default function ProfessionalDetailPage({ params }) {
                           <p className="text-xs text-dark-600 leading-relaxed">
                             {srv.description}
                           </p>
+                          {Array.isArray(srv.inclusions) && srv.inclusions.length > 0 && (
+                            <ul className="text-[11px] text-dark-600 mt-1.5 space-y-0.5">
+                              {srv.inclusions.map((line) => (
+                                <li key={line} className="flex items-start gap-1.5">
+                                  <Check className="w-3 h-3 text-emerald-600 mt-0.5 shrink-0" />
+                                  {line}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {Array.isArray(srv.exclusions) && srv.exclusions.length > 0 && (
+                            <p className="text-[11px] text-amber-700 mt-1.5">
+                              Extra charges: {srv.exclusions.join(" • ")}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2.5 shrink-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-border">

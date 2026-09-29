@@ -52,6 +52,7 @@ export default function RegisterPage() {
     category: "Doctors",
     subcategory: "",
     city: "Mumbai",
+    pincode: "",
     agreeTerms: true,
   });
 
@@ -147,6 +148,7 @@ export default function RegisterPage() {
         category: authRole === "professional" ? form.category : undefined,
         subcategory: authRole === "professional" ? form.subcategory || undefined : undefined,
         city: authRole === "professional" ? form.city : undefined,
+        pincode: authRole === "professional" ? form.pincode : undefined,
       });
       if (result?.needsEmailConfirmation) {
         showToast("Check your email to confirm your account, then sign in.", "info");
@@ -399,6 +401,28 @@ export default function RegisterPage() {
                       value={form.city}
                       onChange={(e) => setForm({ ...form, city: e.target.value })}
                       placeholder="Enter your city"
+                      className="w-full pl-8 pr-3 py-2 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-primary-900 mb-1">
+                    Pincode
+                  </label>
+                  <div className="relative">
+                    <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary-500" />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={form.pincode}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
+                        })
+                      }
+                      placeholder="e.g. 400001"
                       className="w-full pl-8 pr-3 py-2 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none"
                     />
                   </div>

@@ -56,6 +56,25 @@ module.exports = {
         card: "12px",
         button: "8px",
       },
+      keyframes: {
+        "marquee-left": {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-25%)" },
+        },
+        "marquee-right": {
+          from: { transform: "translateX(-25%)" },
+          to: { transform: "translateX(0)" },
+        },
+        "marquee-scroll": {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-50%)" },
+        },
+      },
+      animation: {
+        "marquee-left": "marquee-left 36s linear infinite",
+        "marquee-right": "marquee-right 36s linear infinite",
+        "marquee-scroll": "marquee-scroll 10s linear infinite",
+      },
     },
   },
   plugins: [],

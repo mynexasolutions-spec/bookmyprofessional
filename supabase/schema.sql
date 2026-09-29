@@ -485,6 +485,7 @@ create trigger messages_notify
 -- profile extras
 alter table public.profiles add column if not exists notification_prefs jsonb not null default '{}'::jsonb;
 alter table public.profiles add column if not exists suspended boolean not null default false;
+alter table public.profiles add column if not exists pincode text;
 
 -- professional timezone (used to build the UTC instant)
 alter table public.professionals add column if not exists timezone text not null default 'Asia/Kolkata';
@@ -611,3 +612,11 @@ create trigger profiles_sync_pro_name
   for each row
   when (new.full_name is distinct from old.full_name)
   execute function public.sync_professional_name();
+
+-- ---------- service inclusions (display-only: what a price covers) ----------
+-- Admin sets per-category defaults; professionals customise per service.
+-- Both are text arrays rendered as bullet lists on the profile / booking screens.
+alter table public.categories add column if not exists inclusions jsonb not null default '[]'::jsonb;
+alter table public.categories add column if not exists exclusions jsonb not null default '[]'::jsonb;
+alter table public.services add column if not exists inclusions jsonb not null default '[]'::jsonb;
+alter table public.services add column if not exists exclusions jsonb not null default '[]'::jsonb;

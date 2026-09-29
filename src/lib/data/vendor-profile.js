@@ -1,13 +1,14 @@
 import { createClient } from "@/lib/supabase/client";
+import { parseInclusions } from "@/lib/inclusions";
 
-const EMPTY = { experienceYears: 0, specialty: "", city: "", pincode: "", services: [], credentials: [] };
+const EMPTY = { experienceYears: 0, specialty: "", city: "", pincode: "", category: "", services: [], credentials: [] };
 // ponytail: empty profile on error keeps the vendor page alive while supabase/schema.sql is unapplied.
 export async function getVendorProfile(professionalId) {
   if (!professionalId) return { ...EMPTY };
   try {
     const supabase = createClient();
     const BASE_COLUMNS =
-      "experience_years, specialty, city, name, image_url, verification_status, hourly_rate";
+      "experience_years, specialty, city, name, image_url, verification_status, hourly_rate, category";
     const [{ data: services }, { data: credentials }] = await Promise.all([
       supabase.from("services").select("*").eq("professional_id", professionalId).order("sort"),
       supabase.from("credentials").select("*").eq("professional_id", professionalId),
@@ -30,6 +31,7 @@ export async function getVendorProfile(professionalId) {
       specialty: pro?.specialty || "",
       city: pro?.city || "",
       pincode: pro?.pincode || "",
+      category: pro?.category || "",
       name: pro?.name || "",
       image_url: pro?.image_url || "",
       verification_status: pro?.verification_status || "pending",
@@ -80,19 +82,32 @@ export async function saveService(professionalId, service) {
     duration: service.duration || "",
   };
   if (!row.title) throw new Error("Service title is required.");
+  const lists = {
+    inclusions: parseInclusions(service.inclusions),
+    exclusions: parseInclusions(service.exclusions),
+  };
 
   const supabase = createClient();
   if (service.id) {
-    const { error } = await supabase.from("services").update(row).eq("id", service.id);
+    let { error } = await supabase.from("services").update({ ...row, ...lists }).eq("id", service.id);
+    if (error) {
+      // inclusions column may not exist yet (schema not applied) — save the rest
+      ({ error } = await supabase.from("services").update(row).eq("id", service.id));
+    }
     if (error) throw error;
   } else {
     const { count } = await supabase
       .from("services")
       .select("id", { count: "exact", head: true })
       .eq("professional_id", professionalId);
-    const { error } = await supabase
+    let { error } = await supabase
       .from("services")
-      .insert({ professional_id: professionalId, sort: count || 0, ...row });
+      .insert({ professional_id: professionalId, sort: count || 0, ...row, ...lists });
+    if (error) {
+      ({ error } = await supabase
+        .from("services")
+        .insert({ professional_id: professionalId, sort: count || 0, ...row }));
+    }
     if (error) throw error;
   }
   return (await getVendorProfile(professionalId)).services;

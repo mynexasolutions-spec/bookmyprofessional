@@ -73,6 +73,8 @@ export function MarketplaceProvider({ children }) {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
   const [pincode, setPincode] = useState("");
+  const [pincodeRelaxed, setPincodeRelaxed] = useState(false);
+  const [nearCoords, setNearCoords] = useState(null);
   const [minRating, setMinRating] = useState(0);
   const [minExperience, setMinExperience] = useState(0);
   const [priceRange, setPriceRange] = useState("all"); // "all" | "under-40" | "40-70" | "above-70"
@@ -95,6 +97,7 @@ export function MarketplaceProvider({ children }) {
     phone: "",
     address: "",
     city: "",
+    pincode: "",
     postalCode: "",
   });
 
@@ -183,7 +186,7 @@ export function MarketplaceProvider({ children }) {
 
     (async () => {
       setIsLoadingProfessionals(true);
-      const { rows, total: count } = await listProfessionals({
+      const { rows, total: count, relaxedPincode } = await listProfessionals({
         search: debouncedSearch,
         category: selectedCategory,
         location: selectedLocation,
@@ -197,10 +200,12 @@ export function MarketplaceProvider({ children }) {
         page,
         pageSize: DEFAULT_PAGE_SIZE,
         locations,
+        near: nearCoords,
       });
       if (!active) return;
       setFilteredProfessionals(rows);
       setTotal(count);
+      setPincodeRelaxed(Boolean(relaxedPincode));
       setIsLoadingProfessionals(false);
     })();
 
@@ -221,6 +226,7 @@ export function MarketplaceProvider({ children }) {
     page,
     professionals,
     locations,
+    nearCoords,
   ]);
 
   // Any filter change returns to page 1.
@@ -238,6 +244,10 @@ export function MarketplaceProvider({ children }) {
   };
   const setPincodeFilter = (value) => {
     setPincode(String(value || "").trim());
+    setPage(1);
+  };
+  const setNear = (coords) => {
+    setNearCoords(coords && coords.latitude != null ? coords : null);
     setPage(1);
   };
   const setRating = (value) => {
@@ -488,6 +498,9 @@ export function MarketplaceProvider({ children }) {
         setSelectedLocation: setLocation,
         pincode,
         setPincode: setPincodeFilter,
+        pincodeRelaxed,
+        nearCoords,
+        setNearCoords: setNear,
         minRating,
         setMinRating: setRating,
         minExperience,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -18,6 +18,8 @@ import {
   deleteCredential,
 } from "@/lib/data/vendor-profile";
 import { getEarningsSummary, listMyPayouts } from "@/lib/data/payments";
+import { listAllCategories } from "@/lib/data/categories";
+import { formatInclusions } from "@/lib/inclusions";
 import { uploadImage, ikImage } from "@/lib/imagekit";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -110,8 +112,19 @@ export default function VendorPortalPage() {
     specialty: "",
     city: "",
     pincode: "",
+    category: "",
     services: [],
     credentials: [],
+  });
+  const categoryDefaults = useRef({ inclusions: "", exclusions: "" });
+  const blankServiceForm = () => ({
+    id: null,
+    title: "",
+    description: "",
+    price: "",
+    duration: "",
+    inclusions: categoryDefaults.current.inclusions,
+    exclusions: categoryDefaults.current.exclusions,
   });
   const [serviceForm, setServiceForm] = useState({
     id: null,
@@ -119,6 +132,8 @@ export default function VendorPortalPage() {
     description: "",
     price: "",
     duration: "",
+    inclusions: "",
+    exclusions: "",
   });
   const [credForm, setCredForm] = useState({ title: "", issuer: "", year: "" });
 
@@ -151,6 +166,27 @@ export default function VendorPortalPage() {
       active = false;
     };
   }, [user?.id]);
+
+  // Prefill new-service inclusions from the admin's category template (if the form is untouched).
+  useEffect(() => {
+    if (!vendorProfile.category) return;
+    let active = true;
+    listAllCategories().then((rows) => {
+      if (!active) return;
+      const cat = rows.find((c) => !c.parent_id && c.name === vendorProfile.category);
+      if (!cat) return;
+      categoryDefaults.current = {
+        inclusions: formatInclusions(cat.inclusions),
+        exclusions: formatInclusions(cat.exclusions),
+      };
+      setServiceForm((f) =>
+        f.id || f.title || f.inclusions || f.exclusions ? f : { ...f, ...categoryDefaults.current }
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [vendorProfile.category]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -354,7 +390,7 @@ export default function VendorPortalPage() {
     try {
       const services = await saveService(user.id, serviceForm);
       setVendorProfile((prev) => ({ ...prev, services }));
-      setServiceForm({ id: null, title: "", description: "", price: "", duration: "" });
+      setServiceForm(blankServiceForm());
       showToast(isEdit ? "Service updated." : "Service added.", "success");
     } catch (err) {
       showToast(err?.message || "Could not save the service.", "error");
@@ -1002,6 +1038,18 @@ export default function VendorPortalPage() {
                                 {formatMoney(Number(s.price) || 0)}
                                 {s.duration ? ` • ${s.duration}` : ""}
                               </p>
+                              {Array.isArray(s.inclusions) && s.inclusions.length > 0 && (
+                                <ul className="text-[11px] text-dark-600 mt-1.5 space-y-0.5 list-disc list-inside">
+                                  {s.inclusions.map((line) => (
+                                    <li key={line}>{line}</li>
+                                  ))}
+                                </ul>
+                              )}
+                              {Array.isArray(s.exclusions) && s.exclusions.length > 0 && (
+                                <p className="text-[11px] text-amber-700 mt-1.5">
+                                  Extra charges: {s.exclusions.join(" • ")}
+                                </p>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <button
@@ -1014,6 +1062,8 @@ export default function VendorPortalPage() {
                                     description: s.description || "",
                                     price: s.price,
                                     duration: s.duration || "",
+                                    inclusions: formatInclusions(s.inclusions),
+                                    exclusions: formatInclusions(s.exclusions),
                                   })
                                 }
                                 className="p-2 rounded-lg border border-border text-dark-600 hover:bg-white transition-colors"
@@ -1078,6 +1128,36 @@ export default function VendorPortalPage() {
                           className="w-full px-3.5 py-2.5 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                         />
                       </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-dark-700 mb-1">
+                            What&apos;s included (one per line)
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={serviceForm.inclusions}
+                            onChange={(e) =>
+                              setServiceForm({ ...serviceForm, inclusions: e.target.value })
+                            }
+                            placeholder={"Visit & diagnosis\nEstimated 45 mins of work\nBasic tools"}
+                            className="w-full px-3.5 py-2.5 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 resize-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-dark-700 mb-1">
+                            Extra charges / not included (one per line)
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={serviceForm.exclusions}
+                            onChange={(e) =>
+                              setServiceForm({ ...serviceForm, exclusions: e.target.value })
+                            }
+                            placeholder={"Spare parts at actuals\nTravel beyond 5 km: ₹10/km"}
+                            className="w-full px-3.5 py-2.5 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 resize-none"
+                          />
+                        </div>
+                      </div>
                       <div className="flex items-center gap-2.5">
                         <Button
                           type="submit"
@@ -1091,15 +1171,7 @@ export default function VendorPortalPage() {
                         {serviceForm.id && (
                           <button
                             type="button"
-                            onClick={() =>
-                              setServiceForm({
-                                id: null,
-                                title: "",
-                                description: "",
-                                price: "",
-                                duration: "",
-                              })
-                            }
+                            onClick={() => setServiceForm(blankServiceForm())}
                             className="text-xs text-dark-600 hover:text-dark-900 px-2"
                           >
                             Cancel

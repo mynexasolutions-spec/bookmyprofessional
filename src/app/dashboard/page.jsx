@@ -133,6 +133,7 @@ export default function CustomerDashboardPage() {
       email: prev.email || user.email || "",
       phone: prev.phone || meta.phone || "",
       city: prev.city || meta.city || "",
+      pincode: prev.pincode || meta.pincode || "",
     }));
 
     if (user.demo || !user.id) return;
@@ -146,6 +147,7 @@ export default function CustomerDashboardPage() {
         email: p.email || prev.email,
         phone: p.phone || prev.phone,
         city: p.city || prev.city,
+        pincode: p.pincode || prev.pincode,
         address: p.address || prev.address,
         avatar_url: p.avatar_url || prev.avatar_url,
       }));
@@ -183,6 +185,7 @@ export default function CustomerDashboardPage() {
           email: profileForm.email,
           phone: profileForm.phone,
           city: profileForm.city,
+          pincode: profileForm.pincode,
           address: profileForm.address,
         });
       } catch (err) {
@@ -667,6 +670,26 @@ export default function CustomerDashboardPage() {
                         placeholder="e.g. Mumbai"
                         onChange={(e) =>
                           setProfileForm({ ...profileForm, city: e.target.value })
+                        }
+                        className="w-full px-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                        Pincode
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={profileForm.pincode || ""}
+                        placeholder="e.g. 400001"
+                        onChange={(e) =>
+                          setProfileForm({
+                            ...profileForm,
+                            pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
+                          })
                         }
                         className="w-full px-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
                       />
