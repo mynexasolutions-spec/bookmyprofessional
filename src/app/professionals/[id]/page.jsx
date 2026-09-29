@@ -150,7 +150,7 @@ export default function ProfessionalDetailPage({ params }) {
               <div className="absolute inset-0 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px] opacity-15 pointer-events-none" />
 
               <span className="relative z-10 bg-white/20 backdrop-blur-md text-white text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
-                {pro.category}
+                {pro.subcategory ? `${pro.category} · ${pro.subcategory}` : pro.category}
               </span>
 
               <div className="relative z-10 flex items-center gap-2">

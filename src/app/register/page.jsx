@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { listCategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
+import { listCategories, listSubcategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
 import {
   Mail,
   Lock,
@@ -50,12 +50,14 @@ export default function RegisterPage() {
     phone: "",
     password: "",
     category: "Doctors",
+    subcategory: "",
     city: "Mumbai",
     agreeTerms: true,
   });
 
   // Professional categories come from the DB (active rows), seeded to defaults until loaded.
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [subcategories, setSubcategories] = useState({});
   useEffect(() => {
     let active = true;
     listCategories().then((cats) => {
@@ -63,6 +65,9 @@ export default function RegisterPage() {
       setCategories(cats);
       // Keep the selected specialty valid if the DB list no longer contains it.
       setForm((f) => (cats.includes(f.category) ? f : { ...f, category: cats[0] }));
+    });
+    listSubcategories().then((map) => {
+      if (active) setSubcategories(map || {});
     });
     return () => {
       active = false;
@@ -140,6 +145,7 @@ export default function RegisterPage() {
         password: form.password,
         role: authRole,
         category: authRole === "professional" ? form.category : undefined,
+        subcategory: authRole === "professional" ? form.subcategory || undefined : undefined,
         city: authRole === "professional" ? form.city : undefined,
       });
       if (result?.needsEmailConfirmation) {
@@ -355,12 +361,29 @@ export default function RegisterPage() {
                   </label>
                   <select
                     value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    onChange={(e) => setForm({ ...form, category: e.target.value, subcategory: "" })}
                     className="w-full px-3 py-2 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none"
                   >
                     {categories.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-primary-900 mb-1">
+                    Subcategory (optional)
+                  </label>
+                  <select
+                    value={form.subcategory}
+                    onChange={(e) => setForm({ ...form, subcategory: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none"
+                  >
+                    <option value="">Not specified</option>
+                    {(subcategories[form.category] || []).map((sub) => (
+                      <option key={sub} value={sub}>
+                        {sub}
                       </option>
                     ))}
                   </select>

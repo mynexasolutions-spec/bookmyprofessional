@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
 import MarketplaceDirectory from "@/components/MarketplaceDirectory";
 import { useAuth } from "@/context/AuthContext";
 import { useMarketplace } from "@/context/MarketplaceContext";
+import { useComingSoon } from "@/context/ComingSoonContext";
 import { subscribeNewsletter } from "@/lib/data/contacts";
 import { listCategoryTiles } from "@/lib/data/categories";
 import { getSiteContent, DEFAULT_MARKETING, DEFAULT_TESTIMONIALS } from "@/lib/data/site-content";
@@ -53,11 +55,13 @@ import { formatMoney } from "@/lib/money";
 import { ikImage } from "@/lib/imagekit";
 
 export default function HomePage() {
+  const router = useRouter();
   const { openAuthModal, user, showToast } = useAuth();
+  const { openComingSoonModal } = useComingSoon();
   const {
     setSearchQuery,
     setSelectedLocation,
-    setSelectedCategory,
+    setPincode,
     startBooking,
     openProDetail,
     professionals: marketplacePros,
@@ -68,6 +72,7 @@ export default function HomePage() {
   const [heroService, setHeroService] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [testimonialIndex, setTestimonialIndex] = useState(0);
+  const [carouselPaused, setCarouselPaused] = useState(false);
   const [savedPros, setSavedPros] = useState({});
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -126,6 +131,16 @@ export default function HomePage() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (carouselPaused || testimonials.length < 2) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const id = setInterval(
+      () => setTestimonialIndex((prev) => (prev + 1) % testimonials.length),
+      5000
+    );
+    return () => clearInterval(id);
+  }, [carouselPaused, testimonials.length, testimonialIndex]);
+
   const toggleSave = async (id, name) => {
     if (!user) {
       showToast("Sign in to save professionals", "info");
@@ -164,7 +179,14 @@ export default function HomePage() {
   const handleHeroSearch = (e) => {
     if (e) e.preventDefault();
     if (heroService) setSearchQuery(heroService);
-    if (heroLocation) setSelectedLocation(heroLocation);
+    const place = heroLocation.trim();
+    if (/^\d{6}$/.test(place)) {
+      setPincode(place);
+      setSelectedLocation("all");
+    } else if (place) {
+      setSelectedLocation(place);
+      setPincode("");
+    }
     const element = document.getElementById("find");
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
@@ -172,11 +194,7 @@ export default function HomePage() {
   };
 
   const handleCategoryClick = (catTitle) => {
-    setSelectedCategory(catTitle);
-    const element = document.getElementById("find");
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-    }
+    router.push(`/professionals?category=${encodeURIComponent(catTitle)}`);
   };
 
   const topCategories = [
@@ -351,7 +369,7 @@ export default function HomePage() {
                     <MapPin className="h-5 w-5 text-primary-500 shrink-0" />
                     <input
                       type="text"
-                      placeholder="Your Location"
+                      placeholder="Your Location or Pincode"
                       value={heroLocation}
                       onChange={(e) => setHeroLocation(e.target.value)}
                       className="w-full bg-transparent text-sm text-dark-900 placeholder:text-muted focus:outline-none"
@@ -416,18 +434,18 @@ export default function HomePage() {
                   Find professional services for every part of your life.
                 </p>
               </div>
-              <a
-                href="#find"
+              <Link
+                href="/professionals"
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-500 hover:text-primary-600 transition-colors group shrink-0"
               >
                 <span>View All Categories</span>
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
-              </a>
+              </Link>
             </div>
 
             {/* Categories Grid / Horizontal Scroll on small screens */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
-              {(activeCategories.length > 0 ? activeCategories : topCategories.map((c) => c.title)).map((name, idx) => {
+              {(activeCategories.length > 0 ? activeCategories : topCategories.map((c) => c.title)).slice(0, 7).map((name) => {
                 const cat = categoryStylesFor(name);
                 const tileImage = categoryIcons[name] || cat.image;
                 return (
@@ -459,12 +477,28 @@ export default function HomePage() {
                   </div>
                 );
               })}
+
+              {/* 8th card: opens the full directory */}
+              <Link
+                href="/professionals"
+                className="group relative flex flex-col items-center justify-center text-center rounded-[14px] border-2 border-dashed border-primary-200 bg-primary-50/60 p-2.5 sm:p-3 transition-all duration-200 hover:-translate-y-1 hover:shadow-card hover:border-primary-400"
+              >
+                <div className="w-full aspect-square rounded-[10px] flex items-center justify-center mb-2.5 bg-primary-100/70">
+                  <ArrowRight className="w-7 h-7 text-primary-500 transition-transform duration-200 group-hover:translate-x-1" />
+                </div>
+                <h3 className="font-heading text-xs sm:text-sm font-bold text-primary-600 leading-tight">
+                  View All
+                </h3>
+                <p className="mt-1 text-[10px] sm:text-[11px] text-muted leading-tight line-clamp-1">
+                  Every category
+                </p>
+              </Link>
             </div>
           </div>
         </section>
 
          {/* HOW IT WORKS / WORKFLOW SECTION */}
-        <section id="how-it-works" className="py-12 sm:py-14 bg-surface border-y border-border overflow-hidden">
+        <section id="how-it-works" className="py-12 sm:py-14 bg-surface border-y border-border overflow-hidden scroll-mt-16">
           <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8">
             {/* Header: How BookMyProfessional Works */}
             <div className="mx-auto max-w-3xl text-center mb-14 sm:mb-20">
@@ -736,7 +770,7 @@ export default function HomePage() {
         </section>
 
         {/* FULL INTERACTIVE MARKETPLACE DIRECTORY & SEARCH */}
-        <MarketplaceDirectory />
+        <MarketplaceDirectory preview />
 
         {/* COMMUNITY STATS BANNER WITH STEPS.PNG BACKGROUND */}
         <section
@@ -829,10 +863,10 @@ export default function HomePage() {
             </div>
 
             {/* 5 Compact Features in a Row with responsive layout */}
-            <div className="flex flex-wrap items-center justify-center gap-y-6 gap-x-6 sm:gap-x-8 lg:gap-x-10 xl:gap-x-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 items-start gap-y-6 gap-x-6 lg:gap-x-3 xl:gap-x-8">
               
               {/* Item 1: Verified Professionals (Purple) */}
-              <div className="flex items-center gap-3 w-full sm:w-[calc(50%-16px)] lg:w-auto">
+              <div className="flex items-center gap-3">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#8E44AD] text-white flex items-center justify-center shrink-0 shadow-sm">
                   <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
                 </div>
@@ -847,7 +881,7 @@ export default function HomePage() {
               </div>
 
               {/* Item 2: Easy Booking (Coral / Orange) */}
-              <div className="flex items-center gap-3 w-full sm:w-[calc(50%-16px)] lg:w-auto">
+              <div className="flex items-center gap-3">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#E67E51] text-white flex items-center justify-center shrink-0 shadow-sm">
                   <CalendarDays className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
                 </div>
@@ -862,7 +896,7 @@ export default function HomePage() {
               </div>
 
               {/* Item 3: Secure Payments (Teal / Turquoise) */}
-              <div className="flex items-center gap-3 w-full sm:w-[calc(50%-16px)] lg:w-auto">
+              <div className="flex items-center gap-3">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#26B99A] text-white flex items-center justify-center shrink-0 shadow-sm">
                   <CreditCard className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
                 </div>
@@ -877,7 +911,7 @@ export default function HomePage() {
               </div>
 
               {/* Item 4: Wide Range of Services (Blue) */}
-              <div className="flex items-center gap-3 w-full sm:w-[calc(50%-16px)] lg:w-auto">
+              <div className="flex items-center gap-3">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#3B82F6] text-white flex items-center justify-center shrink-0 shadow-sm">
                   <LayoutGrid className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
                 </div>
@@ -892,7 +926,7 @@ export default function HomePage() {
               </div>
 
               {/* Item 5: Reliable Support (Amber / Gold) */}
-              <div className="flex items-center gap-3 w-full sm:w-[calc(50%-16px)] lg:w-auto mt-6">
+              <div className="flex items-center gap-3">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#E69500] text-white flex items-center justify-center shrink-0 shadow-sm">
                   <Headphones className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
                 </div>
@@ -921,7 +955,13 @@ export default function HomePage() {
             </div>
 
             {/* Testimonials Carousel Container */}
-            <div className="relative px-0 sm:px-12 lg:px-14">
+            <div
+              className="relative px-0 sm:px-12 lg:px-14"
+              onMouseEnter={() => setCarouselPaused(true)}
+              onMouseLeave={() => setCarouselPaused(false)}
+              onFocusCapture={() => setCarouselPaused(true)}
+              onBlurCapture={() => setCarouselPaused(false)}
+            >
               {/* Left Arrow Button */}
               <button
                 type="button"
@@ -1036,21 +1076,6 @@ export default function HomePage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 mt-6 pt-4 border-t border-border/60">
-                          <img
-                            src={item.avatar}
-                            alt={item.name}
-                            className="w-11 h-11 rounded-full object-cover border border-border"
-                          />
-                          <div>
-                            <h4 className="font-heading font-bold text-sm text-dark-900 leading-tight">
-                              {item.name}
-                            </h4>
-                            <p className="text-xs text-muted mt-0.5">
-                              {item.location}
-                            </p>
-                          </div>
-                        </div>
                       </div>
                     );
                   })()}
@@ -1094,8 +1119,9 @@ export default function HomePage() {
                 {/* App Store & Play Store Download Badges */}
                 <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-3.5 sm:gap-4">
                   {/* Apple App Store */}
-                  <a
-                    href="#download-ios"
+                  <button
+                    type="button"
+                    onClick={openComingSoonModal}
                     className="inline-flex items-center gap-3 bg-black text-white px-5 py-2.5 rounded-[10px] hover:bg-dark-800 transition-all duration-200 shadow-card group"
                   >
                     <img
@@ -1111,11 +1137,12 @@ export default function HomePage() {
                         App Store
                       </span>
                     </div>
-                  </a>
+                  </button>
 
                   {/* Google Play Store */}
-                  <a
-                    href="#download-android"
+                  <button
+                    type="button"
+                    onClick={openComingSoonModal}
                     className="inline-flex items-center gap-3 bg-black text-white px-5 py-2.5 rounded-[10px] hover:bg-dark-800 transition-all duration-200 shadow-card group"
                   >
                     <img
@@ -1131,7 +1158,7 @@ export default function HomePage() {
                         Google Play
                       </span>
                     </div>
-                  </a>
+                  </button>
                 </div>
               </div>
 
@@ -1286,10 +1313,10 @@ export default function HomePage() {
               <div>
                 {/* Brand Logo */}
                 <div className="flex flex-col">
-                  <a href="#" className="font-heading text-xl sm:text-2xl font-bold tracking-tight inline-block">
+                  <Link href="/" className="font-heading text-xl sm:text-2xl font-bold tracking-tight inline-block">
                     <span className="text-white">BookMy</span>
                     <span className="text-[#0070F3]">Professional</span>
-                  </a>
+                  </Link>
                   <span className="text-[11px] sm:text-xs text-white/70 font-normal tracking-wide mt-0.5">
                     Skilled People. Better Living.
                   </span>
@@ -1342,9 +1369,9 @@ export default function HomePage() {
                   </Link>
                 </li>
                 <li>
-                  <a href="#how-it-works" className="hover:text-white transition-colors">
+                  <Link href="/how-it-works" className="hover:text-white transition-colors">
                     How It Works
-                  </a>
+                  </Link>
                 </li>
                 <li>
                   <Link href="/about" className="hover:text-white transition-colors">

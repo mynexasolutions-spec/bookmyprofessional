@@ -56,6 +56,7 @@ function mapProfessional(row, locMap) {
     name: row.name,
     role: row.role_title || "Professional",
     category: row.category || "",
+    subcategory: row.subcategory || "",
     specialty: row.specialty || "",
     ...summarizeReviews(reviews),
     location: loc ? `${city}, ${loc.country}` : city,
@@ -73,6 +74,7 @@ function mapProfessional(row, locMap) {
     image: row.image_url || "",
     bio: row.bio || "",
     about: row.about || "",
+    pincode: row.pincode || "",
     credentials: (row.credentials || []).map((c) => ({
       title: c.title,
       issuer: c.issuer,
@@ -105,16 +107,20 @@ function withCoordinates(pro, locMap) {
   };
 }
 
-// ponytail: ilike scan across name/role_title/category/specialty — no tsvector index yet.
-// Swap for .textSearch()/an RPC over a generated tsvector column once the catalog is large.
-function applySearch(query, term) {
-  const q = String(term || "")
+function sanitizeTerm(term) {
+  return String(term || "")
     .trim()
     .replace(/[,.()%*:"]/g, " ")
     .trim();
+}
+
+// ponytail: ilike scan across name/role_title/category/specialty — no tsvector index yet.
+// Swap for .textSearch()/an RPC over a generated tsvector column once the catalog is large.
+function applySearch(query, term) {
+  const q = sanitizeTerm(term);
   if (!q) return query;
   return query.or(
-    ["name", "role_title", "category", "specialty"]
+    ["name", "role_title", "category", "subcategory", "specialty"]
       .map((col) => `${col}.ilike.%${q}%`)
       .join(",")
   );
@@ -124,7 +130,10 @@ function applyFilters(query, opts) {
   let q = applySearch(query, opts.search);
 
   if (opts.category && opts.category !== "all") q = q.ilike("category", opts.category);
-  if (opts.location && opts.location !== "all") q = q.ilike("city", opts.location);
+  const city = sanitizeTerm(opts.location === "all" ? "" : opts.location);
+  if (city) q = q.ilike("city", `%${city}%`);
+  const pincode = sanitizeTerm(opts.pincode);
+  if (pincode) q = q.ilike("pincode", `%${pincode}%`);
   if (opts.minRating > 0) q = q.gte("rating", opts.minRating);
   if (opts.minExperience > 0) q = q.gte("experience_years", opts.minExperience);
 
@@ -160,7 +169,7 @@ function clientFilter(rows, opts) {
 
     if (opts.search && opts.search.trim()) {
       const q = opts.search.toLowerCase();
-      const hay = [pro.name, pro.role, pro.category, pro.specialty, pro.location];
+      const hay = [pro.name, pro.role, pro.category, pro.subcategory, pro.specialty, pro.location];
       if (!hay.some((v) => (v || "").toLowerCase().includes(q))) return false;
     }
 
@@ -170,6 +179,10 @@ function clientFilter(rows, opts) {
 
     if (opts.location && opts.location !== "all") {
       if (!(pro.location || "").toLowerCase().includes(opts.location.toLowerCase())) return false;
+    }
+
+    if (opts.pincode) {
+      if (!(pro.pincode || "").includes(opts.pincode)) return false;
     }
 
     if (opts.availabilityDay && opts.availabilityDay !== "all") {
@@ -226,6 +239,7 @@ export async function listProfessionals(options = {}) {
     search = "",
     category = "all",
     location = "all",
+    pincode = "",
     minRating = 0,
     minExperience = 0,
     priceRange = "all",
@@ -244,6 +258,7 @@ export async function listProfessionals(options = {}) {
     search,
     category,
     location,
+    pincode,
     minRating,
     minExperience,
     priceRange,

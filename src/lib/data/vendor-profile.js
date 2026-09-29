@@ -1,24 +1,35 @@
 import { createClient } from "@/lib/supabase/client";
 
-const EMPTY = { experienceYears: 0, specialty: "", city: "", services: [], credentials: [] };
+const EMPTY = { experienceYears: 0, specialty: "", city: "", pincode: "", services: [], credentials: [] };
 // ponytail: empty profile on error keeps the vendor page alive while supabase/schema.sql is unapplied.
 export async function getVendorProfile(professionalId) {
   if (!professionalId) return { ...EMPTY };
   try {
     const supabase = createClient();
-    const [{ data: pro }, { data: services }, { data: credentials }] = await Promise.all([
-      supabase
-        .from("professionals")
-        .select("experience_years, specialty, city, name, image_url, verification_status, hourly_rate")
-        .eq("id", professionalId)
-        .maybeSingle(),
+    const BASE_COLUMNS =
+      "experience_years, specialty, city, name, image_url, verification_status, hourly_rate";
+    const [{ data: services }, { data: credentials }] = await Promise.all([
       supabase.from("services").select("*").eq("professional_id", professionalId).order("sort"),
       supabase.from("credentials").select("*").eq("professional_id", professionalId),
     ]);
+    let { data: pro } = await supabase
+      .from("professionals")
+      .select(`${BASE_COLUMNS}, pincode`)
+      .eq("id", professionalId)
+      .maybeSingle();
+    if (!pro) {
+      // pincode column may not exist yet (schema not applied) — retry without it
+      ({ data: pro } = await supabase
+        .from("professionals")
+        .select(BASE_COLUMNS)
+        .eq("id", professionalId)
+        .maybeSingle());
+    }
     return {
       experienceYears: pro?.experience_years || 0,
       specialty: pro?.specialty || "",
       city: pro?.city || "",
+      pincode: pro?.pincode || "",
       name: pro?.name || "",
       image_url: pro?.image_url || "",
       verification_status: pro?.verification_status || "pending",
@@ -33,15 +44,20 @@ export async function getVendorProfile(professionalId) {
 
 export async function updateVendorBasics(professionalId, patch) {
   const supabase = createClient();
-  const { error } = await supabase
+  const row = {
+    experience_years: Number(patch.experienceYears) || 0,
+    specialty: patch.specialty || "",
+    city: patch.city || "",
+    hourly_rate: Number(patch.hourlyRate) || 0,
+  };
+  let { error } = await supabase
     .from("professionals")
-    .update({
-      experience_years: Number(patch.experienceYears) || 0,
-      specialty: patch.specialty || "",
-      city: patch.city || "",
-      hourly_rate: Number(patch.hourlyRate) || 0,
-    })
+    .update({ ...row, pincode: patch.pincode || "" })
     .eq("id", professionalId);
+  if (error) {
+    // pincode column may not exist yet (schema not applied) — save the rest
+    ({ error } = await supabase.from("professionals").update(row).eq("id", professionalId));
+  }
   if (error) throw error;
   return patch;
 }

@@ -39,6 +39,7 @@ import {
 import { formatMoney } from "@/lib/money";
 import { uploadImage, ikImage } from "@/lib/imagekit";
 import { DEFAULT_MARKETING, DEFAULT_TESTIMONIALS, DEFAULT_SOCIAL } from "@/lib/data/site-content";
+import { subcategoriesByParent } from "@/lib/subcategories";
 
 // Lightweight avatar uploader reused by the Add Professional / Add Customer forms.
 function PhotoPicker({ value, onChange, label = "Photo" }) {
@@ -156,7 +157,7 @@ export default function AdminDashboard({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [busy, setBusy] = useState(null);
-  const [categoryForm, setCategoryForm] = useState({ name: "", sort: "", icon: "" });
+  const [categoryForm, setCategoryForm] = useState({ name: "", sort: "", icon: "", parent: "" });
   const [editingCategory, setEditingCategory] = useState(null);
   const [showAddPro, setShowAddPro] = useState(false);
   const [proForm, setProForm] = useState({
@@ -164,6 +165,7 @@ export default function AdminDashboard({
     email: "",
     password: "",
     category: "",
+    subcategory: "",
     city: "",
     phone: "",
     hourlyRate: "",
@@ -1105,9 +1107,14 @@ export default function AdminDashboard({
                   run(
                     "category:new",
                     "/api/admin/categories",
-                    { name, sort: categoryForm.sort, icon: categoryForm.icon },
+                    {
+                      name,
+                      sort: categoryForm.sort,
+                      icon: categoryForm.icon,
+                      parent_id: categoryForm.parent || null,
+                    },
                     "Category added"
-                  ).then(() => setCategoryForm({ name: "", sort: "", icon: "" }));
+                  ).then(() => setCategoryForm({ name: "", sort: "", icon: "", parent: "" }));
                 }}
                 className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-surface rounded-2xl border border-border shadow-card"
               >
@@ -1117,6 +1124,21 @@ export default function AdminDashboard({
                   placeholder="Category name"
                   className="flex-1 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                 />
+                <select
+                  value={categoryForm.parent}
+                  onChange={(e) => setCategoryForm((f) => ({ ...f, parent: e.target.value }))}
+                  title="Optional — makes this a subcategory of the selected category."
+                  className="w-full sm:w-48 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                >
+                  <option value="">Top-level category</option>
+                  {categories
+                    .filter((c) => !c.parent_id)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        Subcategory of {c.name}
+                      </option>
+                    ))}
+                </select>
                 <input
                   value={categoryForm.sort}
                   onChange={(e) => setCategoryForm((f) => ({ ...f, sort: e.target.value }))}
@@ -1175,19 +1197,49 @@ export default function AdminDashboard({
                         const key = `category:${category.id}`;
                         const isBusy = busy === key;
                         const isEditing = editingCategory?.id === category.id;
+                        const parentName = category.parent_id
+                          ? categories.find((c) => c.id === category.parent_id)?.name
+                          : null;
                         return (
                           <tr key={category.id} className="hover:bg-dark-50/50 transition-colors">
                             <td className="px-5 py-3.5">
                               {isEditing ? (
-                                <input
-                                  value={editingCategory.name}
-                                  onChange={(e) =>
-                                    setEditingCategory((c) => ({ ...c, name: e.target.value }))
-                                  }
-                                  className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900"
-                                />
+                                <div className="space-y-1.5">
+                                  <input
+                                    value={editingCategory.name}
+                                    onChange={(e) =>
+                                      setEditingCategory((c) => ({ ...c, name: e.target.value }))
+                                    }
+                                    className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900"
+                                  />
+                                  <select
+                                    value={editingCategory.parent_id || ""}
+                                    onChange={(e) =>
+                                      setEditingCategory((c) => ({
+                                        ...c,
+                                        parent_id: e.target.value || null,
+                                      }))
+                                    }
+                                    title="Optional — nests this category under the selected one."
+                                    className="block rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900"
+                                  >
+                                    <option value="">Top-level category</option>
+                                    {categories
+                                      .filter((c) => !c.parent_id && c.id !== category.id)
+                                      .map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                          Subcategory of {c.name}
+                                        </option>
+                                      ))}
+                                  </select>
+                                </div>
                               ) : (
-                                <span className="font-semibold text-dark-900">{category.name}</span>
+                                <span className="font-semibold text-dark-900">
+                                  {parentName ? (
+                                    <span className="text-dark-400 font-normal">{parentName} / </span>
+                                  ) : null}
+                                  {category.name}
+                                </span>
                               )}
                             </td>
                             <td className="px-5 py-3.5">
@@ -1273,6 +1325,7 @@ export default function AdminDashboard({
                                             name: editingCategory.name,
                                             sort: editingCategory.sort,
                                             icon: editingCategory.icon,
+                                            parent_id: editingCategory.parent_id || null,
                                           },
                                           "Category updated",
                                           "PATCH"
@@ -1316,6 +1369,7 @@ export default function AdminDashboard({
                                           name: category.name,
                                           sort: category.sort,
                                           icon: category.icon || "",
+                                          parent_id: category.parent_id || null,
                                         })
                                       }
                                       className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold flex items-center gap-1.5"
@@ -1366,7 +1420,10 @@ export default function AdminDashboard({
                   type="button"
                   onClick={() => {
                     setShowAddPro((v) => !v);
-                    setProForm((f) => ({ ...f, category: f.category || categories[0]?.name || "" }));
+                    setProForm((f) => ({
+                      ...f,
+                      category: f.category || categories.find((c) => !c.parent_id)?.name || "",
+                    }));
                   }}
                   className="py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm"
                 >
@@ -1386,7 +1443,7 @@ export default function AdminDashboard({
                       "Professional added"
                     ).then(() => {
                       setShowAddPro(false);
-                      setProForm({ name: "", email: "", password: "", category: "", city: "", phone: "", hourlyRate: "", imageUrl: "" });
+                      setProForm({ name: "", email: "", password: "", category: "", subcategory: "", city: "", phone: "", hourlyRate: "", imageUrl: "" });
                     });
                   }}
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4 bg-surface rounded-2xl border border-border shadow-card"
@@ -1435,12 +1492,31 @@ export default function AdminDashboard({
                     <select
                       required
                       value={proForm.category}
-                      onChange={(e) => setProForm((f) => ({ ...f, category: e.target.value }))}
+                      onChange={(e) =>
+                        setProForm((f) => ({ ...f, category: e.target.value, subcategory: "" }))
+                      }
                       className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                     >
                       <option value="">Select category…</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
+                      {categories
+                        .filter((c) => !c.parent_id)
+                        .map((c) => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-dark-700 mb-1">
+                      Subcategory (optional)
+                    </label>
+                    <select
+                      value={proForm.subcategory}
+                      onChange={(e) => setProForm((f) => ({ ...f, subcategory: e.target.value }))}
+                      className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    >
+                      <option value="">Not specified</option>
+                      {(subcategoriesByParent(categories)[proForm.category] || []).map((sub) => (
+                        <option key={sub} value={sub}>{sub}</option>
                       ))}
                     </select>
                   </div>
@@ -1515,7 +1591,9 @@ export default function AdminDashboard({
                         return (
                           <tr key={pro.id} className="hover:bg-dark-50/50 transition-colors">
                             <td className="px-5 py-3.5 font-semibold text-dark-900">{pro.name || "—"}</td>
-                            <td className="px-5 py-3.5 text-dark-600">{pro.category || "—"}</td>
+                            <td className="px-5 py-3.5 text-dark-600">
+                              {pro.category ? `${pro.category}${pro.subcategory ? ` · ${pro.subcategory}` : ""}` : "—"}
+                            </td>
                             <td className="px-5 py-3.5 text-dark-600">{pro.city || "—"}</td>
                             <td className="px-5 py-3.5 text-dark-600">{pro.rating ?? 0}</td>
                             <td className="px-5 py-3.5">

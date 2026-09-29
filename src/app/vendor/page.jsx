@@ -109,6 +109,7 @@ export default function VendorPortalPage() {
     experienceYears: 0,
     specialty: "",
     city: "",
+    pincode: "",
     services: [],
     credentials: [],
   });
@@ -337,6 +338,7 @@ export default function VendorPortalPage() {
         experienceYears: Number(vendorProfile.experienceYears) || 0,
         specialty: vendorProfile.specialty,
         city: vendorProfile.city,
+        pincode: vendorProfile.pincode,
         hourlyRate: Number(vendorProfile.hourlyRate) || 0,
       });
       showToast("Experience & service location saved.", "success");
@@ -879,7 +881,7 @@ export default function VendorPortalPage() {
                         Shown on your public profile to help customers pick the right expert.
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-dark-700 mb-1.5">
                           Years of Experience
@@ -934,6 +936,25 @@ export default function VendorPortalPage() {
                             setVendorProfile({ ...vendorProfile, city: e.target.value })
                           }
                           placeholder="Mumbai"
+                          className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                          Service Pincode
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={vendorProfile.pincode}
+                          onChange={(e) =>
+                            setVendorProfile({
+                              ...vendorProfile,
+                              pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
+                            })
+                          }
+                          placeholder="400001"
                           className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
                         />
                       </div>

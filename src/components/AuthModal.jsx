@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { listCategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
+import { listCategories, listSubcategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
 import {
   X,
   Mail,
@@ -59,6 +59,7 @@ export default function AuthModal() {
     password: "",
     confirmPassword: "",
     category: "Doctors",
+    subcategory: "",
     city: "Mumbai",
     agreeTerms: true,
   });
@@ -96,12 +97,16 @@ export default function AuthModal() {
 
   // Professional categories come from the DB (active rows), seeded to defaults until loaded.
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [subcategories, setSubcategories] = useState({});
   useEffect(() => {
     let active = true;
     listCategories().then((cats) => {
       if (!active || !cats?.length) return;
       setCategories(cats);
       setSignupForm((f) => (cats.includes(f.category) ? f : { ...f, category: cats[0] }));
+    });
+    listSubcategories().then((map) => {
+      if (active) setSubcategories(map || {});
     });
     return () => {
       active = false;
@@ -167,6 +172,7 @@ export default function AuthModal() {
         password: signupForm.password,
         role: authRole,
         category: authRole === "professional" ? signupForm.category : undefined,
+        subcategory: authRole === "professional" ? signupForm.subcategory || undefined : undefined,
         city: authRole === "professional" ? signupForm.city : undefined,
       });
     } catch (error) {
@@ -588,13 +594,32 @@ export default function AuthModal() {
                           <select
                             value={signupForm.category}
                             onChange={(e) =>
-                              setSignupForm({ ...signupForm, category: e.target.value })
+                              setSignupForm({ ...signupForm, category: e.target.value, subcategory: "" })
                             }
                             className="w-full px-2.5 py-2 bg-white border border-primary-200 rounded-lg text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                           >
                             {categories.map((cat) => (
                               <option key={cat} value={cat}>
                                 {cat}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-primary-900 mb-1">
+                            Subcategory (optional)
+                          </label>
+                          <select
+                            value={signupForm.subcategory}
+                            onChange={(e) =>
+                              setSignupForm({ ...signupForm, subcategory: e.target.value })
+                            }
+                            className="w-full px-2.5 py-2 bg-white border border-primary-200 rounded-lg text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                          >
+                            <option value="">Not specified</option>
+                            {(subcategories[signupForm.category] || []).map((sub) => (
+                              <option key={sub} value={sub}>
+                                {sub}
                               </option>
                             ))}
                           </select>

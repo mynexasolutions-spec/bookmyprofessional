@@ -586,6 +586,17 @@ create policy wishlists_insert_own on public.wishlists for insert with check (us
 drop policy if exists wishlists_delete_own on public.wishlists;
 create policy wishlists_delete_own on public.wishlists for delete using (user_id = auth.uid());
 
+-- ---------- subcategories (one level: parent category -> subcategory) ----------
+-- A category with parent_id set is a subcategory (e.g. Tutors -> Dance Tutor). Top-level
+-- categories have parent_id null and stay the only ones shown as tiles/filter chips.
+alter table public.categories add column if not exists parent_id uuid references public.categories(id) on delete cascade;
+
+-- professional's subcategory (optional text from the chosen category's children)
+alter table public.professionals add column if not exists subcategory text;
+
+-- professional's service-area pincode (optional)
+alter table public.professionals add column if not exists pincode text;
+
 -- ---------- keep professionals.name in sync with the account name ----------
 create or replace function public.sync_professional_name() returns trigger
 language plpgsql security definer set search_path = public as $$

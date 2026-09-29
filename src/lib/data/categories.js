@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { subcategoriesByParent } from "@/lib/subcategories";
 
 export const DEFAULT_CATEGORIES = [
   "Doctors",
@@ -19,6 +20,7 @@ export async function listCategories() {
       .from("categories")
       .select("name")
       .eq("active", true)
+      .is("parent_id", null)
       .order("sort", { ascending: true });
 
     if (error || !data || data.length === 0) return DEFAULT_CATEGORIES;
@@ -38,6 +40,7 @@ export async function listCategoryTiles() {
       .from("categories")
       .select("name, icon")
       .eq("active", true)
+      .is("parent_id", null)
       .order("sort", { ascending: true });
 
     if (error || !data || data.length === 0) {
@@ -59,7 +62,7 @@ export async function listAllCategories(client) {
     const supabase = client || createClient();
     const { data, error } = await supabase
       .from("categories")
-      .select("id, name, icon, sort, active, created_at")
+      .select("id, name, icon, sort, active, parent_id, created_at")
       .order("sort", { ascending: true });
     if (error) throw error;
     return data || [];
@@ -68,7 +71,7 @@ export async function listAllCategories(client) {
   }
 }
 
-export async function createCategory(client, { name, icon, sort, active } = {}) {
+export async function createCategory(client, { name, icon, sort, active, parent_id } = {}) {
   const supabase = client || createClient();
   const { data, error } = await supabase
     .from("categories")
@@ -77,8 +80,9 @@ export async function createCategory(client, { name, icon, sort, active } = {}) 
       icon: icon || null,
       sort: Number(sort) || 0,
       active: active !== false,
+      parent_id: parent_id || null,
     })
-    .select("id, name, icon, sort, active")
+    .select("id, name, icon, sort, active, parent_id")
     .single();
   if (error) throw error;
   return data;
@@ -91,15 +95,33 @@ export async function updateCategory(client, id, patch = {}) {
   if (patch.icon !== undefined) clean.icon = patch.icon || null;
   if (patch.sort !== undefined) clean.sort = Number(patch.sort) || 0;
   if (patch.active !== undefined) clean.active = !!patch.active;
+  if (patch.parent_id !== undefined) clean.parent_id = patch.parent_id || null;
 
   const { data, error } = await supabase
     .from("categories")
     .update(clean)
     .eq("id", id)
-    .select("id, name, icon, sort, active")
+    .select("id, name, icon, sort, active, parent_id")
     .single();
   if (error) throw error;
   return data;
+}
+
+// Active subcategories grouped by parent name: { "Tutors": ["Dance Tutor", ...] }.
+export async function listSubcategories() {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("categories")
+      .select("id, name, parent_id")
+      .eq("active", true)
+      .order("sort", { ascending: true });
+
+    if (error || !data || data.length === 0) return {};
+    return subcategoriesByParent(data);
+  } catch {
+    return {};
+  }
 }
 
 export async function deleteCategory(client, id) {

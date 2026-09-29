@@ -38,7 +38,7 @@ const CATEGORY_LABELS = {
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-export default function MarketplaceDirectory() {
+export default function MarketplaceDirectory({ preview = false }) {
   const {
     professionals,
     filteredProfessionals,
@@ -50,6 +50,8 @@ export default function MarketplaceDirectory() {
     setSelectedCategory,
     selectedLocation,
     setSelectedLocation,
+    pincode,
+    setPincode,
     minRating,
     setMinRating,
     minExperience,
@@ -84,6 +86,13 @@ export default function MarketplaceDirectory() {
     };
   }, []);
 
+  // Deep link from the home category tiles: /professionals?category=Tutors preselects the chip.
+  // ponytail: mount-only — rerunning on context updates would override the user's later chip clicks.
+  useEffect(() => {
+    const cat = new URLSearchParams(window.location.search).get("category");
+    if (cat) setSelectedCategory(cat);
+  }, []);
+
   const categories = useMemo(
     () => [
       { id: "all", label: "All Categories" },
@@ -98,10 +107,23 @@ export default function MarketplaceDirectory() {
     : categories.slice(0, 8).concat(categories.slice(8).filter((c) => c.id === selectedCategory));
   const hiddenCategoryCount = categories.length - 8;
 
-  const locationOptions = useMemo(
-    () => [{ id: "all", label: "All Locations" }, ...locations.map((loc) => ({ id: loc.id, label: loc.label }))],
-    [locations]
-  );
+  // Cities come from the loaded catalog (plus the seeded locations table) so every city a
+  // professional actually serves is selectable — the static seed list alone hid real cities.
+  const locationOptions = useMemo(() => {
+    const byCity = new Map();
+    professionals.forEach((pro) => {
+      if (pro.city) byCity.set(pro.city, pro.location || pro.city);
+    });
+    locations.forEach((loc) => {
+      if (loc.city && !byCity.has(loc.city)) byCity.set(loc.city, loc.label || loc.city);
+    });
+    return [
+      { id: "all", label: "All Locations" },
+      ...[...byCity.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([id, label]) => ({ id, label })),
+    ];
+  }, [professionals, locations]);
 
   const slotOptions = useMemo(() => {
     const slots = new Set();
@@ -115,6 +137,7 @@ export default function MarketplaceDirectory() {
     setSearchQuery("");
     setSelectedCategory("all");
     setSelectedLocation("all");
+    setPincode("");
     setMinRating(0);
     setMinExperience(0);
     setPriceRange("all");
@@ -127,6 +150,7 @@ export default function MarketplaceDirectory() {
     searchQuery ||
     selectedCategory !== "all" ||
     selectedLocation !== "all" ||
+    pincode ||
     minRating > 0 ||
     minExperience > 0 ||
     priceRange !== "all" ||
@@ -374,6 +398,25 @@ export default function MarketplaceDirectory() {
                 </div>
               </div>
 
+              {/* Pincode Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1">
+                  Service Pincode
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary-500" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={pincode}
+                    onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="e.g. 400001"
+                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-border rounded-lg text-xs text-dark-900 placeholder:text-dark-400 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                  />
+                </div>
+              </div>
+
               {/* Availability Day Filter */}
               <div>
                 <label className="block text-xs font-semibold text-dark-700 mb-1">
@@ -445,7 +488,7 @@ export default function MarketplaceDirectory() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-            {filteredProfessionals.map((pro) => (
+            {(preview ? filteredProfessionals.slice(0, 8) : filteredProfessionals).map((pro) => (
               <div
                 key={pro.id}
                 className="group relative flex flex-col justify-between bg-surface rounded-2xl border border-border/90 hover:border-primary-300 shadow-card hover:shadow-soft transition-all duration-200 overflow-hidden hover:-translate-y-1"
@@ -481,7 +524,7 @@ export default function MarketplaceDirectory() {
                   {/* Category Pill on Image Bottom */}
                   <div className="absolute bottom-3 left-3">
                     <span className="inline-block bg-dark-900/85 backdrop-blur-xs text-white text-[10px] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                      {pro.category}
+                      {pro.subcategory ? `${pro.category} · ${pro.subcategory}` : pro.category}
                     </span>
                   </div>
 
@@ -584,8 +627,21 @@ export default function MarketplaceDirectory() {
           </div>
         )}
 
+        {/* VIEW ALL (home preview only) */}
+        {preview && filteredProfessionals.length > 0 && (
+          <div className="mt-8 flex justify-center">
+            <Link
+              href="/professionals"
+              className="inline-flex items-center gap-2 rounded-button bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-button transition-colors hover:bg-primary-600"
+            >
+              <span>View All Professionals</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        )}
+
         {/* PAGINATION */}
-        {total > 0 && (
+        {!preview && total > 0 && (
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
             <span className="text-xs text-dark-500">
               Showing {rangeStart}–{rangeEnd} of {total}

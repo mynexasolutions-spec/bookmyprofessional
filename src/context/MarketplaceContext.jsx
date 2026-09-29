@@ -72,6 +72,7 @@ export function MarketplaceProvider({ children }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
+  const [pincode, setPincode] = useState("");
   const [minRating, setMinRating] = useState(0);
   const [minExperience, setMinExperience] = useState(0);
   const [priceRange, setPriceRange] = useState("all"); // "all" | "under-40" | "40-70" | "above-70"
@@ -186,6 +187,7 @@ export function MarketplaceProvider({ children }) {
         search: debouncedSearch,
         category: selectedCategory,
         location: selectedLocation,
+        pincode,
         minRating,
         minExperience,
         priceRange,
@@ -209,6 +211,7 @@ export function MarketplaceProvider({ children }) {
     debouncedSearch,
     selectedCategory,
     selectedLocation,
+    pincode,
     minRating,
     minExperience,
     priceRange,
@@ -231,6 +234,10 @@ export function MarketplaceProvider({ children }) {
   };
   const setLocation = (value) => {
     setSelectedLocation(value);
+    setPage(1);
+  };
+  const setPincodeFilter = (value) => {
+    setPincode(String(value || "").trim());
     setPage(1);
   };
   const setRating = (value) => {
@@ -479,6 +486,8 @@ export function MarketplaceProvider({ children }) {
         setSelectedCategory: setCategory,
         selectedLocation,
         setSelectedLocation: setLocation,
+        pincode,
+        setPincode: setPincodeFilter,
         minRating,
         setMinRating: setRating,
         minExperience,

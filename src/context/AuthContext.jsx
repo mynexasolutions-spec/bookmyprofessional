@@ -127,6 +127,7 @@ export function AuthProvider({ children }) {
     password,
     role,
     category,
+    subcategory,
     city,
   } = {}) => {
     const displayName = (fullName || name || "").trim();
@@ -154,6 +155,7 @@ export function AuthProvider({ children }) {
           id: data.user.id,
           name: displayName,
           category,
+          subcategory: subcategory || null,
           city,
           verification_status: "pending",
         });

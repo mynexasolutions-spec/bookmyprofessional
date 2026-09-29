@@ -123,7 +123,7 @@ export async function listAllProfessionals(client) {
     const { data, error } = await supabase
       .from("professionals")
       .select(
-        "id, name, category, city, verification_status, verified, is_active, rating, review_count, created_at, profile:profiles!professionals_id_fkey(full_name)"
+        "id, name, category, subcategory, city, verification_status, verified, is_active, rating, review_count, created_at, profile:profiles!professionals_id_fkey(full_name)"
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -238,7 +238,7 @@ export async function updateProfessional(client, id, patch) {
 // professionals row. Rolls the auth user back if the professionals insert fails.
 export async function createProfessional(client, payload = {}) {
   const supabase = client || (await createClient());
-  const { name, email, password, category, city, hourlyRate, phone, imageUrl } = payload;
+  const { name, email, password, category, subcategory, roleTitle, city, hourlyRate, phone, imageUrl } = payload;
 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
@@ -260,7 +260,9 @@ export async function createProfessional(client, payload = {}) {
     .insert({
       id: userId,
       name,
+      role_title: roleTitle || subcategory || null,
       category,
+      subcategory: subcategory || null,
       city: city || null,
       hourly_rate: Number(hourlyRate) || 0,
       image_url: imageUrl || null,

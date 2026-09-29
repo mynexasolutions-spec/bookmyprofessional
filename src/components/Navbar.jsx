@@ -53,7 +53,7 @@ export default function Navbar() {
     { label: "Home", href: "/" },
     { label: "Find a Professional", href: "/professionals" },
     { label: "Categories", href: "/#categories" },
-    { label: "How It Works", href: "/#how-it-works" },
+    { label: "How It Works", href: "/how-it-works" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
   ];

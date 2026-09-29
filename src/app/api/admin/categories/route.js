@@ -42,6 +42,7 @@ export async function POST(request) {
       icon: body.icon,
       sort,
       active: body.active,
+      parent_id: body.parent_id || null,
     });
     await logAdminAction(
       { action: "category.create", entity: "categories", entityId: category?.id, meta: { name } },

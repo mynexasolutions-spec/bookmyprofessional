@@ -2,7 +2,9 @@ import { Inter, Poppins, Caveat } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { MarketplaceProvider } from "@/context/MarketplaceContext";
+import { ComingSoonProvider } from "@/context/ComingSoonContext";
 import AuthModal from "@/components/AuthModal";
+import ComingSoonModal from "@/components/ComingSoonModal";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -83,8 +85,11 @@ export default function RootLayout({ children }) {
         />
         <AuthProvider>
           <MarketplaceProvider>
-            {children}
-            <AuthModal />
+            <ComingSoonProvider>
+              {children}
+              <AuthModal />
+              <ComingSoonModal />
+            </ComingSoonProvider>
           </MarketplaceProvider>
         </AuthProvider>
       </body>

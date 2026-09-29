@@ -112,3 +112,13 @@ main::-webkit-scrollbar-thumb:hover {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Coming Soon modal: subtle fade / scale-in */
+@keyframes comingSoonFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes comingSoonIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
