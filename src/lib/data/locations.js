@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { cached } from "@/lib/data/cache";
 
 // ponytail: no browser geolocation prompt — the hero/manual location input is enough for now.
 // Add navigator.geolocation + reverse lookup only when "use my location" is an actual requirement.
@@ -14,24 +15,30 @@ export const DEFAULT_LOCATIONS = [
 ];
 
 export async function listLocations() {
-  try {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("locations")
-      .select("city, country, latitude, longitude")
-      .order("city", { ascending: true });
+  return cached(
+    "locations",
+    async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("locations")
+          .select("city, country, latitude, longitude")
+          .order("city", { ascending: true });
 
-    if (error || !data || data.length === 0) return DEFAULT_LOCATIONS;
+        if (error || !data || data.length === 0) return DEFAULT_LOCATIONS;
 
-    return data.map((row) => ({
-      id: row.city,
-      label: `${row.city}, ${row.country}`,
-      city: row.city,
-      country: row.country,
-      latitude: row.latitude,
-      longitude: row.longitude,
-    }));
-  } catch {
-    return DEFAULT_LOCATIONS;
-  }
+        return data.map((row) => ({
+          id: row.city,
+          label: `${row.city}, ${row.country}`,
+          city: row.city,
+          country: row.country,
+          latitude: row.latitude,
+          longitude: row.longitude,
+        }));
+      } catch {
+        return DEFAULT_LOCATIONS;
+      }
+    },
+    5 * 60 * 1000
+  );
 }

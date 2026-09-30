@@ -315,6 +315,15 @@ export async function updateBookingStatusAdmin(client, id, status) {
     const supabase = client || (await createClient());
     const { error } = await supabase.from("bookings").update({ status }).eq("id", id);
     if (error) dbError = error;
+
+    // Mirror the pro/customer flow: completing a booking releases its escrow payment.
+    if (!dbError && status === "completed") {
+      const { error: payError } = await supabase
+        .from("payments")
+        .update({ status: "released" })
+        .eq("booking_id", id);
+      if (payError) console.error("Escrow release failed:", payError.message);
+    }
   } catch (err) {
     dbError = err;
   }

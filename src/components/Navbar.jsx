@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import Button from "./Button";
 import NotificationsMenu from "./NotificationsMenu";
 import {
@@ -28,6 +29,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const pathname = usePathname();
+  const [hash, setHash] = useState("");
 
   const { user, openAuthModal, logout } = useAuth();
   const {
@@ -58,6 +61,26 @@ export default function Navbar() {
     { label: "Contact", href: "/contact" },
   ];
 
+  // Highlight the section that is currently open. "/#categories" scrolls to a section of
+  // the home page, so it also tracks the URL hash to tell it apart from Home.
+  useEffect(() => {
+    const sync = () => setHash(window.location.hash);
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, [pathname]);
+
+  const isActive = (href) => {
+    const [path, fragment] = href.split("#");
+    if (fragment) return pathname === path && hash === `#${fragment}`;
+    if (path === "/") return pathname === "/" && hash !== "#categories";
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
+
+  // Next's client-side hash navigation updates the URL via pushState, which does not emit
+  // hashchange — sync the state on click so "/#categories" highlights immediately.
+  const markHash = (href) => setHash(href.includes("#") ? `#${href.split("#")[1]}` : "");
+
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-surface/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1300px] items-center justify-between px-4 sm:px-6 lg:px-8 h-16 sm:h-18">
@@ -75,15 +98,24 @@ export default function Navbar() {
 
         {/* Desktop Navigation Links */}
         <nav className="hidden lg:flex items-center gap-7">
-          {navLinks.map((link) => (
-            <Link
-              key={link.label}
-              href={link.href}
-              className="text-sm font-medium text-dark-700 transition-colors hover:text-primary-500"
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            const active = isActive(link.href);
+            return (
+              <Link
+                key={link.label}
+                href={link.href}
+                onClick={() => markHash(link.href)}
+                aria-current={active ? "page" : undefined}
+                className={`relative text-sm font-medium transition-colors hover:text-primary-500 ${
+                  active
+                    ? "font-semibold text-primary-500 after:absolute after:-bottom-1.5 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-primary-500"
+                    : "text-dark-700"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Desktop Action Buttons / Authenticated User Profile */}
@@ -285,17 +317,28 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="lg:hidden border-b border-border bg-surface px-4 pt-3 pb-6 shadow-soft animate-in slide-in-from-top-2 duration-200">
           <div className="flex flex-col space-y-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between py-2 px-1.5 rounded-button text-sm font-medium text-dark-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
-              >
-                <span>{link.label}</span>
-                <ChevronRight className="h-4 w-4 text-muted" />
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const active = isActive(link.href);
+              return (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    markHash(link.href);
+                  }}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex items-center justify-between py-2 px-1.5 rounded-button text-sm font-medium transition-colors ${
+                    active
+                      ? "bg-primary-50 font-semibold text-primary-600"
+                      : "text-dark-700 hover:bg-primary-50 hover:text-primary-600"
+                  }`}
+                >
+                  <span>{link.label}</span>
+                  <ChevronRight className="h-4 w-4 text-muted" />
+                </Link>
+              );
+            })}
 
             <div className="pt-4 mt-2 border-t border-border flex flex-col gap-2.5">
               {user ? (

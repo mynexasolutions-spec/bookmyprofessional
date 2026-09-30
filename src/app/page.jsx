@@ -100,7 +100,7 @@ export default function HomePage() {
     setPincode,
     startBooking,
     openProDetail,
-    professionals: marketplacePros,
+    filteredProfessionals: marketplacePros,
     setIsProDashboardOpen,
   } = useMarketplace();
 
@@ -113,6 +113,7 @@ export default function HomePage() {
   const [isSubscribing, setIsSubscribing] = useState(false);
   // ponytail: active categories come from DB; styling map below provides image + color for known names.
   const [activeCategories, setActiveCategories] = useState([]);
+  const [homeCategories, setHomeCategories] = useState([]);
   const [categoryIcons, setCategoryIcons] = useState({});
   const [marketing, setMarketing] = useState(DEFAULT_MARKETING);
   const [testimonials, setTestimonials] = useState(DEFAULT_TESTIMONIALS);
@@ -122,6 +123,7 @@ export default function HomePage() {
     listCategoryTiles().then((tiles) => {
       if (!active) return;
       setActiveCategories(tiles.map((t) => t.name));
+      setHomeCategories(tiles.filter((t) => t.showOnHome).map((t) => t.name));
       setCategoryIcons(
         Object.fromEntries(tiles.filter((t) => t.icon).map((t) => [t.name, t.icon]))
       );
@@ -490,7 +492,7 @@ export default function HomePage() {
 
             {/* Categories Grid / Horizontal Scroll on small screens */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
-              {(activeCategories.length > 0 ? activeCategories : topCategories.map((c) => c.title)).slice(0, 7).map((name) => {
+              {(activeCategories.length > 0 ? homeCategories : topCategories.map((c) => c.title)).map((name) => {
                 const cat = categoryStylesFor(name);
                 const tileImage = categoryIcons[name] || cat.image;
                 return (

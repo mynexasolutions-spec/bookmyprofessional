@@ -620,3 +620,8 @@ alter table public.categories add column if not exists inclusions jsonb not null
 alter table public.categories add column if not exists exclusions jsonb not null default '[]'::jsonb;
 alter table public.services add column if not exists inclusions jsonb not null default '[]'::jsonb;
 alter table public.services add column if not exists exclusions jsonb not null default '[]'::jsonb;
+
+-- ---------- homepage category tiles (admin-controlled) ----------
+-- Admin ticks a top-level category in Admin -> Categories to show it in the homepage
+-- "Explore Our Top Categories" grid. Unticked categories stay in the directory only.
+alter table public.categories add column if not exists show_on_home boolean not null default true;

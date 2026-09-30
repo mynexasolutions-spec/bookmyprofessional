@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
-import { Lock, ShieldCheck, User } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Eye, EyeOff, Lock, ShieldCheck, User } from "lucide-react";
 import { adminLogin } from "@/actions/admin";
 import Button from "@/components/Button";
 
 export default function AdminLoginPage() {
   const [state, formAction, isPending] = useActionState(adminLogin, {});
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark-900 p-4">
@@ -54,11 +55,19 @@ export default function AdminLoginPage() {
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
               <input
                 name="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
                 autoComplete="current-password"
-                className="w-full pl-9 pr-3 py-2.5 bg-dark-50 border border-border rounded-xl text-sm text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                className="w-full pl-9 pr-10 py-2.5 bg-dark-50 border border-border rounded-xl text-sm text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-400 hover:text-dark-700"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 

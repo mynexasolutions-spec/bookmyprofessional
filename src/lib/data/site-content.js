@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { cached } from "@/lib/data/cache";
 
 // Marketing numbers shown on the home banner and the About page. Admin edits these in Settings.
 export const DEFAULT_MARKETING = {
@@ -65,34 +66,36 @@ export const DEFAULT_SOCIAL = {
 
 // ponytail: defaults on error / missing rows so every page renders while the settings are unset.
 export async function getSiteContent() {
-  try {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("settings")
-      .select("key, value")
-      .in("key", ["marketing", "testimonials", "social"]);
-    if (error) throw error;
+  return cached("site-content", async () => {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("settings")
+        .select("key, value")
+        .in("key", ["marketing", "testimonials", "social"]);
+      if (error) throw error;
 
-    const map = Object.fromEntries((data || []).map((row) => [row.key, row.value]));
-    const marketing = map.marketing || {};
+      const map = Object.fromEntries((data || []).map((row) => [row.key, row.value]));
+      const marketing = map.marketing || {};
 
-    return {
-      marketing: {
-        home: Array.isArray(marketing.home) && marketing.home.length ? marketing.home : DEFAULT_MARKETING.home,
-        about: Array.isArray(marketing.about) && marketing.about.length ? marketing.about : DEFAULT_MARKETING.about,
-        ctaCustomers: marketing.ctaCustomers || DEFAULT_MARKETING.ctaCustomers,
-      },
-      testimonials:
-        Array.isArray(map.testimonials) && map.testimonials.length
-          ? map.testimonials
-          : DEFAULT_TESTIMONIALS,
-      social: { ...DEFAULT_SOCIAL, ...(map.social || {}) },
-    };
-  } catch {
-    return {
-      marketing: DEFAULT_MARKETING,
-      testimonials: DEFAULT_TESTIMONIALS,
-      social: DEFAULT_SOCIAL,
-    };
-  }
+      return {
+        marketing: {
+          home: Array.isArray(marketing.home) && marketing.home.length ? marketing.home : DEFAULT_MARKETING.home,
+          about: Array.isArray(marketing.about) && marketing.about.length ? marketing.about : DEFAULT_MARKETING.about,
+          ctaCustomers: marketing.ctaCustomers || DEFAULT_MARKETING.ctaCustomers,
+        },
+        testimonials:
+          Array.isArray(map.testimonials) && map.testimonials.length
+            ? map.testimonials
+            : DEFAULT_TESTIMONIALS,
+        social: { ...DEFAULT_SOCIAL, ...(map.social || {}) },
+      };
+    } catch {
+      return {
+        marketing: DEFAULT_MARKETING,
+        testimonials: DEFAULT_TESTIMONIALS,
+        social: DEFAULT_SOCIAL,
+      };
+    }
+  });
 }

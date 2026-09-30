@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthContext";
 import { listProfessionals, DEFAULT_PAGE_SIZE } from "@/lib/data/professionals";
 import { listLocations, DEFAULT_LOCATIONS } from "@/lib/data/locations";
@@ -56,6 +57,7 @@ export const INITIAL_BOOKINGS = [];
 
 export function MarketplaceProvider({ children }) {
   const { user, showToast } = useAuth();
+  const pathname = usePathname();
 
   // Master State
   const [professionals, setProfessionals] = useState([]);
@@ -147,15 +149,21 @@ export function MarketplaceProvider({ children }) {
     };
   }, [user?.id, user?.role]);
 
-  // Load the full catalog once for the detail/booking pages and the slot picker.
+  // Load the full catalog once for the detail/booking pages and the slot picker. Only those
+  // routes (plus dashboard's wishlist lookups) need it — other pages skip the heavy query.
   useEffect(() => {
     let active = true;
+    const needsCatalog =
+      pathname === "/dashboard" ||
+      pathname.startsWith("/professionals/") ||
+      pathname.startsWith("/book/");
 
     (async () => {
       try {
         const locs = await listLocations();
         if (!active) return;
         setLocations(locs);
+        if (!needsCatalog) return;
         // ponytail: 500-row cap keeps /professionals/[id] + /book/[id] working off the context list.
         // Move those to a by-id fetch if the catalog can exceed it.
         const { rows } = await listProfessionals({
@@ -172,7 +180,7 @@ export function MarketplaceProvider({ children }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [pathname]);
 
   // Debounce the search box before it hits the server.
   useEffect(() => {
@@ -224,7 +232,6 @@ export function MarketplaceProvider({ children }) {
     availabilityDay,
     availabilitySlot,
     page,
-    professionals,
     locations,
     nearCoords,
   ]);

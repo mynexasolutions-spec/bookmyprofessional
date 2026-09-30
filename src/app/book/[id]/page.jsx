@@ -176,7 +176,7 @@ function BookingPageContent({ params }) {
 
       const form = document.createElement("form");
       form.setAttribute("method", "post");
-      form.setAttribute("action", "https://secure.payu.in/_payment");
+      form.setAttribute("action", hashData.action || "https://secure.payu.in/_payment");
 
       const fields = {
         key: hashData.key,

@@ -158,8 +158,7 @@ export default function AdminDashboard({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [busy, setBusy] = useState(null);
-  const [categoryForm, setCategoryForm] = useState({ name: "", sort: "", icon: "", parent: "" });
-  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryEditor, setCategoryEditor] = useState(null);
   const [showAddPro, setShowAddPro] = useState(false);
   const [proForm, setProForm] = useState({
     name: "",
@@ -1095,85 +1094,167 @@ export default function AdminDashboard({
           )}
           {activeSection === "categories" && (
             <div className="space-y-4">
-              <div>
-                <h2 className="font-heading text-2xl font-bold text-dark-900">Categories</h2>
-                <p className="text-sm text-muted mt-1">Manage the marketplace service categories.</p>
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const name = categoryForm.name.trim();
-                  if (!name) return;
-                  run(
-                    "category:new",
-                    "/api/admin/categories",
-                    {
-                      name,
-                      sort: categoryForm.sort,
-                      icon: categoryForm.icon,
-                      parent_id: categoryForm.parent || null,
-                    },
-                    "Category added"
-                  ).then(() => setCategoryForm({ name: "", sort: "", icon: "", parent: "" }));
-                }}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-surface rounded-2xl border border-border shadow-card"
-              >
-                <input
-                  value={categoryForm.name}
-                  onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Category name"
-                  className="flex-1 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
-                />
-                <select
-                  value={categoryForm.parent}
-                  onChange={(e) => setCategoryForm((f) => ({ ...f, parent: e.target.value }))}
-                  title="Optional — makes this a subcategory of the selected category."
-                  className="w-full sm:w-48 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
-                >
-                  <option value="">Top-level category</option>
-                  {categories
-                    .filter((c) => !c.parent_id)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        Subcategory of {c.name}
-                      </option>
-                    ))}
-                </select>
-                <input
-                  value={categoryForm.sort}
-                  onChange={(e) => setCategoryForm((f) => ({ ...f, sort: e.target.value }))}
-                  type="number"
-                  title="Display order — lower numbers show first. Leave blank to add at the end."
-                  placeholder="Order (optional)"
-                  className="w-full sm:w-36 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
-                />
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg bg-dark-100 border border-border overflow-hidden flex items-center justify-center shrink-0">
-                    {categoryForm.icon ? (
-                      <img src={ikImage(categoryForm.icon)} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <Tag className="w-4 h-4 text-dark-400" />
-                    )}
-                  </div>
-                  <label className="cursor-pointer py-2.5 px-3 rounded-xl border border-border text-xs font-semibold text-dark-700 hover:bg-dark-50">
-                    Tile image
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleCategoryFile(e, (url) => setCategoryForm((f) => ({ ...f, icon: url })))}
-                    />
-                  </label>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-heading text-2xl font-bold text-dark-900">Categories</h2>
+                  <p className="text-sm text-muted mt-1">Manage the marketplace service categories.</p>
                 </div>
                 <button
-                  type="submit"
-                  disabled={busy === "category:new"}
-                  className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold disabled:opacity-50"
+                  type="button"
+                  onClick={() =>
+                    setCategoryEditor({
+                      id: null,
+                      name: "",
+                      sort: "",
+                      icon: "",
+                      parent_id: null,
+                      inclusions: "",
+                      exclusions: "",
+                    })
+                  }
+                  className="py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm shrink-0"
                 >
-                  Add Category
+                  + Add Category
                 </button>
-              </form>
+              </div>
+
+              {categoryEditor && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const name = categoryEditor.name.trim();
+                    if (!name) return;
+                    const payload = {
+                      name,
+                      sort: categoryEditor.sort,
+                      icon: categoryEditor.icon,
+                      parent_id: categoryEditor.parent_id || null,
+                      inclusions: parseInclusions(categoryEditor.inclusions),
+                      exclusions: parseInclusions(categoryEditor.exclusions),
+                    };
+                    if (categoryEditor.id) {
+                      run(
+                        "category:save",
+                        "/api/admin/categories",
+                        { id: categoryEditor.id, ...payload },
+                        "Category updated",
+                        "PATCH"
+                      ).then(() => setCategoryEditor(null));
+                    } else {
+                      run("category:new", "/api/admin/categories", payload, "Category added").then(() =>
+                        setCategoryEditor(null)
+                      );
+                    }
+                  }}
+                  className="p-4 bg-surface rounded-2xl border border-border shadow-card space-y-3"
+                >
+                  <h3 className="font-heading text-sm font-bold text-dark-900">
+                    {categoryEditor.id ? "Edit category" : "Add a new category"}
+                  </h3>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <input
+                      autoFocus
+                      value={categoryEditor.name}
+                      onChange={(e) => setCategoryEditor((c) => ({ ...c, name: e.target.value }))}
+                      placeholder="Category name"
+                      className="flex-1 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                    <select
+                      value={categoryEditor.parent_id || ""}
+                      onChange={(e) =>
+                        setCategoryEditor((c) => ({ ...c, parent_id: e.target.value || null }))
+                      }
+                      title="Optional — makes this a subcategory of the selected category."
+                      className="w-full sm:w-48 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    >
+                      <option value="">Top-level category</option>
+                      {categories
+                        .filter((c) => !c.parent_id && c.id !== categoryEditor.id)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            Subcategory of {c.name}
+                          </option>
+                        ))}
+                    </select>
+                    <input
+                      value={categoryEditor.sort}
+                      onChange={(e) => setCategoryEditor((c) => ({ ...c, sort: e.target.value }))}
+                      type="number"
+                      title="Display order — lower numbers show first. Leave blank to add at the end."
+                      placeholder="Order (optional)"
+                      className="w-full sm:w-36 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-dark-100 border border-border overflow-hidden flex items-center justify-center shrink-0">
+                      {categoryEditor.icon ? (
+                        <img src={ikImage(categoryEditor.icon)} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <Tag className="w-4 h-4 text-dark-400" />
+                      )}
+                    </div>
+                    <input
+                      value={categoryEditor.icon}
+                      onChange={(e) => setCategoryEditor((c) => ({ ...c, icon: e.target.value }))}
+                      placeholder="Tile image URL (or upload)"
+                      className="flex-1 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                    <label className="cursor-pointer py-2.5 px-3 rounded-xl border border-border text-xs font-semibold text-dark-700 hover:bg-dark-50 text-center">
+                      Upload image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) =>
+                          handleCategoryFile(e, (url) => setCategoryEditor((c) => ({ ...c, icon: url })))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-dark-700 mb-1">
+                        Default inclusions — what a price covers (one per line)
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={categoryEditor.inclusions || ""}
+                        onChange={(e) => setCategoryEditor((c) => ({ ...c, inclusions: e.target.value }))}
+                        placeholder={"Visit & diagnosis\nEstimated 45 mins of work\nBasic tools"}
+                        className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-dark-700 mb-1">
+                        Default extra charges / not included (one per line)
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={categoryEditor.exclusions || ""}
+                        onChange={(e) => setCategoryEditor((c) => ({ ...c, exclusions: e.target.value }))}
+                        placeholder={"Spare parts at actuals\nTravel beyond 5 km: ₹10/km"}
+                        className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 resize-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="submit"
+                      disabled={busy === "category:new" || busy === "category:save"}
+                      className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold disabled:opacity-50"
+                    >
+                      {categoryEditor.id ? "Save Changes" : "Add Category"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCategoryEditor(null)}
+                      className="py-2.5 px-4 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
 
               {categories.length === 0 ? (
                 <EmptyState
@@ -1190,6 +1271,7 @@ export default function AdminDashboard({
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Image</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Sort</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Status</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Show on Home</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide text-right">Actions</th>
                       </tr>
                     </thead>
@@ -1197,7 +1279,6 @@ export default function AdminDashboard({
                       {categories.map((category) => {
                         const key = `category:${category.id}`;
                         const isBusy = busy === key;
-                        const isEditing = editingCategory?.id === category.id;
                         const parentName = category.parent_id
                           ? categories.find((c) => c.id === category.parent_id)?.name
                           : null;
@@ -1205,100 +1286,24 @@ export default function AdminDashboard({
                           <React.Fragment key={category.id}>
                           <tr className="hover:bg-dark-50/50 transition-colors">
                             <td className="px-5 py-3.5">
-                              {isEditing ? (
-                                <div className="space-y-1.5">
-                                  <input
-                                    value={editingCategory.name}
-                                    onChange={(e) =>
-                                      setEditingCategory((c) => ({ ...c, name: e.target.value }))
-                                    }
-                                    className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900"
-                                  />
-                                  <select
-                                    value={editingCategory.parent_id || ""}
-                                    onChange={(e) =>
-                                      setEditingCategory((c) => ({
-                                        ...c,
-                                        parent_id: e.target.value || null,
-                                      }))
-                                    }
-                                    title="Optional — nests this category under the selected one."
-                                    className="block rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900"
-                                  >
-                                    <option value="">Top-level category</option>
-                                    {categories
-                                      .filter((c) => !c.parent_id && c.id !== category.id)
-                                      .map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                          Subcategory of {c.name}
-                                        </option>
-                                      ))}
-                                  </select>
-                                </div>
-                              ) : (
-                                <span className="font-semibold text-dark-900">
-                                  {parentName ? (
-                                    <span className="text-dark-400 font-normal">{parentName} / </span>
-                                  ) : null}
-                                  {category.name}
-                                </span>
-                              )}
+                              <span className="font-semibold text-dark-900">
+                                {parentName ? (
+                                  <span className="text-dark-400 font-normal">{parentName} / </span>
+                                ) : null}
+                                {category.name}
+                              </span>
                             </td>
                             <td className="px-5 py-3.5">
-                              {isEditing ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-10 h-10 rounded-lg bg-dark-100 border border-border overflow-hidden flex items-center justify-center shrink-0">
-                                    {editingCategory.icon ? (
-                                      <img src={ikImage(editingCategory.icon)} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                      <Tag className="w-4 h-4 text-dark-400" />
-                                    )}
-                                  </div>
-                                  <input
-                                    value={editingCategory.icon}
-                                    onChange={(e) =>
-                                      setEditingCategory((c) => ({ ...c, icon: e.target.value }))
-                                    }
-                                    placeholder="Image URL"
-                                    className="w-40 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900"
-                                  />
-                                  <label className="cursor-pointer py-1.5 px-2.5 rounded-lg border border-border text-[11px] font-semibold text-dark-700 hover:bg-dark-50">
-                                    Upload
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      className="hidden"
-                                      onChange={(e) =>
-                                        handleCategoryFile(e, (url) =>
-                                          setEditingCategory((c) => ({ ...c, icon: url }))
-                                        )
-                                      }
-                                    />
-                                  </label>
-                                </div>
-                              ) : (
-                                <div className="w-10 h-10 rounded-lg bg-dark-100 border border-border overflow-hidden flex items-center justify-center">
-                                  {category.icon ? (
-                                    <img src={ikImage(category.icon)} alt="" className="w-full h-full object-cover" />
-                                  ) : (
-                                    <Tag className="w-4 h-4 text-dark-400" />
-                                  )}
-                                </div>
-                              )}
+                              <div className="w-10 h-10 rounded-lg bg-dark-100 border border-border overflow-hidden flex items-center justify-center">
+                                {category.icon ? (
+                                  <img src={ikImage(category.icon)} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <Tag className="w-4 h-4 text-dark-400" />
+                                )}
+                              </div>
                             </td>
                             <td className="px-5 py-3.5">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editingCategory.sort}
-                                  onChange={(e) =>
-                                    setEditingCategory((c) => ({ ...c, sort: e.target.value }))
-                                  }
-                                  className="w-20 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900"
-                                />
-                              ) : (
-                                <span className="text-dark-600">{category.sort}</span>
-                              )}
+                              <span className="text-dark-600">{category.sort}</span>
                             </td>
                             <td className="px-5 py-3.5">
                               <span
@@ -1312,134 +1317,89 @@ export default function AdminDashboard({
                               </span>
                             </td>
                             <td className="px-5 py-3.5">
+                              {category.parent_id ? (
+                                <span
+                                  className="text-dark-400"
+                                  title="Subcategories are never shown on the homepage"
+                                >
+                                  —
+                                </span>
+                              ) : (
+                                <input
+                                  type="checkbox"
+                                  checked={category.show_on_home !== false}
+                                  disabled={isBusy}
+                                  onChange={() =>
+                                    run(
+                                      key,
+                                      "/api/admin/categories",
+                                      { id: category.id, show_on_home: category.show_on_home === false },
+                                      category.show_on_home === false
+                                        ? "Category shown on home page"
+                                        : "Category hidden from home page",
+                                      "PATCH"
+                                    )
+                                  }
+                                  title="Show this category in the homepage Top Categories grid"
+                                  className="h-4 w-4 accent-primary-600 cursor-pointer disabled:opacity-50"
+                                />
+                              )}
+                            </td>
+                            <td className="px-5 py-3.5">
                               <div className="flex items-center justify-end gap-2.5">
-                                {isEditing ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      disabled={isBusy}
-                                      onClick={() =>
-                                        run(
-                                          key,
-                                          "/api/admin/categories",
-                                          {
-                                            id: category.id,
-                                            name: editingCategory.name,
-                                            sort: editingCategory.sort,
-                                            icon: editingCategory.icon,
-                                            parent_id: editingCategory.parent_id || null,
-                                            inclusions: parseInclusions(editingCategory.inclusions),
-                                            exclusions: parseInclusions(editingCategory.exclusions),
-                                          },
-                                          "Category updated",
-                                          "PATCH"
-                                        ).then(() => setEditingCategory(null))
-                                      }
-                                      className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
-                                    >
-                                      Save
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingCategory(null)}
-                                      className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <button
-                                      type="button"
-                                      disabled={isBusy}
-                                      onClick={() =>
-                                        run(
-                                          key,
-                                          "/api/admin/categories",
-                                          { id: category.id, active: !category.active },
-                                          category.active ? "Category deactivated" : "Category activated",
-                                          "PATCH"
-                                        )
-                                      }
-                                      className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold disabled:opacity-50"
-                                    >
-                                      {category.active ? "Deactivate" : "Activate"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setEditingCategory({
-                                          id: category.id,
-                                          name: category.name,
-                                          sort: category.sort,
-                                          icon: category.icon || "",
-                                          parent_id: category.parent_id || null,
-                                          inclusions: formatInclusions(category.inclusions),
-                                          exclusions: formatInclusions(category.exclusions),
-                                        })
-                                      }
-                                      className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold flex items-center gap-1.5"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" /> Edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={isBusy}
-                                      onClick={() => {
-                                        if (!window.confirm("Delete this category?")) return;
-                                        run(
-                                          key,
-                                          `/api/admin/categories?id=${encodeURIComponent(category.id)}`,
-                                          { id: category.id },
-                                          "Category deleted",
-                                          "DELETE"
-                                        );
-                                      }}
-                                      className="py-2 px-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" /> Delete
-                                    </button>
-                                  </>
-                                )}
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() =>
+                                    run(
+                                      key,
+                                      "/api/admin/categories",
+                                      { id: category.id, active: !category.active },
+                                      category.active ? "Category deactivated" : "Category activated",
+                                      "PATCH"
+                                    )
+                                  }
+                                  className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold disabled:opacity-50"
+                                >
+                                  {category.active ? "Deactivate" : "Activate"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setCategoryEditor({
+                                      id: category.id,
+                                      name: category.name,
+                                      sort: category.sort,
+                                      icon: category.icon || "",
+                                      parent_id: category.parent_id || null,
+                                      inclusions: formatInclusions(category.inclusions),
+                                      exclusions: formatInclusions(category.exclusions),
+                                    })
+                                  }
+                                  className="py-2 px-3.5 rounded-xl border border-border text-dark-700 hover:bg-dark-50 text-xs font-semibold flex items-center gap-1.5"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" /> Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => {
+                                    if (!window.confirm("Delete this category?")) return;
+                                    run(
+                                      key,
+                                      `/api/admin/categories?id=${encodeURIComponent(category.id)}`,
+                                      { id: category.id },
+                                      "Category deleted",
+                                      "DELETE"
+                                    );
+                                  }}
+                                  className="py-2 px-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                                </button>
                               </div>
                             </td>
                           </tr>
-                          {isEditing && (
-                            <tr className="bg-dark-50/40">
-                              <td colSpan={5} className="px-5 py-4">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="block text-[11px] font-semibold text-dark-700 mb-1">
-                                      Default inclusions — what a price covers (one per line)
-                                    </label>
-                                    <textarea
-                                      rows={3}
-                                      value={editingCategory.inclusions || ""}
-                                      onChange={(e) =>
-                                        setEditingCategory((c) => ({ ...c, inclusions: e.target.value }))
-                                      }
-                                      placeholder={"Visit & diagnosis\nEstimated 45 mins of work\nBasic tools"}
-                                      className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 resize-none"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-[11px] font-semibold text-dark-700 mb-1">
-                                      Default extra charges / not included (one per line)
-                                    </label>
-                                    <textarea
-                                      rows={3}
-                                      value={editingCategory.exclusions || ""}
-                                      onChange={(e) =>
-                                        setEditingCategory((c) => ({ ...c, exclusions: e.target.value }))
-                                      }
-                                      placeholder={"Spare parts at actuals\nTravel beyond 5 km: ₹10/km"}
-                                      className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 resize-none"
-                                    />
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
                           </React.Fragment>
                         );
                       })}
