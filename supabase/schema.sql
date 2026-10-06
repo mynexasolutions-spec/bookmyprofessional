@@ -86,8 +86,8 @@ create table if not exists public.professionals (
   response_time text,
   image_url text,
   verified boolean not null default false,
-  verification_status text not null default 'pending'
-    check (verification_status in ('pending','approved','rejected')),
+  verification_status text not null default 'not_submitted'
+    check (verification_status in ('not_submitted', 'documents_requested', 'pending', 'approved', 'rejected')),
   rating numeric(2,1) not null default 0,
   review_count int not null default 0,
   availability jsonb not null default '{}'::jsonb,
@@ -143,7 +143,7 @@ create table if not exists public.bookings (
   status text not null default 'upcoming'
     check (status in ('upcoming','in_progress','completed','cancelled')),
   payment_status text not null default 'unpaid'
-    check (payment_status in ('unpaid','paid','refunded','failed')),
+    check (payment_status in ('unpaid','paid','refunded','failed','refund_pending','refund_failed')),
   payment_method text,
   created_at timestamptz not null default now()
 );
@@ -206,10 +206,10 @@ create policy profiles_self_insert on public.profiles for insert
 drop policy if exists locations_public_read on public.locations;
 create policy locations_public_read on public.locations for select using (true);
 
--- professionals: public sees approved+active only; owner sees own
+-- professionals: public sees all active pros (badge shows real verification status); owner sees own
 drop policy if exists pros_public_read on public.professionals;
 create policy pros_public_read on public.professionals for select
-  using ((verification_status = 'approved' and is_active) or auth.uid() = id);
+  using (is_active or auth.uid() = id);
 drop policy if exists pros_owner_write on public.professionals;
 create policy pros_owner_write on public.professionals for insert
   with check (auth.uid() = id);
@@ -295,7 +295,7 @@ create table if not exists public.payments (
   commission numeric(10,2) not null default 0,
   pro_payout numeric(10,2) not null default 0,
   status text not null default 'held'
-    check (status in ('pending','held','released','refunded','failed')),
+    check (status in ('pending','held','released','refunded','failed','refund_pending','refund_failed')),
   provider text,
   provider_ref text,
   created_at timestamptz not null default now()

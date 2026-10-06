@@ -35,6 +35,7 @@ import {
   CheckCircle2,
   TrendingUp,
   Quote,
+  Eye,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { parseInclusions, formatInclusions } from "@/lib/inclusions";
@@ -84,6 +85,8 @@ function PhotoPicker({ value, onChange, label = "Photo" }) {
 }
 
 const statusStyles = {
+  not_submitted: "text-dark-600 bg-dark-100",
+  documents_requested: "text-amber-700 bg-amber-100",
   pending: "text-amber-700 bg-amber-100",
   requested: "text-amber-700 bg-amber-100",
   processing: "text-blue-700 bg-blue-100",
@@ -96,7 +99,9 @@ const statusStyles = {
   completed: "text-emerald-700 bg-emerald-100",
   cancelled: "text-red-700 bg-red-100",
   unpaid: "text-amber-700 bg-amber-100",
-  refunded: "text-red-700 bg-red-100",
+  refunded: "text-emerald-700 bg-emerald-100",
+  refund_pending: "text-amber-800 bg-amber-100 border border-amber-300",
+  refund_failed: "text-red-800 bg-red-100 border border-red-300",
   admin: "text-violet-700 bg-violet-100",
   professional: "text-primary-700 bg-primary-100",
   customer: "text-dark-600 bg-dark-100",
@@ -158,6 +163,9 @@ export default function AdminDashboard({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [busy, setBusy] = useState(null);
+  const [viewingDoc, setViewingDoc] = useState(null);
+  const [reviewReason, setReviewReason] = useState("");
+  const [actionType, setActionType] = useState("approve");
   const [categoryEditor, setCategoryEditor] = useState(null);
   const [showAddPro, setShowAddPro] = useState(false);
   const [proForm, setProForm] = useState({
@@ -590,34 +598,39 @@ export default function AdminDashboard({
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setViewingDoc(doc);
+                              setActionType("approve");
+                              setReviewReason("");
+                            }}
+                            className="py-2 px-3 rounded-xl border border-border hover:bg-dark-50 text-dark-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-primary-500" /> View Document
+                          </button>
                           <button
                             type="button"
                             disabled={isBusy}
-                            onClick={() =>
-                              run(
-                                key,
-                                "/api/admin/verify",
-                                { documentId: doc.id, professionalId: doc.professional_id, status: "approved" },
-                                "Document approved"
-                              )
-                            }
-                            className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                            onClick={() => {
+                              setViewingDoc(doc);
+                              setActionType("approve");
+                              setReviewReason("Document verified by admin");
+                            }}
+                            className="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 transition-colors shadow-xs"
                           >
                             <Check className="w-3.5 h-3.5" /> Approve
                           </button>
                           <button
                             type="button"
                             disabled={isBusy}
-                            onClick={() =>
-                              run(
-                                key,
-                                "/api/admin/verify",
-                                { documentId: doc.id, professionalId: doc.professional_id, status: "rejected" },
-                                "Document rejected"
-                              )
-                            }
-                            className="py-2 px-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                            onClick={() => {
+                              setViewingDoc(doc);
+                              setActionType("reject");
+                              setReviewReason("");
+                            }}
+                            className="py-2 px-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 transition-colors"
                           >
                             <X className="w-3.5 h-3.5" /> Reject
                           </button>
@@ -729,7 +742,29 @@ export default function AdminDashboard({
                     <tbody className="divide-y divide-border">
                       {bookings.map((booking) => {
                         const key = `booking:${booking.id}`;
-                        const isBusy = busy === key;
+                        const isBusy = busy === key || busy === `${key}:refund`;
+                        const pay = Array.isArray(booking.payments) ? booking.payments[0] : booking.payments;
+                        const hasConfirmedRefundId = Boolean(
+                          pay?.provider_ref && (pay?.status === "refunded" || String(booking.payment_status) === "refunded")
+                        );
+
+                        let displayPaymentStatus = booking.payment_status || "unpaid";
+                        if (booking.payment_status === "refunded") {
+                          if (!hasConfirmedRefundId) {
+                            displayPaymentStatus = "refund_pending";
+                          }
+                        } else if (
+                          booking.status === "cancelled" &&
+                          (Number(booking.total_paid) > 0 || pay?.status === "held" || pay?.status === "released")
+                        ) {
+                          displayPaymentStatus = "refund_pending";
+                        }
+
+                        const canRefund =
+                          Number(booking.total_paid) > 0 &&
+                          (booking.status === "cancelled" || displayPaymentStatus === "refund_pending") &&
+                          displayPaymentStatus !== "refunded";
+
                         return (
                           <tr key={booking.id} className="hover:bg-dark-50/50 transition-colors">
                             <td className="px-5 py-3.5 font-mono font-bold text-dark-900">{booking.id}</td>
@@ -748,28 +783,49 @@ export default function AdminDashboard({
                               <StatusPill value={booking.status} />
                             </td>
                             <td className="px-5 py-3.5">
-                              <StatusPill value={booking.payment_status} />
+                              <StatusPill value={displayPaymentStatus} />
                             </td>
                             <td className="px-5 py-3.5 text-right">
-                              <select
-                                disabled={isBusy}
-                                value={booking.status}
-                                onChange={(e) =>
-                                  run(
-                                    key,
-                                    "/api/admin/bookings",
-                                    { id: booking.id, status: e.target.value },
-                                    "Booking status updated"
-                                  )
-                                }
-                                className="rounded-lg border border-border bg-surface px-2 py-1.5 text-xs font-semibold text-dark-700 capitalize disabled:opacity-50"
-                              >
-                                {["upcoming", "in_progress", "completed", "cancelled"].map((s) => (
-                                  <option key={s} value={s}>
-                                    {s.replace("_", " ")}
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="flex items-center justify-end gap-2">
+                                {canRefund && (
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={() =>
+                                      run(
+                                        `${key}:refund`,
+                                        "/api/admin/bookings",
+                                        { id: booking.id, action: "refund" },
+                                        "Refund processed successfully via PayU"
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2 py-1.5 text-xs font-semibold disabled:opacity-50 transition-colors shrink-0"
+                                    title="Process PayU Refund"
+                                  >
+                                    <RefreshCw className={`w-3 h-3 ${busy === `${key}:refund` ? "animate-spin" : ""}`} />
+                                    Refund {formatMoney(Number(booking.total_paid || 0))}
+                                  </button>
+                                )}
+                                <select
+                                  disabled={isBusy}
+                                  value={booking.status}
+                                  onChange={(e) =>
+                                    run(
+                                      key,
+                                      "/api/admin/bookings",
+                                      { id: booking.id, status: e.target.value },
+                                      "Booking status updated"
+                                    )
+                                  }
+                                  className="rounded-lg border border-border bg-surface px-2 py-1.5 text-xs font-semibold text-dark-700 capitalize disabled:opacity-50"
+                                >
+                                  {["upcoming", "in_progress", "completed", "cancelled"].map((s) => (
+                                    <option key={s} value={s}>
+                                      {s.replace("_", " ")}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -2458,13 +2514,19 @@ export default function AdminDashboard({
                               {a.created_at ? new Date(a.created_at).toLocaleString() : "—"}
                             </td>
                             <td className="px-5 py-3.5 font-mono text-dark-600 max-w-[180px] truncate">
-                              {a.admin_id || "—"}
+                              {a.meta?.admin_name || a.admin_id || "Admin"}
                             </td>
                             <td className="px-5 py-3.5 font-semibold text-dark-900">{a.action}</td>
                             <td className="px-5 py-3.5 text-dark-600">{a.entity || "—"}</td>
                             <td className="px-5 py-3.5 font-mono text-dark-600">{a.entity_id || "—"}</td>
                             <td className="px-5 py-3.5 text-dark-500 max-w-[240px] truncate" title={meta}>
-                              {meta}
+                              {a.meta?.reason || a.meta?.error ? (
+                                <span className={`${a.meta?.error ? "text-red-600 font-semibold" : "text-dark-700 font-medium"}`}>
+                                  {a.meta.reason || a.meta.error}
+                                </span>
+                              ) : (
+                                meta
+                              )}
                             </td>
                           </tr>
                         );
@@ -2477,6 +2539,170 @@ export default function AdminDashboard({
           )}
         </main>
       </div>
+
+      {/* DOCUMENT VIEWER & REVIEW MODAL */}
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-surface border border-border rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-border flex items-center justify-between bg-dark-50/50">
+              <div>
+                <h3 className="font-heading text-base font-bold text-dark-900 flex items-center gap-2">
+                  <FileCheck className="w-5 h-5 text-primary-600" />
+                  Review Document: {viewingDoc.type}
+                </h3>
+                <p className="text-xs text-dark-500 mt-0.5">
+                  Professional: <span className="font-semibold text-dark-800">{viewingDoc.professional?.full_name || viewingDoc.professional_id}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingDoc(null)}
+                className="p-1.5 rounded-lg text-dark-400 hover:text-dark-700 hover:bg-dark-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 flex-1 overflow-y-auto space-y-4">
+              {/* Document Preview Box */}
+              <div className="bg-dark-50 rounded-xl border border-border p-3 flex flex-col items-center justify-center min-h-[240px] max-h-[360px] overflow-hidden">
+                {viewingDoc.signedUrl ? (
+                  viewingDoc.signedUrl.match(/\.(jpg|jpeg|png|webp|gif)($|\?)/i) || (viewingDoc.file_path && viewingDoc.file_path.match(/\.(jpg|jpeg|png|webp|gif)$/i)) ? (
+                    <img
+                      src={viewingDoc.signedUrl}
+                      alt={viewingDoc.type}
+                      className="max-h-[330px] w-auto object-contain rounded-lg shadow-sm"
+                    />
+                  ) : (
+                    <div className="text-center p-6 space-y-3">
+                      <FileCheck className="w-12 h-12 text-primary-500 mx-auto" />
+                      <p className="text-xs font-semibold text-dark-800">
+                        {viewingDoc.file_path ? viewingDoc.file_path.split("/").pop() : "Uploaded Document"}
+                      </p>
+                      <a
+                        href={viewingDoc.signedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Open / Download File
+                      </a>
+                    </div>
+                  )
+                ) : (
+                  <div className="text-center p-6 space-y-2">
+                    <FileCheck className="w-10 h-10 text-dark-400 mx-auto" />
+                    <p className="text-xs text-dark-600 font-mono">
+                      {viewingDoc.file_path || "File preview unavailable"}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Mode Toggle */}
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1.5">Review Decision</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionType("approve");
+                      if (!reviewReason) setReviewReason("Document verified by admin");
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                      actionType === "approve"
+                        ? "bg-emerald-600 border-emerald-600 text-white shadow-xs"
+                        : "border-border text-dark-600 hover:bg-dark-50"
+                    }`}
+                  >
+                    <Check className="w-3.5 h-3.5" /> Approve Document
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionType("reject");
+                      if (reviewReason === "Document verified by admin") setReviewReason("");
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                      actionType === "reject"
+                        ? "bg-red-600 border-red-600 text-white shadow-xs"
+                        : "border-border text-dark-600 hover:bg-dark-50"
+                    }`}
+                  >
+                    <X className="w-3.5 h-3.5" /> Reject Document
+                  </button>
+                </div>
+              </div>
+
+              {/* Reason / Notes Input */}
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1">
+                  {actionType === "reject" ? (
+                    <>
+                      Rejection Reason <span className="text-red-500">* (Required)</span>
+                    </>
+                  ) : (
+                    "Approval Notes / Reason (Optional)"
+                  )}
+                </label>
+                <textarea
+                  rows={2}
+                  value={reviewReason}
+                  onChange={(e) => setReviewReason(e.target.value)}
+                  placeholder={
+                    actionType === "reject"
+                      ? "e.g. Expired ID, illegible photo, details do not match profile"
+                      : "e.g. Verified with regulatory registry, valid license"
+                  }
+                  className="w-full p-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:outline-none focus:border-primary-500 focus:bg-white transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-4 border-t border-border bg-dark-50/50 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setViewingDoc(null)}
+                className="py-2 px-3.5 rounded-xl border border-border text-dark-600 text-xs font-semibold hover:bg-dark-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy === `doc:${viewingDoc.id}` || (actionType === "reject" && !reviewReason.trim())}
+                onClick={async () => {
+                  if (actionType === "reject" && !reviewReason.trim()) {
+                    showToast("Please provide a rejection reason.", "error");
+                    return;
+                  }
+                  const key = `doc:${viewingDoc.id}`;
+                  await run(
+                    key,
+                    "/api/admin/verify",
+                    {
+                      documentId: viewingDoc.id,
+                      professionalId: viewingDoc.professional_id,
+                      status: actionType === "approve" ? "approved" : "rejected",
+                      reason: reviewReason.trim() || (actionType === "approve" ? "Document approved" : ""),
+                    },
+                    actionType === "approve" ? "Document approved" : "Document rejected"
+                  );
+                  setViewingDoc(null);
+                }}
+                className={`py-2 px-4 rounded-xl text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition-colors ${
+                  actionType === "approve"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {actionType === "approve" ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                {actionType === "approve" ? "Confirm Approval" : "Confirm Rejection"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

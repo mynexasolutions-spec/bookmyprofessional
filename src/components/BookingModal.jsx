@@ -8,6 +8,8 @@ import {
   getAvailableSlots,
   nextBookingDates,
 } from "@/lib/data/bookings";
+import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
+import PincodeInput from "@/components/PincodeInput";
 import { ikImage } from "@/lib/imagekit";
 import {
   X,
@@ -32,6 +34,24 @@ import {
 import Button from "./Button";
 import { formatMoney } from "@/lib/money";
 
+function formatConfirmationDateTime(dateStr, timeSlot) {
+  if (!dateStr) return timeSlot || "—";
+  try {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    const dayName = dt.toLocaleDateString("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" });
+    const formattedDate = dt.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "Asia/Kolkata",
+    });
+    return `${dayName}, ${formattedDate} at ${timeSlot} (IST, UTC+5:30)`;
+  } catch {
+    return `${dateStr} at ${timeSlot} (IST, UTC+5:30)`;
+  }
+}
+
 export default function BookingModal() {
   const {
     bookingPro,
@@ -50,6 +70,9 @@ export default function BookingModal() {
   const [bookingError, setBookingError] = useState(null);
   const [confirmedBookingData, setConfirmedBookingData] = useState(null);
 
+  // Live availability fetched fresh from DB (not the stale marketplaceContext copy)
+  const [liveAvailability, setLiveAvailability] = useState(null);
+
   // Form State
   const [selectedService, setSelectedService] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => nextBookingDates(14)[0].date);
@@ -65,6 +88,7 @@ export default function BookingModal() {
     postalCode: "",
     notes: "",
   });
+  const [pincodeVerification, setPincodeVerification] = useState(null);
 
   // Keep form updated if profile loads late
   useEffect(() => {
@@ -85,7 +109,50 @@ export default function BookingModal() {
     cardholder: "",
   });
 
-  // Prefill service on open
+  // Helper: is a given date a working day for this professional?
+  // Uses liveAvailability (DB) if loaded, otherwise falls back to bookingPro.availability
+  const isDayAvailable = (dateStr) => {
+    const avail = liveAvailability || bookingPro?.availability;
+    if (!avail) return false;
+    const weekday = new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", { weekday: "long" });
+    if (avail.daily && typeof avail.daily === "object") {
+      return Boolean(avail.daily[weekday]?.enabled);
+    }
+    const days = Array.isArray(avail?.days) ? avail.days : [];
+    // Empty days array = no restriction = all days open
+    if (days.length === 0) return true;
+    return days.some((d) => String(d).toLowerCase() === weekday.toLowerCase());
+  };
+
+  // Fetch fresh availability from DB whenever a pro is opened for booking
+  useEffect(() => {
+    if (!bookingPro?.id) {
+      setLiveAvailability(null);
+      return;
+    }
+    let active = true;
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      const supabase = createClient();
+      supabase
+        .from("professionals")
+        .select("availability")
+        .eq("id", bookingPro.id)
+        .single()
+        .then(({ data }) => {
+          if (active && data?.availability) {
+            setLiveAvailability(data.availability);
+          }
+        })
+        .catch(() => {
+          // Fall back to bookingPro.availability on error
+        });
+    });
+    return () => {
+      active = false;
+    };
+  }, [bookingPro?.id]);
+
+  // Prefill service on open + auto-select first available working day
   useEffect(() => {
     if (bookingPro) {
       if (bookingPreselectedService) {
@@ -94,12 +161,27 @@ export default function BookingModal() {
         setSelectedService(bookingPro.services[0]);
       }
       setCurrentStep(1);
-      setSelectedDate(nextBookingDates(14)[0].date);
       setSelectedTimeSlot("");
       setConfirmedBookingData(null);
       setBookingError(null);
+      // Default to today; the liveAvailability effect below will correct the date once loaded
+      setSelectedDate(nextBookingDates(14)[0].date);
     }
   }, [bookingPro, bookingPreselectedService]);
+
+  // Once liveAvailability loads, jump the selected date to the first open working day
+  useEffect(() => {
+    if (!liveAvailability) return;
+    const days = nextBookingDates(14);
+    const firstOpen = days.find((d) => {
+      const avail = liveAvailability;
+      const wdays = Array.isArray(avail?.days) ? avail.days : [];
+      if (wdays.length === 0) return true;
+      const weekday = new Date(`${d.date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long" });
+      return wdays.some((w) => String(w).toLowerCase() === weekday.toLowerCase());
+    });
+    if (firstOpen) setSelectedDate(firstOpen.date);
+  }, [liveAvailability]);
 
   // Lock body scroll
   useEffect(() => {
@@ -118,7 +200,7 @@ export default function BookingModal() {
     if (!bookingPro) return;
     let active = true;
     setIsLoadingSlots(true);
-    getAvailableSlots(bookingPro.id, selectedDate, bookingPro.availability).then((slots) => {
+    getAvailableSlots(bookingPro.id, selectedDate, liveAvailability || bookingPro.availability).then((slots) => {
       if (!active) return;
       setAvailableSlots(slots);
       setSelectedTimeSlot((prev) => (slots.includes(prev) ? prev : slots[0] || ""));
@@ -127,7 +209,7 @@ export default function BookingModal() {
     return () => {
       active = false;
     };
-  }, [bookingPro, selectedDate]);
+  }, [bookingPro, selectedDate, liveAvailability]);
 
   if (!bookingPro) return null;
 
@@ -139,6 +221,23 @@ export default function BookingModal() {
       return;
     }
     if (!selectedTimeSlot) return;
+    if (!addressDetails.phone?.trim()) {
+      setBookingError("Please enter your phone number before confirming the booking.");
+      return;
+    }
+    if (!addressDetails.street?.trim()) {
+      setBookingError("Please enter your street address.");
+      return;
+    }
+    const cleanPin = cleanPincode(addressDetails.postalCode);
+    if (!isValidPincodeFormat(cleanPin)) {
+      setBookingError("Please enter a valid 6-digit Indian postal code.");
+      return;
+    }
+    if (pincodeVerification && !pincodeVerification.valid) {
+      setBookingError(pincodeVerification.error || "Please enter a valid, verified Indian pincode.");
+      return;
+    }
     setBookingError(null);
     setIsProcessingPayment(true);
 
@@ -148,6 +247,8 @@ export default function BookingModal() {
       date: selectedDate,
       timeSlot: selectedTimeSlot,
       address: `${addressDetails.street}, ${addressDetails.postalCode} ${addressDetails.city}`,
+      pincode: addressDetails.postalCode,
+      city: addressDetails.city,
       notes: addressDetails.notes,
       customerName: addressDetails.name,
       customerEmail: addressDetails.email,
@@ -270,14 +371,14 @@ export default function BookingModal() {
             </button>
           </div>
 
-          {/* Progress Step Bar */}
+          {/* Progress Step Bar: Address, Slot, Review, Pay */}
           {currentStep < 5 && (
             <div className="grid grid-cols-4 gap-2 pt-1">
               {[
-                { step: 1, label: "1. Service" },
-                { step: 2, label: "2. Schedule" },
-                { step: 3, label: "3. Address" },
-                { step: 4, label: "4. Payment" },
+                { step: 1, label: "1. Address" },
+                { step: 2, label: "2. Slot" },
+                { step: 3, label: "3. Review" },
+                { step: 4, label: "4. Pay" },
               ].map((s) => (
                 <div key={s.step} className="flex flex-col gap-1">
                   <div
@@ -290,7 +391,7 @@ export default function BookingModal() {
                   <span
                     className={`text-[10px] font-semibold text-center truncate ${
                       currentStep === s.step
-                        ? "text-primary-600"
+                        ? "text-primary-600 font-bold"
                         : "text-dark-400"
                     }`}
                   >
@@ -399,15 +500,20 @@ export default function BookingModal() {
                 <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                   {nextDays.map((d) => {
                     const isSelected = selectedDate === d.date;
+                    const isAvailable = isDayAvailable(d.date);
                     return (
                       <button
                         key={d.date}
                         type="button"
-                        onClick={() => setSelectedDate(d.date)}
+                        disabled={!isAvailable}
+                        onClick={() => isAvailable && setSelectedDate(d.date)}
+                        title={!isAvailable ? `${d.day} is closed` : `Select ${d.day}, ${d.date}`}
                         className={`p-2.5 rounded-xl border text-center transition-all ${
-                          isSelected
+                          !isAvailable
+                            ? "bg-dark-50/70 border-dashed border-border/80 text-dark-400 opacity-60 cursor-not-allowed"
+                            : isSelected
                             ? "bg-primary-500 text-white border-primary-500 shadow-button"
-                            : "bg-surface border-border text-dark-700 hover:bg-dark-50"
+                            : "bg-surface border-border text-dark-700 hover:bg-dark-50 hover:border-primary-200"
                         }`}
                       >
                         <span className="block text-[10px] font-medium uppercase opacity-80">
@@ -416,7 +522,13 @@ export default function BookingModal() {
                         <span className="block font-heading text-base font-bold my-0.5">
                           {d.num}
                         </span>
-                        <span className="block text-[9px] opacity-75 truncate">{d.label}</span>
+                        <span
+                          className={`block text-[9px] truncate ${
+                            !isAvailable ? "font-bold text-red-500" : "opacity-75"
+                          }`}
+                        >
+                          {isAvailable ? d.label : "Closed"}
+                        </span>
                       </button>
                     );
                   })}
@@ -425,9 +537,14 @@ export default function BookingModal() {
 
               {/* Time Slots */}
               <div>
-                <label className="block text-xs font-semibold text-dark-700 mb-2">
-                  Select Available Time
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-dark-700">
+                    Select Available Time
+                  </label>
+                  <span className="text-[11px] text-dark-500 font-medium">
+                    Note: Last slot is 2h before closing
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {isLoadingSlots ? (
                     <div className="col-span-full flex items-center justify-center py-4 text-xs text-dark-400">
@@ -502,16 +619,18 @@ export default function BookingModal() {
 
                 <div>
                   <label className="block text-xs font-semibold text-dark-700 mb-1">
-                    Phone Number (for SMS & Intercom)
+                    Phone Number <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
                     <input
                       type="tel"
+                      required
                       value={addressDetails.phone}
                       onChange={(e) =>
                         setAddressDetails({ ...addressDetails, phone: e.target.value })
                       }
+                      placeholder="10-digit mobile number"
                       className="w-full pl-9 pr-3 py-2 bg-dark-50 border border-border rounded-lg text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
                     />
                   </div>
@@ -535,31 +654,53 @@ export default function BookingModal() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-dark-700 mb-1">
-                    City
-                  </label>
-                  <input
-                    type="text"
-                    value={addressDetails.city}
-                    onChange={(e) =>
-                      setAddressDetails({ ...addressDetails, city: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-dark-50 border border-border rounded-lg text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                  <PincodeInput
+                    value={addressDetails.postalCode}
+                    onChange={(val) => {
+                      setAddressDetails((prev) => ({
+                        ...prev,
+                        postalCode: val,
+                        city: val.length < 6 ? "" : prev.city,
+                        state: val.length < 6 ? "" : prev.state,
+                      }));
+                      if (val.length < 6) setPincodeVerification(null);
+                    }}
+                    onVerified={(res) => setPincodeVerification(res)}
+                    onCityDetected={(detectedCity, res) => {
+                      setAddressDetails((prev) => ({
+                        ...prev,
+                        city: detectedCity,
+                        state: res?.state || prev.state || "",
+                      }));
+                    }}
+                    enforceLocationMatch={false}
+                    label="Pincode"
+                    placeholder="e.g. 501218"
+                    required
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-dark-700 mb-1">
-                    Postal Code
+                    City & State
                   </label>
-                  <input
-                    type="text"
-                    value={addressDetails.postalCode}
-                    onChange={(e) =>
-                      setAddressDetails({ ...addressDetails, postalCode: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-dark-50 border border-border rounded-lg text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={
+                        addressDetails.city
+                          ? `${addressDetails.city}${addressDetails.state ? `, ${addressDetails.state}` : ""}`
+                          : ""
+                      }
+                      placeholder="Auto-filled from 6-digit Pincode"
+                      className="w-full pl-3 pr-8 py-2 bg-dark-100 border border-border rounded-lg text-xs text-dark-900 cursor-not-allowed font-medium"
+                    />
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-dark-400" />
+                  </div>
+                  <p className="text-[10px] text-dark-400 mt-0.5">
+                    City and state are locked to your verified pincode.
+                  </p>
                 </div>
 
                 <div className="sm:col-span-2">
@@ -637,6 +778,15 @@ export default function BookingModal() {
                 </div>
               </div>
 
+              {/* Cancellation Policy Banner */}
+              <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold block text-amber-950">Cancellation & Refund Policy</span>
+                  <span>Free cancellation up to 24 hours before your scheduled appointment slot. Cancellations within 24 hours are non-refundable.</span>
+                </div>
+              </div>
+
               {/* Security note */}
               <div className="flex items-center gap-2 text-xs text-dark-500">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -689,8 +839,8 @@ export default function BookingModal() {
                 </div>
                 <div className="flex justify-between border-b border-border pb-2">
                   <span className="text-dark-500">Date & Time:</span>
-                  <span className="font-semibold text-primary-600">
-                    {confirmedBookingData.date} at {confirmedBookingData.timeSlot}
+                  <span className="font-semibold text-primary-600 text-right">
+                    {formatConfirmationDateTime(confirmedBookingData.date, confirmedBookingData.timeSlot)}
                   </span>
                 </div>
                 <div className="flex justify-between border-b border-border pb-2">
@@ -752,7 +902,16 @@ export default function BookingModal() {
               <Button
                 variant="primary"
                 size="sm"
-                disabled={currentStep === 2 && !selectedTimeSlot}
+                disabled={
+                  (currentStep === 2 && !selectedTimeSlot) ||
+                  (currentStep === 3 &&
+                    (!addressDetails.name.trim() ||
+                      !addressDetails.phone.trim() ||
+                      !addressDetails.street.trim() ||
+                      !addressDetails.city.trim() ||
+                      !addressDetails.postalCode.trim() ||
+                      !pincodeVerification?.valid))
+                }
                 onClick={() => setCurrentStep(currentStep + 1)}
                 className="text-xs py-2.5 px-5 font-semibold shadow-button"
               >

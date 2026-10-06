@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { listCategories, listSubcategories, DEFAULT_CATEGORIES } from "@/lib/data/categories";
 import {
@@ -22,8 +23,11 @@ import {
   KeyRound,
 } from "lucide-react";
 import Button from "./Button";
+import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
+import PincodeInput from "./PincodeInput";
 
 export default function AuthModal() {
+  const router = useRouter();
   const {
     isAuthModalOpen,
     authModalTab,
@@ -66,6 +70,7 @@ export default function AuthModal() {
   });
 
   const [forgotEmail, setForgotEmail] = useState("");
+  const [proPincodeVerification, setProPincodeVerification] = useState(null);
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -121,7 +126,7 @@ export default function AuthModal() {
     setErrorMessage("");
 
     if (!loginForm.identifier.trim()) {
-      setErrorMessage("Please enter your email or phone number");
+      setErrorMessage("Please enter your email address");
       return;
     }
     if (!loginForm.password) {
@@ -131,7 +136,14 @@ export default function AuthModal() {
 
     setIsLoading(true);
     try {
-      await login({ identifier: loginForm.identifier, password: loginForm.password, role: authRole });
+      const result = await login({ identifier: loginForm.identifier, password: loginForm.password, role: authRole });
+      const resolvedRole = result?._resolvedRole || authRole;
+      // Immediate role-based redirect
+      if (resolvedRole === "professional") {
+        router.replace("/vendor");
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (error) {
       setErrorMessage(error?.message || "Unable to sign in. Please try again.");
     } finally {
@@ -151,6 +163,14 @@ export default function AuthModal() {
       setErrorMessage("Please enter a valid email address");
       return;
     }
+    if (!signupForm.phone.trim()) {
+      setErrorMessage("Please enter your phone number");
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(signupForm.phone.replace(/\D/g, ""))) {
+      setErrorMessage("Please enter a valid 10-digit Indian mobile number");
+      return;
+    }
     if (!signupForm.password || signupForm.password.length < 6) {
       setErrorMessage("Password must be at least 6 characters");
       return;
@@ -162,6 +182,21 @@ export default function AuthModal() {
     if (!signupForm.agreeTerms) {
       setErrorMessage("Please accept the Terms of Service & Privacy Policy");
       return;
+    }
+    if (authRole === "professional") {
+      if (!signupForm.pincode?.trim()) {
+        setErrorMessage("Please enter your 6-digit service pincode");
+        return;
+      }
+      const cleanPin = cleanPincode(signupForm.pincode);
+      if (!isValidPincodeFormat(cleanPin)) {
+        setErrorMessage("Please enter a valid 6-digit Indian pincode (cannot start with 0)");
+        return;
+      }
+      if (proPincodeVerification && !proPincodeVerification.valid) {
+        setErrorMessage(proPincodeVerification.error || "Please enter a valid, verified Indian pincode");
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -569,17 +604,18 @@ export default function AuthModal() {
 
                       <div>
                         <label className="block text-xs font-semibold text-dark-700 mb-1">
-                          Phone Number
+                          Phone Number <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
                           <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
                           <input
                             type="tel"
+                            required
                             value={signupForm.phone}
                             onChange={(e) =>
                               setSignupForm({ ...signupForm, phone: e.target.value })
                             }
-                            placeholder="Enter your phone number"
+                            placeholder="10-digit mobile number"
                             className="w-full pl-10 pr-3 py-2 bg-dark-50 border border-border rounded-lg text-xs sm:text-sm text-dark-900 placeholder:text-dark-400 focus:bg-white focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
                           />
                         </div>
@@ -627,41 +663,42 @@ export default function AuthModal() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[11px] font-semibold text-primary-900 mb-1">
-                            City / Area of Service
-                          </label>
-                          <div className="relative">
-                            <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary-500" />
-                            <input
-                              type="text"
-                              value={signupForm.city}
-                              onChange={(e) =>
-                                setSignupForm({ ...signupForm, city: e.target.value })
-                              }
-                              placeholder="Enter your city"
-                              className="w-full pl-8 pr-2.5 py-2 bg-white border border-primary-200 rounded-lg text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                            />
-                          </div>
+                          <PincodeInput
+                            value={signupForm.pincode || ""}
+                            onChange={(val) => {
+                              setSignupForm((prev) => ({
+                                ...prev,
+                                pincode: val,
+                                city: val.length < 6 ? "" : prev.city,
+                                state: val.length < 6 ? "" : prev.state,
+                              }));
+                            }}
+                            onVerified={(res) => setProPincodeVerification(res)}
+                            onCityDetected={(detectedCity, res) => {
+                              setSignupForm((prev) => ({
+                                ...prev,
+                                city: detectedCity,
+                                state: res?.state || prev.state || "",
+                              }));
+                            }}
+                            enforceLocationMatch={false}
+                            label="Service Pincode"
+                            placeholder="e.g. 501218"
+                            required
+                          />
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-primary-900 mb-1">
-                            Pincode
+                            City / Area & State
                           </label>
                           <div className="relative">
                             <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary-500" />
                             <input
                               type="text"
-                              inputMode="numeric"
-                              maxLength={6}
-                              value={signupForm.pincode}
-                              onChange={(e) =>
-                                setSignupForm({
-                                  ...signupForm,
-                                  pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
-                                })
-                              }
-                              placeholder="e.g. 400001"
-                              className="w-full pl-8 pr-2.5 py-2 bg-white border border-primary-200 rounded-lg text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                              readOnly
+                              value={signupForm.city ? `${signupForm.city}${signupForm.state ? `, ${signupForm.state}` : ""}` : ""}
+                              placeholder="Auto-filled from Pincode"
+                              className="w-full pl-8 pr-2.5 py-2 bg-dark-100 border border-primary-200 rounded-lg text-xs text-dark-900 cursor-not-allowed font-medium focus:outline-none"
                             />
                           </div>
                         </div>

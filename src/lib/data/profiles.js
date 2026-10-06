@@ -35,6 +35,46 @@ export async function getMyProfile() {
 
 export async function updateProfile(userId, patch) {
   const supabase = createClient();
+
+  // Server-side pincode validation when pincode is being saved
+  if ("pincode" in patch && patch.pincode) {
+    const cleanPin = String(patch.pincode).replace(/\D/g, "").slice(0, 6);
+    if (!/^[1-9][0-9]{5}$/.test(cleanPin)) {
+      throw Object.assign(
+        new Error("Pincode must be exactly 6 digits and cannot start with 0."),
+        { isUserFacing: true, field: "pincode" }
+      );
+    }
+    // Cross-check city when both are present
+    if (patch.city?.trim()) {
+      try {
+        const origin = typeof window !== "undefined"
+          ? window.location.origin
+          : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+        const res = await fetch(
+          `${origin}/api/location/verify-pincode?pincode=${cleanPin}&city=${encodeURIComponent(patch.city.trim())}`,
+          { headers: { Accept: "application/json" } }
+        );
+        const data = await res.json();
+        if (data?.cityMismatch) {
+          throw Object.assign(new Error(data.error || "City does not match pincode."), {
+            isUserFacing: true, field: "city",
+          });
+        }
+        if (!data?.valid && !data?.warning) {
+          throw Object.assign(
+            new Error(data?.error || `Invalid pincode: ${cleanPin} is not a recognised Indian PIN code.`),
+            { isUserFacing: true, field: "pincode" }
+          );
+        }
+      } catch (e) {
+        if (e?.isUserFacing) throw e;
+        console.warn("[updateProfile] Postal API unreachable, skipping city check:", e?.message);
+      }
+    }
+    patch = { ...patch, pincode: cleanPin };
+  }
+
   const run = (fields) =>
     supabase.from("profiles").update(fields).eq("id", userId).select().maybeSingle();
 
@@ -59,3 +99,4 @@ export async function updateProfile(userId, patch) {
 
   return data;
 }
+

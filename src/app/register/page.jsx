@@ -21,6 +21,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import Button from "@/components/Button";
+import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
+import PincodeInput from "@/components/PincodeInput";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -55,6 +57,7 @@ export default function RegisterPage() {
     pincode: "",
     agreeTerms: true,
   });
+  const [proPincodeVerification, setProPincodeVerification] = useState(null);
 
   // Professional categories come from the DB (active rows), seeded to defaults until loaded.
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
@@ -87,9 +90,32 @@ export default function RegisterPage() {
       setErrorMessage("Please enter a valid email address.");
       return;
     }
+    if (!form.phone.trim()) {
+      setErrorMessage("Please enter your phone number.");
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(form.phone.replace(/\D/g, ""))) {
+      setErrorMessage("Please enter a valid 10-digit Indian mobile number.");
+      return;
+    }
     if (!form.password || form.password.length < 6) {
       setErrorMessage("Password must be at least 6 characters.");
       return;
+    }
+    if (authRole === "professional") {
+      if (!form.pincode?.trim()) {
+        setErrorMessage("Please enter your 6-digit service pincode.");
+        return;
+      }
+      const cleanPin = cleanPincode(form.pincode);
+      if (!isValidPincodeFormat(cleanPin)) {
+        setErrorMessage("Please enter a valid 6-digit Indian pincode (cannot start with 0).");
+        return;
+      }
+      if (proPincodeVerification && !proPincodeVerification.valid) {
+        setErrorMessage(proPincodeVerification.error || "Please enter a valid, verified Indian pincode.");
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -339,15 +365,16 @@ export default function RegisterPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-dark-700 mb-1">
-                  Phone Number
+                  Phone Number <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
                   <input
                     type="tel"
+                    required
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="Enter your phone number"
+                    placeholder="10-digit mobile number"
                     className="w-full pl-9 pr-3 py-2.5 bg-surface border border-border rounded-xl text-xs text-dark-900 focus:outline-none focus:border-primary-500"
                   />
                 </div>
@@ -391,39 +418,42 @@ export default function RegisterPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-primary-900 mb-1">
-                    City of Service
-                  </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary-500" />
-                    <input
-                      type="text"
-                      value={form.city}
-                      onChange={(e) => setForm({ ...form, city: e.target.value })}
-                      placeholder="Enter your city"
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none"
-                    />
-                  </div>
+                  <PincodeInput
+                    value={form.pincode || ""}
+                    onChange={(val) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        pincode: val,
+                        city: val.length < 6 ? "" : prev.city,
+                        state: val.length < 6 ? "" : prev.state,
+                      }));
+                    }}
+                    onVerified={(res) => setProPincodeVerification(res)}
+                    onCityDetected={(detectedCity, res) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        city: detectedCity,
+                        state: res?.state || prev.state || "",
+                      }));
+                    }}
+                    enforceLocationMatch={false}
+                    label="Service Pincode"
+                    placeholder="e.g. 501218"
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-primary-900 mb-1">
-                    Pincode
+                    City of Service & State
                   </label>
                   <div className="relative">
                     <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary-500" />
                     <input
                       type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={form.pincode}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
-                        })
-                      }
-                      placeholder="e.g. 400001"
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-primary-200 rounded-xl text-xs text-dark-900 focus:outline-none"
+                      readOnly
+                      value={form.city ? `${form.city}${form.state ? `, ${form.state}` : ""}` : ""}
+                      placeholder="Auto-filled from Pincode"
+                      className="w-full pl-8 pr-3 py-2 bg-dark-100 border border-primary-200 rounded-xl text-xs text-dark-900 cursor-not-allowed font-medium focus:outline-none"
                     />
                   </div>
                 </div>

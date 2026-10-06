@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminRequest } from "@/lib/admin-session";
+import { isAdminRequest, getAdminUser } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction, updateProfessional, createProfessional } from "@/lib/data/admin";
 
@@ -62,9 +62,46 @@ export async function POST(request) {
 
   try {
     const supabase = createAdminClient();
+    const admin = await getAdminUser();
+    const adminName = admin?.name || "Admin";
+
+    // Enforce honest verification rule: Cannot approve without at least one approved uploaded document
+    if (action === "approve") {
+      const { data: docs, error: docErr } = await supabase
+        .from("documents")
+        .select("id, status")
+        .eq("professional_id", id);
+
+      if (docErr || !docs || docs.length === 0) {
+        return NextResponse.json(
+          { error: "Cannot approve: Professional has not uploaded any verification documents. Approval requires at least one uploaded and approved document." },
+          { status: 400 }
+        );
+      }
+
+      const hasApprovedDoc = docs.some((d) => d.status === "approved");
+      if (!hasApprovedDoc) {
+        return NextResponse.json(
+          { error: "Cannot approve: The professional's uploaded documents have not been approved yet. Please review and approve their documents in the Verification section first." },
+          { status: 400 }
+        );
+      }
+    }
+
     const professional = await updateProfessional(supabase, id, PATCHES[action]);
     await logAdminAction(
-      { action: `professional.${action}`, entity: "professionals", entityId: id, meta: { action } },
+      {
+        action: `professional.${action}`,
+        entity: "professionals",
+        entityId: id,
+        meta: {
+          admin_name: adminName,
+          admin_id: admin?.id || "admin",
+          reviewed_at: new Date().toISOString(),
+          action,
+          professional_name: professional?.name,
+        },
+      },
       supabase
     );
     return NextResponse.json({ ok: true, id, action, professional });

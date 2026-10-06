@@ -357,13 +357,17 @@ export function MarketplaceProvider({ children }) {
       await refundPayment(bookingId);
     } catch (err) {
       refunded = false;
-      showToast(err?.message || "Booking cancelled, but the refund failed. Please contact support.", "error");
+      showToast(err?.message || "Booking cancelled. Refund is pending gateway confirmation.", "error");
     }
     if (refunded) {
       setBookings((prev) =>
         prev.map((b) => (b.id === bookingId ? { ...b, paymentStatus: "refunded" } : b))
       );
       showToast(`Booking ${bookingId} has been cancelled and refunded to your original payment method.`, "info");
+    } else {
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, paymentStatus: "refund_pending" } : b))
+      );
     }
   };
 

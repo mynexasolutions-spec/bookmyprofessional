@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -21,7 +21,10 @@ import { getEarningsSummary, listMyPayouts } from "@/lib/data/payments";
 import { listAllCategories } from "@/lib/data/categories";
 import { formatInclusions } from "@/lib/inclusions";
 import { uploadImage, ikImage } from "@/lib/imagekit";
+import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
+import PincodeInput from "@/components/PincodeInput";
 import { createClient } from "@/lib/supabase/client";
+import { generateSlotsForDay, formatTime24to12 } from "@/lib/data/bookings";
 import {
   DollarSign,
   TrendingUp,
@@ -31,6 +34,7 @@ import {
   FileCheck,
   CheckCircle2,
   AlertCircle,
+  Info,
   Upload,
   ArrowUpRight,
   User,
@@ -59,10 +63,79 @@ const documentTypes = [
 ];
 
 const docStatusStyles = {
-  pending: "text-amber-700 bg-amber-100",
-  approved: "text-emerald-700 bg-emerald-100",
-  rejected: "text-red-700 bg-red-100",
+  pending: "text-amber-800 bg-amber-50 border border-amber-200",
+  approved: "text-emerald-800 bg-emerald-50 border border-emerald-200",
+  rejected: "text-red-800 bg-red-50 border border-red-200",
 };
+
+const DAYS_OF_WEEK = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+const DEFAULT_SCHEDULE = {
+  Monday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
+  Tuesday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
+  Wednesday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
+  Thursday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
+  Friday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
+  Saturday: { enabled: false, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
+  Sunday: { enabled: false, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
+};
+
+function parseAvailabilityToSchedule(availability) {
+  if (!availability || typeof availability !== "object") return null;
+
+  if (availability.daily && typeof availability.daily === "object" && Object.keys(availability.daily).length > 0) {
+    const res = {};
+    DAYS_OF_WEEK.forEach((day) => {
+      const d = availability.daily[day];
+      if (d) {
+        res[day] = {
+          enabled: Boolean(d.enabled),
+          startTime: d.startTime || "09:00",
+          endTime: d.endTime || "18:00",
+          breakEnabled: Boolean(d.break?.enabled),
+          breakStart: d.break?.start || "13:00",
+          breakEnd: d.break?.end || "14:00",
+        };
+      } else {
+        res[day] = {
+          enabled: false,
+          startTime: "09:00",
+          endTime: "18:00",
+          breakEnabled: false,
+          breakStart: "13:00",
+          breakEnd: "14:00",
+        };
+      }
+    });
+    return res;
+  }
+
+  if (Array.isArray(availability.days) && availability.days.length > 0) {
+    const res = {};
+    DAYS_OF_WEEK.forEach((day) => {
+      const isDayOn = availability.days.some((d) => String(d).toLowerCase() === day.toLowerCase());
+      res[day] = {
+        enabled: isDayOn,
+        startTime: "09:00",
+        endTime: "18:00",
+        breakEnabled: false,
+        breakStart: "13:00",
+        breakEnd: "14:00",
+      };
+    });
+    return res;
+  }
+
+  return null;
+}
 
 export default function VendorPortalPage() {
   const { proVendorState, bookings, updateBookingStatus, requestPayout } = useMarketplace();
@@ -87,18 +160,16 @@ export default function VendorPortalPage() {
   const [earnings, setEarnings] = useState(null);
   const [payouts, setPayouts] = useState(null);
 
-  // Weekly schedule local state
-  const [scheduleState, setScheduleState] = useState({
-    Monday: true,
-    Tuesday: true,
-    Wednesday: true,
-    Thursday: true,
-    Friday: true,
-    Saturday: false,
-    Sunday: false,
-    startTime: "09:00",
-    endTime: "18:00",
-  });
+  // Weekly schedule state
+  const [scheduleState, setScheduleState] = useState(() => ({ ...DEFAULT_SCHEDULE }));
+  const [savedScheduleState, setSavedScheduleState] = useState(null); // null if unsaved draft
+  const [isScheduleSaved, setIsScheduleSaved] = useState(false);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!isScheduleSaved) return true;
+    return JSON.stringify(scheduleState) !== JSON.stringify(savedScheduleState);
+  }, [scheduleState, savedScheduleState, isScheduleSaved]);
 
   const [documents, setDocuments] = useState([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
@@ -160,7 +231,19 @@ export default function VendorPortalPage() {
     if (!user?.id) return;
     let active = true;
     getVendorProfile(user.id).then((profile) => {
-      if (active) setVendorProfile(profile);
+      if (!active || !profile) return;
+      setVendorProfile(profile);
+      const parsed = parseAvailabilityToSchedule(profile.availability);
+      if (parsed) {
+        setScheduleState(parsed);
+        setSavedScheduleState(JSON.parse(JSON.stringify(parsed)));
+        setIsScheduleSaved(true);
+      } else {
+        // Unsaved default: NOT active!
+        setScheduleState({ ...DEFAULT_SCHEDULE });
+        setSavedScheduleState(null);
+        setIsScheduleSaved(false);
+      }
     });
     return () => {
       active = false;
@@ -226,9 +309,89 @@ export default function VendorPortalPage() {
     setPayoutAmountInput(String(stats.available));
   }, [stats.available]);
 
-  const allApproved =
-    vendorProfile?.verification_status === "approved" ||
-    (documents.length > 0 && documents.every((d) => d.status === "approved"));
+  // Real-time synchronization when admin approves/rejects documents or updates verification status
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`vendor-verification-sync-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "documents",
+          filter: `professional_id=eq.${user.id}`,
+        },
+        () => {
+          listMyDocuments(user.id).then((rows) => {
+            if (rows) setDocuments(rows);
+          });
+          getVendorProfile(user.id).then((profile) => {
+            if (profile) setVendorProfile(profile);
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "professionals",
+          filter: `id=eq.${user.id}`,
+        },
+        () => {
+          getVendorProfile(user.id).then((profile) => {
+            if (profile) setVendorProfile(profile);
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  // Group by document type to find the latest document status per type
+  const latestDocsMap = new Map();
+  for (const doc of documents) {
+    if (!latestDocsMap.has(doc.type)) {
+      latestDocsMap.set(doc.type, doc);
+    }
+  }
+  const latestDocs = Array.from(latestDocsMap.values());
+
+  const hasRejectedDocs = latestDocs.some((d) => d.status === "rejected");
+  const hasPendingDocs = latestDocs.some((d) => d.status === "pending");
+  const hasApprovedDocs = latestDocs.length > 0 && latestDocs.every((d) => d.status === "approved");
+
+  // Determine overall verification status:
+  // 1. 'approved' if all latest uploaded documents are approved OR vendorProfile.verification_status is 'approved'
+  // 2. 'rejected' if any latest document is rejected OR vendorProfile.verification_status is 'rejected'
+  // 3. 'pending' if any document is pending review
+  // 4. 'unverified' if no documents uploaded yet
+  let verificationStatus = "not_submitted";
+  if (latestDocs.length > 0) {
+    // Documents are the single source of truth
+    if (hasRejectedDocs) {
+      verificationStatus = "rejected";
+    } else if (hasPendingDocs) {
+      verificationStatus = "pending";
+    } else if (hasApprovedDocs) {
+      verificationStatus = "approved";
+    }
+  } else {
+    // No documents uploaded at all — can never be approved
+    if (vendorProfile?.verification_status === "documents_requested") {
+      verificationStatus = "documents_requested";
+    } else {
+      verificationStatus = "not_submitted";
+    }
+  }
+
+  const allApproved = verificationStatus === "approved";
 
   const handlePayoutSubmit = async (e) => {
     e.preventDefault();
@@ -265,8 +428,11 @@ export default function VendorPortalPage() {
 
     setIsUploading(true);
     try {
-      const row = await uploadDocument(user.id, file, docType);
-      setDocuments((prev) => [row, ...prev]);
+      await uploadDocument(user.id, file, docType);
+      const rows = await listMyDocuments(user.id);
+      if (rows) setDocuments(rows);
+      const profile = await getVendorProfile(user.id);
+      if (profile) setVendorProfile(profile);
       showToast(`${docType} uploaded. Pending admin review.`, "success");
     } catch (error) {
       showToast(error?.message || "Upload failed. Please try again.", "error");
@@ -277,45 +443,74 @@ export default function VendorPortalPage() {
 
   const handleSaveSchedule = async () => {
     if (!requireSignIn()) return;
+    setIsSavingSchedule(true);
     try {
-      const startSplit = scheduleState.startTime.split(":");
-      const endSplit = scheduleState.endTime.split(":");
-      const startHour = parseInt(startSplit[0], 10);
-      const endHour = parseInt(endSplit[0], 10);
-      
-      const slots = [];
-      if (!isNaN(startHour) && !isNaN(endHour) && startHour < endHour) {
-        for (let i = startHour; i < endHour; i++) {
-          const ampm = i >= 12 ? "PM" : "AM";
-          const displayHour = i > 12 ? i - 12 : (i === 0 ? 12 : i);
-          slots.push(`${displayHour}:00 ${ampm}`);
+      // Validate per-day times
+      for (const day of DAYS_OF_WEEK) {
+        const d = scheduleState[day];
+        if (d.enabled) {
+          if (!d.startTime || !d.endTime) {
+            throw new Error(`Please specify both start and closing times for ${day}.`);
+          }
+          if (d.startTime >= d.endTime) {
+            throw new Error(`On ${day}, closing time (${formatTime24to12(d.endTime)}) must be after start time (${formatTime24to12(d.startTime)}).`);
+          }
+          if (d.breakEnabled) {
+            if (!d.breakStart || !d.breakEnd) {
+              throw new Error(`Please specify both break start and end times for ${day}.`);
+            }
+            if (d.breakStart >= d.breakEnd) {
+              throw new Error(`On ${day}, break end time must be after break start time.`);
+            }
+            if (d.breakStart < d.startTime || d.breakEnd > d.endTime) {
+              throw new Error(`On ${day}, break must be within working hours (${formatTime24to12(d.startTime)} - ${formatTime24to12(d.endTime)}).`);
+            }
+          }
         }
-      } else {
-        slots.push("09:00 AM", "10:00 AM", "11:00 AM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM"); // fallback
       }
 
-      const activeDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].filter(d => scheduleState[d]);
+      const daily = {};
+      const activeDays = [];
+      const allSlotsSet = new Set();
+      const hoursParts = [];
 
-      const formatTime = (timeStr) => {
-        const [h, m] = timeStr.split(":");
-        let hr = parseInt(h, 10);
-        const ampm = hr >= 12 ? "PM" : "AM";
-        hr = hr > 12 ? hr - 12 : (hr === 0 ? 12 : hr);
-        return `${hr}:${m} ${ampm}`;
-      };
-
-      const hoursDisplay = `${formatTime(scheduleState.startTime)} - ${formatTime(scheduleState.endTime)}`;
+      DAYS_OF_WEEK.forEach((day) => {
+        const d = scheduleState[day];
+        const dayConfig = {
+          enabled: Boolean(d.enabled),
+          startTime: d.startTime,
+          endTime: d.endTime,
+          break: {
+            enabled: Boolean(d.breakEnabled),
+            start: d.breakStart,
+            end: d.breakEnd,
+          },
+        };
+        daily[day] = dayConfig;
+        if (d.enabled) {
+          activeDays.push(day);
+          const slots = generateSlotsForDay(dayConfig);
+          slots.forEach((s) => allSlotsSet.add(s));
+          hoursParts.push(`${day.substring(0, 3)} ${formatTime24to12(d.startTime)} - ${formatTime24to12(d.endTime)}`);
+        }
+      });
 
       const availability = {
+        daily,
         days: activeDays,
-        hours: hoursDisplay,
-        slots: slots
+        hours: hoursParts.join(", ") || "Closed",
+        slots: Array.from(allSlotsSet),
       };
-      
+
       await updateVendorSchedule(user.id, availability);
-      showToast("Weekly operating hours saved successfully!", "success");
+      setVendorProfile((prev) => ({ ...prev, availability }));
+      setSavedScheduleState(JSON.parse(JSON.stringify(scheduleState)));
+      setIsScheduleSaved(true);
+      showToast("Operating schedule saved and published successfully!", "success");
     } catch (err) {
       showToast(err?.message || "Could not save your schedule.", "error");
+    } finally {
+      setIsSavingSchedule(false);
     }
   };
 
@@ -368,13 +563,19 @@ export default function VendorPortalPage() {
 
   const handleBasicsSave = async (e) => {
     e.preventDefault();
-    if (!requireSignIn()) return;
+    if (vendorProfile.pincode) {
+      const cleanPin = cleanPincode(vendorProfile.pincode);
+      if (!isValidPincodeFormat(cleanPin)) {
+        showToast("Please enter a valid 6-digit Indian pincode (cannot start with 0).", "error");
+        return;
+      }
+    }
     try {
       await updateVendorBasics(user.id, {
         experienceYears: Number(vendorProfile.experienceYears) || 0,
         specialty: vendorProfile.specialty,
         city: vendorProfile.city,
-        pincode: vendorProfile.pincode,
+        pincode: cleanPincode(vendorProfile.pincode),
         hourlyRate: Number(vendorProfile.hourlyRate) || 0,
       });
       showToast("Experience & service location saved.", "success");
@@ -469,13 +670,30 @@ export default function VendorPortalPage() {
                     <h1 className="font-heading text-xl sm:text-2xl font-bold text-dark-900">
                       {user?.name || vendorProfile?.name || "Professional"}
                     </h1>
-                    {allApproved ? (
+                    {verificationStatus === "approved" ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                         <Check className="w-3.5 h-3.5 stroke-[3]" /> Verified Pro
                       </span>
-                    ) : (
+                    ) : verificationStatus === "rejected" ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700 bg-red-50 px-2.5 py-0.5 rounded-full border border-red-200">
+                        <AlertCircle className="w-3.5 h-3.5" /> Verification Rejected
+                      </span>
+                    ) : verificationStatus === "pending" ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                        <AlertCircle className="w-3.5 h-3.5" /> Pending verification
+                        <Clock className="w-3.5 h-3.5" /> Pending Verification
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-dark-600 bg-dark-100 px-2.5 py-0.5 rounded-full border border-border">
+                        <AlertCircle className="w-3.5 h-3.5" /> Unverified
+                      </span>
+                    )}
+                    {!isScheduleSaved ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                        <Clock className="w-3.5 h-3.5" /> Not bookable yet
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <Calendar className="w-3.5 h-3.5" /> Bookable
                       </span>
                     )}
                   </div>
@@ -523,15 +741,44 @@ export default function VendorPortalPage() {
             </div>
           </div>
 
-          {/* PENDING VERIFICATION BANNER */}
-          {!allApproved && (
-            <div className="mb-8 flex items-start gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+          {/* DYNAMIC VERIFICATION BANNER */}
+          {verificationStatus === "approved" ? (
+            <div className="mb-8 flex items-start gap-3 p-4 rounded-2xl border border-emerald-200 bg-emerald-50 shadow-xs">
+              <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-emerald-600" />
               <div>
-                <p className="text-sm font-semibold text-amber-800">Pending verification</p>
+                <p className="text-sm font-semibold text-emerald-800">Verification Completed</p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  All of your verification documents have been reviewed and approved by the admin team. Your profile is verified and publicly active.
+                </p>
+              </div>
+            </div>
+          ) : verificationStatus === "rejected" ? (
+            <div className="mb-8 flex items-start gap-3 p-4 rounded-2xl border border-red-200 bg-red-50 shadow-xs">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
+              <div>
+                <p className="text-sm font-semibold text-red-800">Verification Needs Attention</p>
+                <p className="text-xs text-red-700 mt-0.5">
+                  One or more of your documents was rejected by the admin team. Please open the <strong>Documents &amp; Verification</strong> tab to review the feedback and re-upload valid documents.
+                </p>
+              </div>
+            </div>
+          ) : verificationStatus === "pending" ? (
+            <div className="mb-8 flex items-start gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50 shadow-xs">
+              <Clock className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Pending Verification</p>
                 <p className="text-xs text-amber-700 mt-0.5">
-                  Your profile is hidden from the public directory until an admin approves all of
-                  your verification documents. Upload them in the Documents &amp; Verification tab.
+                  Your verification documents have been uploaded and are currently being reviewed by our compliance team. Your profile will be active in the public directory once approved.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-8 flex items-start gap-3 p-4 rounded-2xl border border-blue-200 bg-blue-50 shadow-xs">
+              <FileCheck className="w-5 h-5 shrink-0 mt-0.5 text-blue-600" />
+              <div>
+                <p className="text-sm font-semibold text-blue-800">Documents Required for Verification</p>
+                <p className="text-xs text-blue-700 mt-0.5">
+                  Your profile is hidden from the public directory until an admin approves all of your verification documents. Please upload them in the <strong>Documents &amp; Verification</strong> tab.
                 </p>
               </div>
             </div>
@@ -819,88 +1066,282 @@ export default function VendorPortalPage() {
 
               {/* TAB 3: SCHEDULE */}
               {activeTab === "schedule" && (
-                <div className="space-y-6 max-w-2xl">
-                  <div>
-                    <h3 className="font-heading text-lg font-bold text-dark-900">
-                      Weekly Operating Availability
-                    </h3>
-                    <p className="text-xs text-dark-500 mt-0.5">
-                      Toggle active days and configure working hours for customer bookings.
-                    </p>
+                <div className="space-y-6 max-w-3xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-heading text-lg font-bold text-dark-900">
+                        Weekly Operating Availability & Per-Day Schedule
+                      </h3>
+                      <p className="text-xs text-dark-500 mt-0.5">
+                        Configure working hours and break periods independently for each day of the week.
+                      </p>
+                    </div>
+
+                    {!isScheduleSaved ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
+                        <Clock className="w-3.5 h-3.5" /> Not bookable yet
+                      </span>
+                    ) : hasUnsavedChanges ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200 self-start sm:self-auto">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" /> Unsaved changes
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" /> Schedule published
+                      </span>
+                    )}
                   </div>
 
-                  <div className="space-y-2.5">
-                    {[
-                      "Monday",
-                      "Tuesday",
-                      "Wednesday",
-                      "Thursday",
-                      "Friday",
-                      "Saturday",
-                      "Sunday",
-                    ].map((day) => (
-                      <div
-                        key={day}
-                        className="flex items-center justify-between p-4 rounded-xl border border-border bg-surface text-xs"
-                      >
-                        <span className="font-bold text-dark-900">{day}</span>
-                        <label className="flex items-center gap-2.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={scheduleState[day]}
-                            onChange={(e) =>
-                              setScheduleState({
-                                ...scheduleState,
-                                [day]: e.target.checked,
-                              })
-                            }
-                            className="rounded text-primary-500 focus:ring-primary-500 h-4 w-4"
-                          />
-                          <span className="text-dark-700 font-medium">
-                            {scheduleState[day] ? "Available" : "Closed"}
+                  {/* NOT BOOKABLE YET BANNER */}
+                  {!isScheduleSaved && (
+                    <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/80 text-amber-900 flex items-start gap-3 shadow-xs">
+                      <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[11px] uppercase tracking-wider bg-amber-200 text-amber-800 px-2 py-0.5 rounded">
+                            Not Bookable Yet
                           </span>
-                        </label>
+                          <span className="text-xs font-bold text-amber-950">
+                            Unsaved Schedule Draft (Inactive)
+                          </span>
+                        </div>
+                        <p className="text-xs text-amber-800 mt-1">
+                          Your operating schedule is currently not published. Customers cannot book slots until you customize your hours below and click <strong>Save Operating Schedule</strong>.
+                        </p>
                       </div>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div>
-                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
-                        Daily Start Time
-                      </label>
-                      <input
-                        type="time"
-                        value={scheduleState.startTime}
-                        onChange={(e) =>
-                          setScheduleState({ ...scheduleState, startTime: e.target.value })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs"
-                      />
                     </div>
+                  )}
+
+                  {/* UNSAVED CHANGES BANNER */}
+                  {hasUnsavedChanges && isScheduleSaved && (
+                    <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/80 text-blue-900 flex items-center justify-between text-xs shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+                        <span className="font-bold">You have unsaved schedule changes</span>
+                        <span className="text-blue-700 hidden sm:inline">— Public booking form will only show previously saved hours until you click Save.</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-blue-800 bg-blue-100 px-2.5 py-0.5 rounded-full">
+                        Draft
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 2-HOUR CLOSING RULE NOTE */}
+                  <div className="p-3.5 rounded-xl border border-border bg-dark-50 text-dark-700 flex items-start gap-2.5 text-xs">
+                    <Info className="w-4 h-4 text-primary-600 mt-0.5 shrink-0" />
                     <div>
-                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
-                        Daily End Time
-                      </label>
-                      <input
-                        type="time"
-                        value={scheduleState.endTime}
-                        onChange={(e) =>
-                          setScheduleState({ ...scheduleState, endTime: e.target.value })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs"
-                      />
+                      <span className="font-bold text-dark-900">Last bookable slot is 2 hours before closing: </span>
+                      <span>To allow sufficient appointment duration and service completion, the final customer slot of each day ends strictly 2 hours prior to your closing time.</span>
                     </div>
                   </div>
 
-                  <Button
-                    variant="primary"
-                    size="md"
-                    onClick={handleSaveSchedule}
-                    className="font-semibold shadow-button text-xs py-3 px-6"
-                  >
-                    Save Operating Schedule
-                  </Button>
+                  {/* PER-DAY SCHEDULE LIST */}
+                  <div className="space-y-3">
+                    {DAYS_OF_WEEK.map((day) => {
+                      const dayState = scheduleState[day] || DEFAULT_SCHEDULE[day];
+                      const isDayOpen = Boolean(dayState.enabled);
+
+                      return (
+                        <div
+                          key={day}
+                          className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+                            isDayOpen
+                              ? "bg-surface border-border shadow-xs"
+                              : "bg-dark-50/60 border-dashed border-border/80 opacity-75"
+                          }`}
+                        >
+                          {/* Day Header Row */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="font-heading text-sm font-bold text-dark-900">{day}</span>
+                              <span
+                                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                                  isDayOpen
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    : "bg-dark-100 text-dark-500 border border-dark-200"
+                                }`}
+                              >
+                                {isDayOpen ? "Open / Available" : "Closed / Off"}
+                              </span>
+                            </div>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isDayOpen}
+                                onChange={(e) =>
+                                  setScheduleState((prev) => ({
+                                    ...prev,
+                                    [day]: { ...prev[day], enabled: e.target.checked },
+                                  }))
+                                }
+                                className="rounded text-primary-500 focus:ring-primary-500 h-4 w-4"
+                              />
+                              <span className="text-xs text-dark-700 font-medium">
+                                {isDayOpen ? "Available" : "Closed"}
+                              </span>
+                            </label>
+                          </div>
+
+                          {/* When Day is Open */}
+                          {isDayOpen ? (
+                            <div className="mt-4 pt-4 border-t border-border/60 space-y-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-xs font-semibold text-dark-700 mb-1">
+                                    Start Time
+                                  </label>
+                                  <input
+                                    type="time"
+                                    value={dayState.startTime || "09:00"}
+                                    onChange={(e) =>
+                                      setScheduleState((prev) => ({
+                                        ...prev,
+                                        [day]: { ...prev[day], startTime: e.target.value },
+                                      }))
+                                    }
+                                    className="w-full px-3 py-2 bg-dark-50 border border-border rounded-xl text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-dark-700 mb-1">
+                                    Closing Time
+                                  </label>
+                                  <input
+                                    type="time"
+                                    value={dayState.endTime || "18:00"}
+                                    onChange={(e) =>
+                                      setScheduleState((prev) => ({
+                                        ...prev,
+                                        [day]: { ...prev[day], endTime: e.target.value },
+                                      }))
+                                    }
+                                    className="w-full px-3 py-2 bg-dark-50 border border-border rounded-xl text-xs"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Break toggle & inputs */}
+                              <div className="pt-2 border-t border-dashed border-border/60">
+                                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-dark-700 font-medium">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(dayState.breakEnabled)}
+                                    onChange={(e) =>
+                                      setScheduleState((prev) => ({
+                                        ...prev,
+                                        [day]: { ...prev[day], breakEnabled: e.target.checked },
+                                      }))
+                                    }
+                                    className="rounded text-primary-500 focus:ring-primary-500 h-3.5 w-3.5"
+                                  />
+                                  <span>Optional break (e.g. lunch hour)</span>
+                                </label>
+                                {dayState.breakEnabled && (
+                                  <div className="grid grid-cols-2 gap-3 mt-2.5 pl-5">
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-dark-600 mb-1">
+                                        Break Start
+                                      </label>
+                                      <input
+                                        type="time"
+                                        value={dayState.breakStart || "13:00"}
+                                        onChange={(e) =>
+                                          setScheduleState((prev) => ({
+                                            ...prev,
+                                            [day]: { ...prev[day], breakStart: e.target.value },
+                                          }))
+                                        }
+                                        className="w-full px-2.5 py-1.5 bg-dark-50 border border-border rounded-lg text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-dark-600 mb-1">
+                                        Break End
+                                      </label>
+                                      <input
+                                        type="time"
+                                        value={dayState.breakEnd || "14:00"}
+                                        onChange={(e) =>
+                                          setScheduleState((prev) => ({
+                                            ...prev,
+                                            [day]: { ...prev[day], breakEnd: e.target.value },
+                                          }))
+                                        }
+                                        className="w-full px-2.5 py-1.5 bg-dark-50 border border-border rounded-lg text-xs"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Live Slots Calculation Preview */}
+                              {(() => {
+                                const slots = generateSlotsForDay({
+                                  enabled: true,
+                                  startTime: dayState.startTime,
+                                  endTime: dayState.endTime,
+                                  break: {
+                                    enabled: dayState.breakEnabled,
+                                    start: dayState.breakStart,
+                                    end: dayState.breakEnd,
+                                  },
+                                });
+                                const lastSlot = slots[slots.length - 1];
+                                return (
+                                  <div className="p-2.5 bg-primary-50/50 rounded-xl border border-primary-100 text-[11px] text-dark-600 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                                    <div>
+                                      <strong className="text-primary-800 font-semibold">
+                                        {slots.length} bookable slot{slots.length === 1 ? "" : "s"}:
+                                      </strong>{" "}
+                                      <span>
+                                        {slots.length
+                                          ? slots.slice(0, 5).join(", ") +
+                                            (slots.length > 5 ? ` +${slots.length - 5} more` : "")
+                                          : "None configured"}
+                                      </span>
+                                    </div>
+                                    {lastSlot && (
+                                      <span className="text-primary-700 font-semibold shrink-0">
+                                        Last slot: {lastSlot}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-xs text-dark-400 italic">
+                              Closed on this day. No slots will be offered to customers.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* BOTTOM SAVE CONTROLS */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-4 border-t border-border">
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onClick={handleSaveSchedule}
+                      disabled={isSavingSchedule}
+                      className="font-semibold shadow-button text-xs py-3 px-6"
+                    >
+                      {isSavingSchedule ? "Saving Schedule..." : "Save Operating Schedule"}
+                    </Button>
+                    {hasUnsavedChanges ? (
+                      <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        Unsaved changes (click Save Operating Schedule to publish)
+                      </span>
+                    ) : (
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                        Published & in sync with public booking form
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -962,37 +1403,49 @@ export default function VendorPortalPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-dark-700 mb-1.5">
-                          Service City
-                        </label>
-                        <input
-                          type="text"
-                          value={vendorProfile.city}
-                          onChange={(e) =>
-                            setVendorProfile({ ...vendorProfile, city: e.target.value })
-                          }
-                          placeholder="Mumbai"
-                          className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                        <PincodeInput
+                          value={vendorProfile.pincode || ""}
+                          onChange={(val) => {
+                            setVendorProfile((prev) => ({
+                              ...prev,
+                              pincode: val,
+                              city: val.length < 6 ? "" : prev.city,
+                              state: val.length < 6 ? "" : prev.state,
+                            }));
+                          }}
+                          onCityDetected={(detectedCity, res) => {
+                            setVendorProfile((prev) => ({
+                              ...prev,
+                              city: detectedCity,
+                              state: res?.state || prev.state || "",
+                            }));
+                          }}
+                          enforceLocationMatch={false}
+                          label="Service Pincode"
+                          placeholder="e.g. 501218"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-dark-700 mb-1.5">
-                          Service Pincode
+                          Service City & State
                         </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={6}
-                          value={vendorProfile.pincode}
-                          onChange={(e) =>
-                            setVendorProfile({
-                              ...vendorProfile,
-                              pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
-                            })
-                          }
-                          placeholder="400001"
-                          className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
-                        />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            readOnly
+                            value={
+                              vendorProfile.city
+                                ? `${vendorProfile.city}${vendorProfile.state ? `, ${vendorProfile.state}` : ""}`
+                                : ""
+                            }
+                            placeholder="Auto-filled from Pincode"
+                            className="w-full pl-3 pr-8 py-2.5 bg-dark-100 border border-border rounded-xl text-xs text-dark-900 cursor-not-allowed font-medium"
+                          />
+                          <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-dark-400" />
+                        </div>
+                        <p className="text-[10px] text-dark-400 mt-1">
+                          Locked to your verified service pincode.
+                        </p>
                       </div>
                     </div>
                     <Button
@@ -1287,13 +1740,13 @@ export default function VendorPortalPage() {
                       <div className="h-4 w-4 border-2 border-primary-400 border-t-transparent rounded-full animate-spin mr-2" />
                       Loading your documents…
                     </div>
-                  ) : documents.length === 0 ? (
+                  ) : latestDocs.length === 0 ? (
                     <div className="p-6 rounded-2xl border border-dashed border-border bg-dark-50 text-center text-xs text-dark-500">
                       No documents uploaded yet.
                     </div>
                   ) : (
                     <div className="space-y-3.5">
-                      {documents.map((doc) => (
+                      {latestDocs.map((doc) => (
                         <div
                           key={doc.id}
                           className="flex items-center justify-between p-4 bg-dark-50 rounded-2xl border border-border"
@@ -1315,13 +1768,30 @@ export default function VendorPortalPage() {
                             </div>
                           </div>
 
-                          <span
-                            className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${
-                              docStatusStyles[doc.status] || "text-dark-600 bg-dark-50"
-                            }`}
-                          >
-                            {doc.status}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full capitalize ${
+                                docStatusStyles[doc.status] || "text-dark-600 bg-dark-50"
+                              }`}
+                            >
+                              {doc.status === "approved" && <Check className="w-3 h-3 stroke-[3]" />}
+                              {doc.status === "rejected" && <AlertCircle className="w-3 h-3" />}
+                              {doc.status === "pending" && <Clock className="w-3 h-3" />}
+                              {doc.status}
+                            </span>
+                            {doc.status === "rejected" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDocType(doc.type);
+                                  showToast(`Selected "${doc.type}" for re-upload below`, "info");
+                                }}
+                                className="text-xs text-primary-600 hover:text-primary-700 font-semibold underline px-2 py-1"
+                              >
+                                Re-upload
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

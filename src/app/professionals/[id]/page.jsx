@@ -31,8 +31,11 @@ import {
   Shield,
   Zap,
   Flag,
+  AlertCircle,
+  XCircle,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
+import { getNextAvailableSlot, formatTime24to12 } from "@/lib/data/bookings";
 
 export default function ProfessionalDetailPage({ params }) {
   const unwrappedParams = use(params);
@@ -59,6 +62,52 @@ export default function ProfessionalDetailPage({ params }) {
     professionals.find((p) => p.id === proId) ||
     professionals.find((p) => p.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(proId));
   const isOwnProfile = !!(user && pro && user.id === pro.id);
+
+  const [liveAvailability, setLiveAvailability] = useState(null);
+  // undefined = not yet computed, null = no slots, string = "Mon 6 Oct • 09:00 AM"
+  const [nextAvailableLabel, setNextAvailableLabel] = useState(undefined);
+
+  useEffect(() => {
+    if (!pro?.id) {
+      setLiveAvailability(null);
+      return;
+    }
+    let active = true;
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      const supabase = createClient();
+      supabase
+        .from("professionals")
+        .select("availability")
+        .eq("id", pro.id)
+        .single()
+        .then(({ data }) => {
+          const avail = data?.availability || pro?.availability || null;
+          setLiveAvailability(avail);
+
+          // Immediately compute next available slot using the freshly loaded availability
+          if (!avail || (!avail.daily && (!Array.isArray(avail.slots) || avail.slots.length === 0))) {
+            setNextAvailableLabel(null);
+            return;
+          }
+          getNextAvailableSlot(pro.id, avail, supabase)
+            .then((label) => {
+              if (active) setNextAvailableLabel(label ?? null);
+            })
+            .catch(() => {
+              if (active) setNextAvailableLabel(null);
+            });
+        })
+        .catch(() => {
+          if (active) {
+            setLiveAvailability(null);
+            setNextAvailableLabel(null);
+          }
+        });
+    });
+    return () => {
+      active = false;
+    };
+  }, [pro?.id]);
 
   useEffect(() => {
     let active = true;
@@ -189,12 +238,36 @@ export default function ProfessionalDetailPage({ params }) {
                         {pro.name?.charAt(0) || "P"}
                       </div>
                     )}
-                    {pro.verified && (
+                    {pro.verificationStatus === "approved" && (
                       <div
                         className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-surface shadow-md"
                         title="Identity & License Verified"
                       >
                         <Check className="w-4 h-4 stroke-[3]" />
+                      </div>
+                    )}
+                    {(pro.verificationStatus === "pending" || pro.verificationStatus === "documents_requested") && (
+                      <div
+                        className="absolute -bottom-1 -right-1 bg-amber-400 text-white p-1.5 rounded-full border-2 border-surface shadow-md"
+                        title="Verification Pending"
+                      >
+                        <Clock className="w-4 h-4 stroke-[3]" />
+                      </div>
+                    )}
+                    {pro.verificationStatus === "rejected" && (
+                      <div
+                        className="absolute -bottom-1 -right-1 bg-red-500 text-white p-1.5 rounded-full border-2 border-surface shadow-md"
+                        title="Verification Not Approved"
+                      >
+                        <XCircle className="w-4 h-4 stroke-[2]" />
+                      </div>
+                    )}
+                    {(!pro.verificationStatus || pro.verificationStatus === "not_submitted") && (
+                      <div
+                        className="absolute -bottom-1 -right-1 bg-dark-300 text-white p-1.5 rounded-full border-2 border-surface shadow-md"
+                        title="Not Verified"
+                      >
+                        <AlertCircle className="w-4 h-4 stroke-[2]" />
                       </div>
                     )}
                   </div>
@@ -204,10 +277,28 @@ export default function ProfessionalDetailPage({ params }) {
                       <h1 className="font-heading text-2xl sm:text-3xl font-bold text-dark-900 sm:text-white">
                         {pro.name}
                       </h1>
-                      {pro.verified && (
+                      {pro.verificationStatus === "approved" && (
                         <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
                           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                           Verified Expert
+                        </span>
+                      )}
+                      {(pro.verificationStatus === "pending" || pro.verificationStatus === "documents_requested") && (
+                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
+                          <Clock className="w-3.5 h-3.5 text-amber-600" />
+                          Pending Review
+                        </span>
+                      )}
+                      {pro.verificationStatus === "rejected" && (
+                        <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-red-200">
+                          <XCircle className="w-3.5 h-3.5 text-red-600" />
+                          Not Approved
+                        </span>
+                      )}
+                      {(!pro.verificationStatus || pro.verificationStatus === "not_submitted") && (
+                        <span className="inline-flex items-center gap-1 bg-dark-100 text-dark-500 text-xs font-bold px-2.5 py-0.5 rounded-full border border-dark-200">
+                          <AlertCircle className="w-3.5 h-3.5 text-dark-400" />
+                          Not Verified
                         </span>
                       )}
                     </div>
@@ -217,19 +308,29 @@ export default function ProfessionalDetailPage({ params }) {
                     </p>
 
                     <div className="flex flex-wrap items-center gap-4 text-xs text-dark-500 mt-2">
-                      <span className="flex items-center gap-1 text-dark-700 font-medium">
-                        <MapPin className="h-3.5 w-3.5 text-primary-500" />
-                        {pro.location}
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5 text-dark-400" />
-                        {pro.responseTime} response time
-                      </span>
-                      <span>•</span>
-                      <span className="text-dark-700 font-medium bg-dark-50 px-2 py-0.5 rounded-md">
-                        {pro.experienceYears}+ Years Experience
-                      </span>
+                      {pro.location && (
+                        <span className="flex items-center gap-1 text-dark-700 font-medium">
+                          <MapPin className="h-3.5 w-3.5 text-primary-500" />
+                          {pro.location}
+                        </span>
+                      )}
+                      {pro.responseTime ? (
+                        <>
+                          {pro.location && <span>•</span>}
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5 text-dark-400" />
+                            {pro.responseTime} response time
+                          </span>
+                        </>
+                      ) : null}
+                      {pro.experienceYears > 0 && (
+                        <>
+                          {(pro.location || pro.responseTime) && <span>•</span>}
+                          <span className="text-dark-700 font-medium bg-dark-50 px-2 py-0.5 rounded-md">
+                            {pro.experienceYears}+ Years Experience
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -374,26 +475,50 @@ export default function ProfessionalDetailPage({ params }) {
                     <h2 className="font-heading text-lg font-bold text-dark-900 mb-2">
                       About {pro.name}
                     </h2>
-                    <p className="text-sm text-dark-700 leading-relaxed">
-                      {pro.about || pro.bio}
-                    </p>
+                    {(pro.about || pro.bio) ? (
+                      <p className="text-sm text-dark-700 leading-relaxed">
+                        {pro.about || pro.bio}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-dark-500 italic">
+                        This professional hasn't added a bio yet.
+                      </p>
+                    )}
                   </div>
 
-                  {/* Highlights Grid */}
+                  {/* Highlights Grid — only show cards with real data */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <div className="p-4 bg-dark-50 rounded-xl border border-border">
-                      <span className="block text-xs text-dark-400 font-medium">Experience</span>
-                      <span className="block text-base font-bold text-dark-900 mt-1">
-                        {pro.experienceYears}+ Years Active
-                      </span>
-                    </div>
+                    {pro.experienceYears > 0 && (
+                      <div className="p-4 bg-dark-50 rounded-xl border border-border">
+                        <span className="block text-xs text-dark-400 font-medium">Experience</span>
+                        <span className="block text-base font-bold text-dark-900 mt-1">
+                          {pro.experienceYears}+ Years Active
+                        </span>
+                      </div>
+                    )}
                     <div className="p-4 bg-dark-50 rounded-xl border border-border">
                       <span className="block text-xs text-dark-400 font-medium">Verification</span>
-                      <span className="block text-base font-bold text-emerald-700 mt-1">
-                        100% ID & License
+                      <span className={`block text-sm font-bold mt-1 ${
+                        pro.verificationStatus === "approved"
+                          ? "text-emerald-700"
+                          : pro.verificationStatus === "rejected"
+                          ? "text-red-600"
+                          : pro.verificationStatus === "pending" || pro.verificationStatus === "documents_requested"
+                          ? "text-amber-600"
+                          : "text-dark-500"
+                      }`}>
+                        {pro.verificationStatus === "approved"
+                          ? "ID & Docs Verified"
+                          : pro.verificationStatus === "rejected"
+                          ? "Verification Rejected"
+                          : pro.verificationStatus === "documents_requested"
+                          ? "Docs Requested"
+                          : pro.verificationStatus === "pending"
+                          ? "Pending Review"
+                          : "Not Submitted"}
                       </span>
                     </div>
-                    <div className="p-4 bg-dark-50 rounded-xl border border-border col-span-2 sm:col-span-1">
+                    <div className={`p-4 bg-dark-50 rounded-xl border border-border ${pro.experienceYears > 0 ? "col-span-2 sm:col-span-1" : "col-span-2 sm:col-span-1"}`}>
                       <span className="block text-xs text-dark-400 font-medium">Satisfaction</span>
                       <span className="block text-base font-bold text-dark-900 mt-1">
                         {pro.reviewCount > 0 ? `${pro.rating} / 5.0 Star Rating` : "No ratings yet"}
@@ -421,38 +546,57 @@ export default function ProfessionalDetailPage({ params }) {
                 <div className="bg-surface rounded-2xl border border-border p-6 shadow-card space-y-5">
                   <div>
                     <h2 className="font-heading text-lg font-bold text-dark-900 mb-1">
-                      Verified Credentials, Degrees & Licenses
+                      {pro.verified && pro.verificationStatus === "approved"
+                        ? "Verified Credentials, Degrees & Licenses"
+                        : "Credentials, Degrees & Licenses"}
                     </h2>
                     <p className="text-xs text-dark-500">
-                      All documents independently reviewed and verified by our compliance team.
+                      {pro.verified && pro.verificationStatus === "approved"
+                        ? "Documents reviewed and approved by compliance team."
+                        : "Credentials declared by the professional."}
                     </p>
                   </div>
 
                   <div className="space-y-3">
-                    {pro.credentials?.map((cred, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-4 bg-dark-50 rounded-xl border border-border"
-                      >
-                        <div className="flex items-center gap-3.5">
-                          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                            <FileCheck className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <h4 className="text-xs sm:text-sm font-bold text-dark-900">
-                              {cred.title}
-                            </h4>
-                            <p className="text-xs text-dark-500 mt-0.5">
-                              Issued by {cred.issuer} • {cred.year}
-                            </p>
-                          </div>
-                        </div>
-
-                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full shrink-0">
-                          Verified
-                        </span>
+                    {(!pro.credentials || pro.credentials.length === 0) ? (
+                      <div className="p-8 text-center bg-dark-50 rounded-2xl border border-dashed border-border">
+                        <p className="text-sm font-semibold text-dark-900">No credentials listed yet</p>
+                        <p className="text-xs text-dark-500 mt-1">
+                          This professional hasn't uploaded credential documents yet.
+                        </p>
                       </div>
-                    ))}
+                    ) : (
+                      pro.credentials.map((cred, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-4 bg-dark-50 rounded-xl border border-border"
+                        >
+                          <div className="flex items-center gap-3.5">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                              <FileCheck className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs sm:text-sm font-bold text-dark-900">
+                                {cred.title}
+                              </h4>
+                              <p className="text-xs text-dark-500 mt-0.5">
+                                {cred.issuer ? `Issued by ${cred.issuer}` : ""}
+                                {cred.issuer && cred.year ? " • " : ""}
+                                {cred.year || ""}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className={`text-xs font-semibold px-3 py-1 rounded-full shrink-0 ${
+                            pro.verified
+                              ? "text-emerald-700 bg-emerald-100"
+                              : "text-amber-700 bg-amber-50"
+                          }`}>
+                            {pro.verified ? "Verified" : "Under Review"}
+                          </span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
@@ -591,40 +735,89 @@ export default function ProfessionalDetailPage({ params }) {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {[
-                      "Monday",
-                      "Tuesday",
-                      "Wednesday",
-                      "Thursday",
-                      "Friday",
-                      "Saturday",
-                      "Sunday",
-                    ].map((day) => {
-                      const isAvailable = pro.availability?.days?.includes(day);
+                  {(() => {
+                    const avail = liveAvailability || pro.availability;
+                    const hasDaily = avail?.daily && typeof avail.daily === "object";
+                    const hasConfiguredDays = Array.isArray(avail?.days) && avail.days.length > 0;
+                    const hasHours = !!avail?.hours;
+
+                    if (!hasDaily && !hasConfiguredDays && !hasHours && (!avail?.slots || avail.slots.length === 0)) {
                       return (
-                        <div
-                          key={day}
-                          className={`flex items-center justify-between p-3.5 rounded-xl border text-xs ${
-                            isAvailable
-                              ? "bg-surface border-border text-dark-900 font-medium"
-                              : "bg-dark-50 border-dashed border-border text-dark-400"
-                          }`}
-                        >
-                          <span className="font-bold">{day}</span>
-                          <span
-                            className={
-                              isAvailable
-                                ? "text-primary-600 font-semibold"
-                                : "text-dark-400 italic"
-                            }
-                          >
-                            {isAvailable ? pro.availability.hours : "Closed"}
-                          </span>
+                        <div className="p-8 text-center bg-dark-50 rounded-2xl border border-dashed border-border">
+                          <p className="text-sm font-semibold text-dark-900">No schedule set yet</p>
+                          <p className="text-xs text-dark-500 mt-1">
+                            This professional hasn't configured their weekly operating hours yet.
+                          </p>
                         </div>
                       );
-                    })}
-                  </div>
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {[
+                            "Monday",
+                            "Tuesday",
+                            "Wednesday",
+                            "Thursday",
+                            "Friday",
+                            "Saturday",
+                            "Sunday",
+                          ].map((day) => {
+                            let isAvailable = false;
+                            let hoursText = "";
+                            let breakText = "";
+
+                            if (hasDaily && avail.daily[day]) {
+                              const d = avail.daily[day];
+                              isAvailable = Boolean(d.enabled);
+                              if (isAvailable) {
+                                hoursText = `${formatTime24to12(d.startTime)} - ${formatTime24to12(d.endTime)}`;
+                                if (d.break?.enabled && d.break.start && d.break.end) {
+                                  breakText = `(Break: ${formatTime24to12(d.break.start)} - ${formatTime24to12(d.break.end)})`;
+                                }
+                              }
+                            } else {
+                              isAvailable = (avail?.days || []).some(
+                                (d) => String(d).toLowerCase() === day.toLowerCase()
+                              );
+                              hoursText = avail?.hours || "Open";
+                            }
+
+                            return (
+                              <div
+                                key={day}
+                                className={`flex items-center justify-between p-3.5 rounded-xl border text-xs ${
+                                  isAvailable
+                                    ? "bg-surface border-border text-dark-900 font-medium"
+                                    : "bg-dark-50/70 border-dashed border-border text-dark-400 opacity-75"
+                                }`}
+                              >
+                                <div>
+                                  <span className="font-bold block">{day}</span>
+                                  {breakText && (
+                                    <span className="text-[10px] text-dark-400 block mt-0.5">{breakText}</span>
+                                  )}
+                                </div>
+                                <span
+                                  className={
+                                    isAvailable
+                                      ? "text-primary-600 font-semibold"
+                                      : "text-red-500 font-semibold bg-red-50 px-2 py-0.5 rounded border border-red-100"
+                                  }
+                                >
+                                  {isAvailable ? hoursText : "Closed"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="p-3 bg-dark-50 rounded-xl border border-border text-xs text-dark-500">
+                          ℹ️ Note: Last bookable slot is 2 hours before closing to ensure sufficient appointment duration.
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -645,14 +838,30 @@ export default function ProfessionalDetailPage({ params }) {
                 </div>
 
                 <div className="p-3.5 bg-dark-50 rounded-xl space-y-2 text-xs border border-border">
-                  <div className="flex items-center justify-between">
-                    <span className="text-dark-600">Response Time:</span>
-                    <span className="font-bold text-dark-900">{pro.responseTime}</span>
-                  </div>
+                  {/* Response Time — only shown when real data exists */}
+                  {pro.responseTime ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-dark-600">Response Time:</span>
+                      <span className="font-bold text-dark-900">{pro.responseTime}</span>
+                    </div>
+                  ) : null}
+
+                  {/* Next Available — computed from real weekly hours + existing bookings */}
                   <div className="flex items-center justify-between">
                     <span className="text-dark-600">Next Available:</span>
-                    <span className="font-bold text-emerald-700">Today • 02:00 PM</span>
+                    {nextAvailableLabel === undefined ? (
+                      // Still computing
+                      <span className="font-medium text-dark-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3 animate-pulse" />
+                        Checking…
+                      </span>
+                    ) : nextAvailableLabel ? (
+                      <span className="font-bold text-emerald-700">{nextAvailableLabel}</span>
+                    ) : (
+                      <span className="font-semibold text-dark-400">No slots yet</span>
+                    )}
                   </div>
+
                   <div className="flex items-center justify-between">
                     <span className="text-dark-600">Escrow Protected:</span>
                     <span className="font-bold text-emerald-700">100% Guaranteed</span>

@@ -128,35 +128,252 @@ export async function listTakenSlots(professionalId, date, client) {
   }
 }
 
-// A professional only offers slots on their configured working days. Empty list = every day.
-function isWorkingDay(date, days) {
-  if (!Array.isArray(days) || days.length === 0) return true;
-  const weekday = new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long" });
-  return days.some((d) => String(d).toLowerCase() === weekday.toLowerCase());
+// Parse "HH:mm" time string to integer minutes from midnight.
+export function parseTimeMinutes(timeStr) {
+  if (!timeStr) return null;
+  const parts = String(timeStr).split(":");
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1] || "0", 10);
+  if (isNaN(h)) return null;
+  return h * 60 + (isNaN(m) ? 0 : m);
 }
 
-// Slots the professional offers on `date` (their working days only), minus the ones already booked.
+// Format "HH:mm" 24-hour time to "hh:mm AM/PM"
+export function formatTime24to12(timeStr) {
+  if (!timeStr) return "";
+  const parts = String(timeStr).split(":");
+  let h = parseInt(parts[0], 10);
+  const m = parts[1] ? parts[1].padStart(2, "0") : "00";
+  if (isNaN(h)) return "";
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+  return `${String(h).padStart(2, "0")}:${m} ${ampm}`;
+}
+
+// Convert decimal hour e.g. 9.5 to "09:30 AM"
+export function formatHourToSlot(hourDecimal) {
+  let h = Math.floor(hourDecimal);
+  const mins = Math.round((hourDecimal - h) * 60);
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+  const hPadded = String(h).padStart(2, "0");
+  const mPadded = String(mins).padStart(2, "0");
+  return `${hPadded}:${mPadded} ${ampm}`;
+}
+
+/**
+ * Generate slots for a day given its configuration.
+ * Rules:
+ * - Starts at startTime (default "09:00")
+ * - Last bookable slot is strictly 2 hours before closing (endTime)
+ * - Skips slots falling within break window (if break is enabled)
+ */
+export function generateSlotsForDay(dayConfig) {
+  if (!dayConfig || !dayConfig.enabled) return [];
+  const startMins = parseTimeMinutes(dayConfig.startTime || "09:00");
+  const endMins = parseTimeMinutes(dayConfig.endTime || "18:00");
+  if (startMins === null || endMins === null || startMins >= endMins) return [];
+
+  // Cutoff rule: Last bookable slot is 2 hours (120 mins) before closing
+  const lastSlotMins = endMins - 120;
+  if (startMins > lastSlotMins) return [];
+
+  const breakActive = Boolean(dayConfig.break?.enabled && dayConfig.break?.start && dayConfig.break?.end);
+  const breakStart = breakActive ? parseTimeMinutes(dayConfig.break.start) : null;
+  const breakEnd = breakActive ? parseTimeMinutes(dayConfig.break.end) : null;
+
+  const slots = [];
+  // 60-minute step
+  for (let m = startMins; m <= lastSlotMins; m += 60) {
+    if (breakActive && breakStart !== null && breakEnd !== null) {
+      if (m >= breakStart && m < breakEnd) {
+        continue;
+      }
+    }
+    slots.push(formatHourToSlot(m / 60));
+  }
+  return slots;
+}
+
+// Check if a date is a working day based on availability object or legacy days array.
+export function isWorkingDay(date, availabilityOrDays) {
+  if (!availabilityOrDays) return false;
+  const weekday = new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long" });
+
+  if (Array.isArray(availabilityOrDays)) {
+    if (availabilityOrDays.length === 0) return true;
+    return availabilityOrDays.some((d) => String(d).toLowerCase() === weekday.toLowerCase());
+  }
+
+  if (typeof availabilityOrDays === "object") {
+    if (availabilityOrDays.daily && typeof availabilityOrDays.daily === "object") {
+      return Boolean(availabilityOrDays.daily[weekday]?.enabled);
+    }
+    if (Array.isArray(availabilityOrDays.days)) {
+      if (availabilityOrDays.days.length === 0) return true;
+      return availabilityOrDays.days.some((d) => String(d).toLowerCase() === weekday.toLowerCase());
+    }
+  }
+
+  return false;
+}
+
+// Slots the professional offers on `date`, minus already booked slots.
 export async function getAvailableSlots(professionalId, date, availability, client) {
-  const fallback = normalizeSlots(availability);
   try {
     const supabase = client || createClient();
-    const { data, error } = await supabase
-      .from("professionals")
-      .select("availability")
-      .eq("id", professionalId)
-      .single();
-    if (error) throw error;
-    const avail = data?.availability || availability || {};
-    const base = normalizeSlots(avail);
-    const slots = base.length ? base : fallback;
-    if (!isWorkingDay(date, avail.days)) return [];
+    let avail = availability;
+    if (professionalId) {
+      const { data, error } = await supabase
+        .from("professionals")
+        .select("availability")
+        .eq("id", professionalId)
+        .single();
+      if (!error && data?.availability) {
+        avail = data.availability;
+      }
+    }
+
+    if (!avail || typeof avail !== "object") {
+      return [];
+    }
+
+    const weekday = new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long" });
+
+    let baseSlots = [];
+    if (avail.daily && typeof avail.daily === "object") {
+      const dayConfig = avail.daily[weekday];
+      if (!dayConfig || !dayConfig.enabled) {
+        return [];
+      }
+      baseSlots = generateSlotsForDay(dayConfig);
+    } else if (Array.isArray(avail.days) && avail.days.length > 0) {
+      const isDayActive = avail.days.some((d) => String(d).toLowerCase() === weekday.toLowerCase());
+      if (!isDayActive) return [];
+      const closingHour = parseClosingHour(avail.hours);
+      const rawSlots = normalizeSlots(avail);
+      baseSlots = rawSlots.filter((s) => {
+        const h = parseSlotHour(s);
+        return h !== null && h <= closingHour - 2;
+      });
+    } else if (Array.isArray(avail.slots) && avail.slots.length > 0) {
+      const closingHour = parseClosingHour(avail.hours);
+      baseSlots = avail.slots.filter((s) => {
+        const h = parseSlotHour(s);
+        return h !== null && h <= closingHour - 2;
+      });
+    } else {
+      return [];
+    }
+
+    if (!baseSlots.length) return [];
+
     const taken = new Set(await listTakenSlots(professionalId, date, supabase));
-    return slots.filter((s) => !taken.has(s));
+    return baseSlots.filter((s) => !taken.has(s));
   } catch {
-    // ponytail: professionals read failed (schema unapplied) -> use the caller's availability, still respect working days.
-    if (!isWorkingDay(date, availability?.days)) return [];
-    return fallback;
+    return [];
   }
+}
+
+/**
+ * Parse a slot string like "09:00 AM" or "2:30 PM" into a decimal hour value.
+ * Returns null when the string can't be parsed.
+ */
+function parseSlotHour(slot) {
+  const m = String(slot).match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const mins = parseInt(m[2], 10);
+  const ampm = m[3].toUpperCase();
+  if (ampm === "PM" && h !== 12) h += 12;
+  if (ampm === "AM" && h === 12) h = 0;
+  return h + mins / 60;
+}
+
+/**
+ * Parse the closing hour from an hours string like "09:00 AM - 06:00 PM".
+ * Returns the decimal hour value, defaulting to 18 (6 PM).
+ */
+function parseClosingHour(hoursStr) {
+  if (!hoursStr) return 18;
+  const m = String(hoursStr).match(/[-–]\s*(\d+)[:.]?(\d*)\s*(AM|PM)?/i);
+  if (!m) return 18;
+  let h = parseInt(m[1], 10);
+  const mins = m[2] ? parseInt(m[2], 10) : 0;
+  const ampm = m[3] ? m[3].toUpperCase() : null;
+  if (ampm === "PM" && h !== 12) h += 12;
+  if (ampm === "AM" && h === 12) h = 0;
+  return h + mins / 60;
+}
+
+/**
+ * Compute the first genuinely open appointment slot across the next `lookAheadDays` days.
+ */
+export async function getNextAvailableSlot(professionalId, availability, supabase, lookAheadDays = 14) {
+  if (!professionalId || !availability || !supabase) return null;
+
+  // Convert "now" to IST wall-clock (UTC+5:30) for correct today comparisons
+  const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+  const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+  const todayIST = `${nowIST.getUTCFullYear()}-${String(nowIST.getUTCMonth() + 1).padStart(2, "0")}-${String(nowIST.getUTCDate()).padStart(2, "0")}`;
+  const nowHourIST = nowIST.getUTCHours() + nowIST.getUTCMinutes() / 60;
+
+  for (let i = 0; i < lookAheadDays; i++) {
+    const d = new Date(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate() + i);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const weekday = d.toLocaleDateString("en-US", { weekday: "long" });
+
+    let validSlots = [];
+    if (availability.daily && typeof availability.daily === "object") {
+      const dayConfig = availability.daily[weekday];
+      if (!dayConfig || !dayConfig.enabled) continue;
+      validSlots = generateSlotsForDay(dayConfig);
+    } else if (Array.isArray(availability.days) && availability.days.length > 0) {
+      if (!availability.days.some((wd) => wd.toLowerCase() === weekday.toLowerCase())) continue;
+      const closingHour = parseClosingHour(availability.hours);
+      validSlots = (availability.slots || []).filter((s) => {
+        const h = parseSlotHour(s);
+        return h !== null && h <= closingHour - 2;
+      });
+    } else if (Array.isArray(availability.slots) && availability.slots.length > 0) {
+      const closingHour = parseClosingHour(availability.hours);
+      validSlots = availability.slots.filter((s) => {
+        const h = parseSlotHour(s);
+        return h !== null && h <= closingHour - 2;
+      });
+    } else {
+      continue;
+    }
+
+    if (!validSlots.length) continue;
+
+    let taken;
+    try {
+      taken = new Set(await listTakenSlots(professionalId, dateStr, supabase));
+    } catch {
+      taken = new Set();
+    }
+
+    for (const slot of validSlots) {
+      if (taken.has(slot)) continue;
+
+      // For today: skip slots already past or within 1-hour buffer
+      if (dateStr === todayIST) {
+        const slotH = parseSlotHour(slot);
+        if (slotH !== null && slotH < nowHourIST + 1) continue;
+      }
+
+      // Found! Format: "Mon, 6 Oct • 09:00 AM"
+      const dateLabel = d.toLocaleDateString("en-IN", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+      return `${dateLabel} • ${slot}`;
+    }
+  }
+
+  return null;
 }
 
 export async function createBooking(payload, client) {
@@ -176,6 +393,44 @@ export async function createBooking(payload, client) {
 
   if (pro?.id && pro.id === auth.user.id) {
     throw userFacing("You cannot book your own service.");
+  }
+
+  // Server-side pincode and city validation for booking address
+  const explicitPin = payload.pincode ? String(payload.pincode).trim().replace(/\D/g, "").slice(0, 6) : null;
+  // If not explicit, try to extract 6-digit PIN from address string
+  const pinMatch = explicitPin || (address ? String(address).match(/\b[1-9][0-9]{5}\b/)?.[0] : null);
+  const explicitCity = payload.city ? String(payload.city).trim() : null;
+
+  if (pinMatch) {
+    if (!/^[1-9][0-9]{5}$/.test(pinMatch)) {
+      throw userFacing("Pincode must be exactly 6 digits and cannot start with 0.");
+    }
+
+    try {
+      const origin = typeof window !== "undefined"
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+      const cityQuery = explicitCity ? `&city=${encodeURIComponent(explicitCity)}` : "";
+      const res = await fetch(`${origin}/api/location/verify-pincode?pincode=${pinMatch}${cityQuery}`, {
+        headers: { Accept: "application/json" }
+      });
+      const data = await res.json();
+      if (data?.cityMismatch) {
+        throw userFacing(data.error || `City "${explicitCity}" does not match pincode ${pinMatch}.`);
+      }
+      if (!data?.valid && !data?.warning) {
+        throw userFacing(data?.error || `Invalid pincode: ${pinMatch} does not exist in India Post records.`);
+      }
+    } catch (err) {
+      if (err?.isUserFacing) throw err;
+      console.warn("[createBooking] Pincode verification network warning:", err?.message);
+    }
+  } else if (address) {
+    // If address was provided but has a 5-digit pin, reject it explicitly
+    const fiveDigitMatch = String(address).match(/\b\d{5}\b/);
+    if (fiveDigitMatch) {
+      throw userFacing("Pincode must be exactly 6 digits. 5-digit pincodes are not accepted.");
+    }
   }
 
   const servicePrice = Number(service?.price ?? pro?.price ?? 0);
@@ -267,9 +522,9 @@ async function getCancellationWindowHours(supabase) {
       .single();
     if (error) throw error;
     const hours = Number(data?.value?.window_hours);
-    return Number.isFinite(hours) ? hours : 2;
+    return Number.isFinite(hours) ? hours : 24;
   } catch {
-    return 2; // ponytail: default window until the settings row exists in the environment.
+    return 24;
   }
 }
 

@@ -90,7 +90,7 @@ export function AuthProvider({ children }) {
     setIsAuthModalOpen(false);
   };
 
-  const login = async ({ identifier, email, password, role } = {}) => {
+  const login = async ({ identifier, email, password, role, next } = {}) => {
     const mail = (identifier || email || "").trim();
 
     if (!mail || !password) {
@@ -98,8 +98,6 @@ export function AuthProvider({ children }) {
       showToast(error.message, "error");
       throw error;
     }
-
-
 
     const supabase = createClient();
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -112,11 +110,23 @@ export function AuthProvider({ children }) {
       throw error;
     }
 
+    // Fetch profile immediately so we can redirect to the correct dashboard
+    // without waiting for the onAuthStateChange → getProfile round-trip.
+    let userRole = data.user?.user_metadata?.role || "customer";
+    try {
+      const profile = await getProfile(data.user.id);
+      if (profile?.role) userRole = profile.role;
+    } catch {
+      // fall back to metadata role — redirect will still be correct in most cases
+    }
+
     closeAuthModal();
     showToast(
       `Welcome back, ${data.user?.user_metadata?.full_name || mail.split("@")[0]}! You are now logged in.`
     );
-    return data.user;
+
+    // Return enriched object so callers can redirect immediately
+    return { ...data.user, _resolvedRole: userRole };
   };
 
   const signup = async ({

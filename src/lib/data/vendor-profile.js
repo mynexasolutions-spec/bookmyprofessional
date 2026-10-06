@@ -8,7 +8,7 @@ export async function getVendorProfile(professionalId) {
   try {
     const supabase = createClient();
     const BASE_COLUMNS =
-      "experience_years, specialty, city, name, image_url, verification_status, hourly_rate, category";
+      "experience_years, specialty, city, name, image_url, verification_status, hourly_rate, category, availability";
     const [{ data: services }, { data: credentials }] = await Promise.all([
       supabase.from("services").select("*").eq("professional_id", professionalId).order("sort"),
       supabase.from("credentials").select("*").eq("professional_id", professionalId),
@@ -34,8 +34,9 @@ export async function getVendorProfile(professionalId) {
       category: pro?.category || "",
       name: pro?.name || "",
       image_url: pro?.image_url || "",
-      verification_status: pro?.verification_status || "pending",
+      verification_status: pro?.verification_status || "not_submitted",
       hourlyRate: Number(pro?.hourly_rate) || 0,
+      availability: pro?.availability || null,
       services: services || [],
       credentials: credentials || [],
     };
@@ -46,6 +47,47 @@ export async function getVendorProfile(professionalId) {
 
 export async function updateVendorBasics(professionalId, patch) {
   const supabase = createClient();
+  const cleanPin = String(patch.pincode || "").replace(/\D/g, "").slice(0, 6);
+
+  // Server-side pincode validation — must be 6 digits and exist in India Post
+  if (cleanPin) {
+    if (!/^[1-9][0-9]{5}$/.test(cleanPin)) {
+      throw Object.assign(
+        new Error("Pincode must be exactly 6 digits and cannot start with 0."),
+        { isUserFacing: true, field: "pincode" }
+      );
+    }
+    // Cross-check city against pincode via our API (server-to-server)
+    if (patch.city?.trim()) {
+      try {
+        const origin = typeof window !== "undefined"
+          ? window.location.origin
+          : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+        const res = await fetch(
+          `${origin}/api/location/verify-pincode?pincode=${cleanPin}&city=${encodeURIComponent(patch.city.trim())}`,
+          { headers: { Accept: "application/json" } }
+        );
+        const data = await res.json();
+        if (data?.cityMismatch) {
+          throw Object.assign(new Error(data.error || "City does not match pincode."), {
+            isUserFacing: true, field: "city",
+          });
+        }
+        // Not found at all
+        if (!data?.valid && !data?.warning) {
+          throw Object.assign(
+            new Error(data?.error || `Invalid pincode: ${cleanPin} is not a recognised Indian PIN code.`),
+            { isUserFacing: true, field: "pincode" }
+          );
+        }
+      } catch (e) {
+        if (e?.isUserFacing) throw e;
+        // Postal API unreachable — don't block save, just skip city check
+        console.warn("[updateVendorBasics] Postal API unreachable, skipping city check:", e?.message);
+      }
+    }
+  }
+
   const row = {
     experience_years: Number(patch.experienceYears) || 0,
     specialty: patch.specialty || "",
@@ -54,15 +96,16 @@ export async function updateVendorBasics(professionalId, patch) {
   };
   let { error } = await supabase
     .from("professionals")
-    .update({ ...row, pincode: patch.pincode || "" })
+    .update({ ...row, pincode: cleanPin || "" })
     .eq("id", professionalId);
   if (error) {
     // pincode column may not exist yet (schema not applied) — save the rest
     ({ error } = await supabase.from("professionals").update(row).eq("id", professionalId));
   }
   if (error) throw error;
-  return patch;
+  return { ...patch, pincode: cleanPin };
 }
+
 
 export async function updateVendorSchedule(professionalId, availability) {
   const supabase = createClient();

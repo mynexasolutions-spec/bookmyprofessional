@@ -49,6 +49,8 @@ import {
   Instagram,
   Linkedin,
   Youtube,
+  AlertCircle,
+  XCircle,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { ikImage } from "@/lib/imagekit";
@@ -734,13 +736,40 @@ export default function HomePage() {
                           </div>
                         )}
 
-                        {/* Top Left Verified Badge */}
-                        {pro.verified && (
-                          <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-white/90 backdrop-blur-xs rounded-full px-2 py-0.5 shadow-xs">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-primary-500" />
-                            <span className="text-[10px] font-bold text-dark-800">Verified</span>
-                          </div>
-                        )}
+                        {/* Verification Status Badge */}
+                        {(() => {
+                          const s = pro.verificationStatus;
+                          if (s === "approved") {
+                            return (
+                              <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-white/90 backdrop-blur-xs rounded-full px-2 py-0.5 shadow-xs">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-primary-500" />
+                                <span className="text-[10px] font-bold text-dark-800">Verified</span>
+                              </div>
+                            );
+                          }
+                          if (s === "pending" || s === "documents_requested") {
+                            return (
+                              <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-amber-50/90 backdrop-blur-xs rounded-full px-2 py-0.5 shadow-xs">
+                                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                                <span className="text-[10px] font-bold text-amber-800">Pending</span>
+                              </div>
+                            );
+                          }
+                          if (s === "rejected") {
+                            return (
+                              <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-red-50/90 backdrop-blur-xs rounded-full px-2 py-0.5 shadow-xs">
+                                <XCircle className="w-3.5 h-3.5 text-red-500" />
+                                <span className="text-[10px] font-bold text-red-800">Not Approved</span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-white/90 backdrop-blur-xs rounded-full px-2 py-0.5 shadow-xs">
+                              <AlertCircle className="w-3.5 h-3.5 text-dark-400" />
+                              <span className="text-[10px] font-bold text-dark-600">Not Verified</span>
+                            </div>
+                          );
+                        })()}
 
                         <button
                           type="button"
@@ -763,7 +792,9 @@ export default function HomePage() {
                           <h3 className="font-heading font-bold text-sm text-dark-900 leading-tight truncate group-hover:text-primary-600 transition-colors">
                             {pro.name}
                           </h3>
-                          {pro.verified && <CheckCircle2 className="w-3.5 h-3.5 text-primary-500 shrink-0" />}
+                          {pro.verificationStatus === "approved" && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+                          )}
                         </div>
 
                         {/* Profession / Role */}

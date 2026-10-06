@@ -24,9 +24,12 @@ import {
   Tag,
   Award,
   LocateFixed,
+  AlertCircle,
+  XCircle,
 } from "lucide-react";
 import Button from "./Button";
 import { formatMoney } from "@/lib/money";
+import { verifyPincode, cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
 
 const CATEGORY_LABELS = {
   Doctors: "Doctors & Health",
@@ -82,6 +85,39 @@ export default function MarketplaceDirectory({ preview = false }) {
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [categoryIds, setCategoryIds] = useState(DEFAULT_CATEGORIES);
+  const [pincodeLocation, setPincodeLocation] = useState(null);
+  const [pincodeError, setPincodeError] = useState("");
+  const [isValidatingPin, setIsValidatingPin] = useState(false);
+
+  useEffect(() => {
+    const clean = cleanPincode(pincode);
+    if (clean.length < 6) {
+      setPincodeLocation(null);
+      setPincodeError("");
+      return;
+    }
+    if (!isValidPincodeFormat(clean)) {
+      setPincodeError("Pincode must be 6 digits and cannot start with 0.");
+      setPincodeLocation(null);
+      return;
+    }
+    let active = true;
+    setIsValidatingPin(true);
+    verifyPincode(clean).then((res) => {
+      if (!active) return;
+      setIsValidatingPin(false);
+      if (res?.valid) {
+        setPincodeLocation(res);
+        setPincodeError("");
+      } else {
+        setPincodeError(res?.error || "Invalid Indian postal code.");
+        setPincodeLocation(null);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [pincode]);
   const [isLocating, setIsLocating] = useState(false);
 
   useEffect(() => {
@@ -470,10 +506,27 @@ export default function MarketplaceDirectory({ preview = false }) {
                     maxLength={6}
                     value={pincode}
                     onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="e.g. 400001"
+                    placeholder="e.g. 110001"
                     className="w-full pl-8 pr-3 py-1.5 bg-white border border-border rounded-lg text-xs text-dark-900 placeholder:text-dark-400 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
                   />
                 </div>
+                {isValidatingPin && (
+                  <p className="text-[10px] text-primary-600 font-medium mt-1 animate-pulse">
+                    Verifying Indian postal code...
+                  </p>
+                )}
+                {pincodeLocation && (
+                  <p className="text-[10px] text-emerald-700 font-semibold mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600 inline shrink-0" />
+                    {pincodeLocation.district}, {pincodeLocation.state}
+                  </p>
+                )}
+                {pincodeError && (
+                  <p className="text-[10px] text-red-600 font-medium mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 text-red-500 inline shrink-0" />
+                    {pincodeError}
+                  </p>
+                )}
               </div>
 
               {/* Availability Day Filter */}
@@ -529,8 +582,37 @@ export default function MarketplaceDirectory({ preview = false }) {
           )}
         </div>
 
-        {/* RELAXED PINCODE NOTICE */}
-        {pincodeRelaxed && pincode && filteredProfessionals.length > 0 && (
+        {/* PINCODE VERIFIED OR ERROR NOTICE */}
+        {pincodeError && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-600" />
+            <p className="text-xs text-red-700">
+              <span className="font-semibold">Invalid Pincode: </span>
+              {pincodeError}
+            </p>
+          </div>
+        )}
+
+        {pincodeLocation && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
+            <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-emerald-600" />
+            <p className="text-xs text-dark-800">
+              <span className="font-bold text-emerald-800">Exact Location: </span>
+              <span className="font-semibold text-dark-900">
+                {pincodeLocation.formattedLocation || `${pincodeLocation.district}, ${pincodeLocation.state}`}
+              </span>
+              <span className="text-dark-500 ml-1">(PIN: {pincode}).</span>
+              <span className="text-emerald-700 ml-1 font-medium">
+                {pincodeRelaxed
+                  ? " No direct match inside this pincode — showing closest available professionals."
+                  : " Showing verified professionals servicing this area."}
+              </span>
+            </p>
+          </div>
+        )}
+
+        {/* RELAXED PINCODE NOTICE (Fallback when location not yet parsed) */}
+        {!pincodeLocation && !pincodeError && pincodeRelaxed && pincode && filteredProfessionals.length > 0 && (
           <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2.5">
             <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
             <p className="text-xs text-dark-700">
@@ -597,13 +679,41 @@ export default function MarketplaceDirectory({ preview = false }) {
                   {/* Gradient bottom shadow over image */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
 
-                  {/* Verified Badge */}
-                  {pro.verified && (
-                    <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-surface/95 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-emerald-700 shadow-sm border border-emerald-200/80">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Verified Pro</span>
-                    </div>
-                  )}
+                  {/* Verification Status Badge */}
+                  {(() => {
+                    const s = pro.verificationStatus;
+                    if (s === "approved") {
+                      return (
+                        <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-surface/95 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-emerald-700 shadow-sm border border-emerald-200/80">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>Verified Pro</span>
+                        </div>
+                      );
+                    }
+                    if (s === "pending" || s === "documents_requested") {
+                      return (
+                        <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-amber-50/95 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-amber-700 shadow-sm border border-amber-200/80">
+                          <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>Pending Review</span>
+                        </div>
+                      );
+                    }
+                    if (s === "rejected") {
+                      return (
+                        <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-red-50/95 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-red-700 shadow-sm border border-red-200/80">
+                          <XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                          <span>Not Approved</span>
+                        </div>
+                      );
+                    }
+                    // not_submitted or any other state
+                    return (
+                      <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-dark-50/95 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-dark-500 shadow-sm border border-dark-200/80">
+                        <AlertCircle className="w-3.5 h-3.5 text-dark-400 shrink-0" />
+                        <span>Not Verified</span>
+                      </div>
+                    );
+                  })()}
 
                   {/* Category Pill on Image Bottom */}
                   <div className="absolute bottom-3 left-3">

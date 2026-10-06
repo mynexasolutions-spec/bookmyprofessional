@@ -38,3 +38,15 @@ export async function isAdminRequest() {
   const token = (await cookies()).get(ADMIN_COOKIE)?.value;
   return !!verifyAdminToken(token);
 }
+
+// Return current admin session user details
+export async function getAdminUser() {
+  const token = (await cookies()).get(ADMIN_COOKIE)?.value;
+  const data = verifyAdminToken(token);
+  if (!data) return null;
+  return {
+    id: data.id || "admin",
+    name: process.env.ADMIN_ID || data.id || "Admin",
+    role: "admin",
+  };
+}

@@ -19,6 +19,7 @@ function buildLocationMap(locations) {
 function normalizeAvailability(availability) {
   const a = availability && typeof availability === "object" ? availability : {};
   return {
+    daily: a.daily && typeof a.daily === "object" ? a.daily : null,
     days: Array.isArray(a.days) ? a.days : [],
     hours: a.hours || "",
     slots: Array.isArray(a.slots) ? a.slots : [],
@@ -66,8 +67,8 @@ function mapProfessional(row, locMap) {
     latitude: row.latitude ?? loc?.latitude ?? null,
     longitude: row.longitude ?? loc?.longitude ?? null,
     experienceYears: row.experience_years || 0,
-    verified: row.verified ?? false,
-    verificationStatus: row.verification_status || "approved",
+    verified: Boolean(row.verified === true && row.verification_status === "approved"),
+    verificationStatus: row.verification_status || "not_submitted",
     isActive: row.is_active !== false,
     hourlyRate,
     price: hourlyRate,
@@ -168,7 +169,7 @@ function applySort(query, sortBy) {
 
 function clientFilter(rows, opts) {
   return rows.filter((pro) => {
-    if (pro.verificationStatus && pro.verificationStatus !== "approved") return false;
+    // Show all active professionals regardless of verification status — the badge reflects the real status
     if (pro.isActive === false) return false;
 
     if (opts.search && opts.search.trim()) {
@@ -250,7 +251,7 @@ function fallbackList(seed, locations, opts, sortBy, page, pageSize, near = null
 
 // ponytail: mock seed fallback until supabase/schema.sql is applied and approved pros exist.
 // Remove the seed fallback once the professionals table is populated in every environment.
-export async function listProfessionals(options = {}) {
+export async function queryProfessionals(supabase, options = {}) {
   const {
     search = "",
     category = "all",
@@ -285,11 +286,9 @@ export async function listProfessionals(options = {}) {
   };
 
   try {
-    const supabase = createClient();
     let query = supabase
       .from("professionals")
       .select("*, services(*), credentials(*), reviews(*)", { count: "exact" })
-      .eq("verification_status", "approved")
       .eq("is_active", true);
 
     query = applyFilters(query, opts);
@@ -339,7 +338,6 @@ export async function listProfessionals(options = {}) {
       let nearbyQuery = supabase
         .from("professionals")
         .select("*, services(*), credentials(*), reviews(*)")
-        .eq("verification_status", "approved")
         .eq("is_active", true);
       nearbyQuery = applyFilters(nearbyQuery, { ...opts, pincode: "" });
       nearbyQuery = applySort(nearbyQuery, sortBy);
@@ -365,4 +363,47 @@ export async function listProfessionals(options = {}) {
   }
 
   return fallbackList(seed, locations, opts, sortBy, safePage, safeSize, near);
+}
+
+// ponytail: in browser, fetches through /api/professionals so admin service role can bypass RLS
+// and show all active professionals with honest verification status badges.
+export async function listProfessionals(options = {}) {
+  if (typeof window !== "undefined") {
+    try {
+      const params = new URLSearchParams();
+      if (options.search) params.set("search", options.search);
+      if (options.category && options.category !== "all") params.set("category", options.category);
+      if (options.location && options.location !== "all") params.set("location", options.location);
+      if (options.pincode) params.set("pincode", options.pincode);
+      if (options.minRating) params.set("minRating", String(options.minRating));
+      if (options.minExperience) params.set("minExperience", String(options.minExperience));
+      if (options.priceRange && options.priceRange !== "all") params.set("priceRange", options.priceRange);
+      if (options.sortBy) params.set("sortBy", options.sortBy);
+      if (options.availabilityDay && options.availabilityDay !== "all") params.set("availabilityDay", options.availabilityDay);
+      if (options.availabilitySlot && options.availabilitySlot !== "all") params.set("availabilitySlot", options.availabilitySlot);
+      if (options.page) params.set("page", String(options.page));
+      if (options.pageSize) params.set("pageSize", String(options.pageSize));
+      if (options.near) {
+        const lat = options.near.latitude ?? options.near.lat;
+        const lng = options.near.longitude ?? options.near.lng;
+        if (lat != null && lng != null) {
+          params.set("nearLat", String(lat));
+          params.set("nearLng", String(lng));
+        }
+      }
+
+      const res = await fetch(`/api/professionals?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.rows)) {
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn("API /api/professionals request failed, falling back to direct query", e);
+    }
+  }
+
+  const supabase = createClient();
+  return queryProfessionals(supabase, options);
 }

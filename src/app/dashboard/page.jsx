@@ -35,6 +35,8 @@ import {
 import { uploadImage, ikImage } from "@/lib/imagekit";
 import { formatMoney } from "@/lib/money";
 import { nextBookingDates, getAvailableSlots, rescheduleBooking } from "@/lib/data/bookings";
+import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
+import PincodeInput from "@/components/PincodeInput";
 import { listMyWishlist, removeWish } from "@/lib/data/wishlist";
 
 export default function CustomerDashboardPage() {
@@ -177,6 +179,14 @@ export default function CustomerDashboardPage() {
   const handleProfileSave = async (e) => {
     e.preventDefault();
 
+    if (profileForm.pincode) {
+      const cleanPin = cleanPincode(profileForm.pincode);
+      if (!isValidPincodeFormat(cleanPin)) {
+        showToast("Please enter a valid 6-digit Indian pincode (cannot start with 0).", "error");
+        return;
+      }
+    }
+
     // Persist to Supabase for real sessions; demo mode keeps the local-only mock.
     if (user?.id && !user.demo) {
       try {
@@ -185,7 +195,7 @@ export default function CustomerDashboardPage() {
           email: profileForm.email,
           phone: profileForm.phone,
           city: profileForm.city,
-          pincode: profileForm.pincode,
+          pincode: cleanPincode(profileForm.pincode),
           address: profileForm.address,
         });
       } catch (err) {
@@ -203,7 +213,7 @@ export default function CustomerDashboardPage() {
     return b.status === bookingFilter;
   });
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, b) => {
     switch (status) {
       case "upcoming":
         return (
@@ -223,18 +233,86 @@ export default function CustomerDashboardPage() {
             <CheckCircle2 className="w-3 h-3" /> Completed
           </span>
         );
-      case "cancelled":
+      case "cancelled": {
+        const isRefunded = b?.paymentStatus === "refunded";
+        const isRefundPending =
+          b?.paymentStatus === "refund_pending" ||
+          (Number(b?.totalPaid) > 0 && b?.paymentStatus !== "refunded" && b?.paymentStatus !== "unpaid");
+
+        if (isRefunded) {
+          return (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <CheckCircle2 className="w-3 h-3" /> Cancelled & Refunded
+            </span>
+          );
+        }
+        if (isRefundPending) {
+          return (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+              <RotateCcw className="w-3 h-3 animate-spin" /> Cancelled • Refund Pending
+            </span>
+          );
+        }
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
-            <AlertCircle className="w-3 h-3" /> Cancelled & Refunded
+            <AlertCircle className="w-3 h-3" /> Cancelled
           </span>
         );
+      }
       default:
         return null;
     }
   };
 
+  const getCancellationEligibility = (b) => {
+    if (!b || b.status !== "upcoming") return { canCancel: false, reason: "" };
+
+    let startMs = null;
+    if (b.startsAt) {
+      const d = new Date(b.startsAt);
+      if (!isNaN(d.getTime())) startMs = d.getTime();
+    }
+    if (!startMs && b.date && b.timeSlot) {
+      const [year, month, day] = b.date.split("-").map(Number);
+      const m = String(b.timeSlot).match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (m) {
+        let h = Number(m[1]);
+        const min = Number(m[2]);
+        const pm = (m[3] || "").toUpperCase() === "PM";
+        const am = (m[3] || "").toUpperCase() === "AM";
+        if (pm && h < 12) h += 12;
+        if (am && h === 12) h = 0;
+        // UTC epoch for IST (+05:30)
+        startMs = Date.UTC(year, month - 1, day, h - 5, min - 30);
+      }
+    }
+
+    if (!startMs) return { canCancel: true, reason: "" };
+
+    const hoursRemaining = (startMs - Date.now()) / (1000 * 60 * 60);
+    if (hoursRemaining < 24) {
+      return {
+        canCancel: false,
+        reason:
+          hoursRemaining <= 0
+            ? "Appointment time has arrived"
+            : `Within 24-hour window (cannot cancel within 24h of appointment)`,
+        hoursRemaining: Math.max(0, Math.round(hoursRemaining)),
+      };
+    }
+
+    return { canCancel: true, reason: "" };
+  };
+
   const handleCancel = async (bookingId) => {
+    const booking = bookings.find((b) => b.id === bookingId);
+    if (booking) {
+      const { canCancel, reason } = getCancellationEligibility(booking);
+      if (!canCancel) {
+        showToast(reason || "Cannot cancel within 24 hours of appointment.", "info");
+        return;
+      }
+    }
     try {
       await cancelBooking(bookingId);
     } catch (err) {
@@ -243,6 +321,16 @@ export default function CustomerDashboardPage() {
   };
 
   const rescheduleDates = nextBookingDates(14);
+
+  const isRescheduleDayAvailable = (dateStr) => {
+    if (!rescheduleTarget?.proId) return true;
+    const pro = marketplacePros?.find((p) => p.id === rescheduleTarget.proId);
+    const avail = pro?.availability;
+    const days = Array.isArray(avail?.days) ? avail.days : [];
+    if (days.length === 0) return true;
+    const weekday = new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", { weekday: "long" });
+    return days.some((d) => String(d).toLowerCase() === weekday.toLowerCase());
+  };
 
   const openReschedule = (booking) => {
     setRescheduleTarget(booking);
@@ -447,7 +535,7 @@ export default function CustomerDashboardPage() {
                                 Booked on {new Date(b.createdAt).toLocaleDateString("en-IN")}
                               </span>
                             </div>
-                            <div>{getStatusBadge(b.status)}</div>
+                            <div>{getStatusBadge(b.status, b)}</div>
                           </div>
 
                           {/* Middle Row: Pro Info + Date + Location */}
@@ -486,9 +574,13 @@ export default function CustomerDashboardPage() {
                               <span className={`text-xl font-bold font-heading ${b.status === 'cancelled' ? 'text-dark-400 line-through' : 'text-dark-900'}`}>
                                 {formatMoney(b.totalPaid)}
                               </span>
-                              <span className={`block text-[11px] font-medium mt-0.5 ${b.status === 'cancelled' ? 'text-red-600' : 'text-emerald-600'}`}>
+                              <span className={`block text-[11px] font-medium mt-0.5 ${b.status === 'cancelled' ? (b.paymentStatus === 'refunded' ? 'text-emerald-600' : 'text-amber-600') : 'text-emerald-600'}`}>
                                 {b.paymentStatus === "refunded"
                                   ? "Refunded"
+                                  : b.status === "cancelled" && Number(b.totalPaid) > 0 && b.paymentStatus !== "unpaid"
+                                  ? "Refund Pending"
+                                  : b.status === "cancelled"
+                                  ? "Cancelled"
                                   : `Paid via ${b.paymentMethod || "—"}`}
                               </span>
                             </div>
@@ -502,15 +594,36 @@ export default function CustomerDashboardPage() {
                             </div>
 
                             <div className="flex items-center gap-2.5">
-                              {b.status === "upcoming" && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleCancel(b.id)}
-                                  className="py-2 px-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
-                                >
-                                  Cancel Booking
-                                </button>
-                              )}
+                              {b.status === "upcoming" && (() => {
+                                const { canCancel, reason } = getCancellationEligibility(b);
+                                if (canCancel) {
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCancel(b.id)}
+                                      className="py-2 px-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors shadow-xs"
+                                    >
+                                      Cancel Booking
+                                    </button>
+                                  );
+                                }
+                                return (
+                                  <div className="flex flex-col items-end gap-1">
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="py-2 px-3.5 rounded-xl border border-dark-200 bg-dark-100 text-dark-400 text-xs font-semibold cursor-not-allowed opacity-60"
+                                      title="Cannot cancel within 24 hours of scheduled appointment"
+                                    >
+                                      Cancel Booking
+                                    </button>
+                                    <span className="text-[10px] text-amber-600 font-medium flex items-center gap-1">
+                                      <Clock className="w-3 h-3 text-amber-500" />
+                                      {reason || "Inside 24h window (cannot cancel)"}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
 
                               {b.status === "upcoming" && b.paymentStatus === "paid" && (
                                 <button
@@ -644,12 +757,13 @@ export default function CustomerDashboardPage() {
 
                     <div>
                       <label className="block text-xs font-semibold text-dark-700 mb-1.5">
-                        Phone Number
+                        Phone Number <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
                         <input
                           type="tel"
+                          required
                           value={profileForm.phone || ""}
                           placeholder="e.g. +91 98765 43210"
                           onChange={(e) =>
@@ -661,38 +775,50 @@ export default function CustomerDashboardPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
-                        City
-                      </label>
-                      <input
-                        type="text"
-                        value={profileForm.city || ""}
-                        placeholder="e.g. Mumbai"
-                        onChange={(e) =>
-                          setProfileForm({ ...profileForm, city: e.target.value })
-                        }
-                        className="w-full px-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                      <PincodeInput
+                        value={profileForm.pincode || ""}
+                        onChange={(val) => {
+                          setProfileForm((prev) => ({
+                            ...prev,
+                            pincode: val,
+                            city: val.length < 6 ? "" : prev.city,
+                            state: val.length < 6 ? "" : prev.state,
+                          }));
+                        }}
+                        onCityDetected={(detectedCity, res) => {
+                          setProfileForm((prev) => ({
+                            ...prev,
+                            city: detectedCity,
+                            state: res?.state || prev.state || "",
+                          }));
+                        }}
+                        enforceLocationMatch={false}
+                        label="Pincode"
+                        placeholder="e.g. 501218"
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-semibold text-dark-700 mb-1.5">
-                        Pincode
+                        City & State
                       </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        value={profileForm.pincode || ""}
-                        placeholder="e.g. 400001"
-                        onChange={(e) =>
-                          setProfileForm({
-                            ...profileForm,
-                            pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
-                          })
-                        }
-                        className="w-full px-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          readOnly
+                          value={
+                            profileForm.city
+                              ? `${profileForm.city}${profileForm.state ? `, ${profileForm.state}` : ""}`
+                              : ""
+                          }
+                          placeholder="Auto-filled from Pincode"
+                          className="w-full pl-3 pr-8 py-2.5 bg-dark-100 border border-border rounded-xl text-xs text-dark-900 cursor-not-allowed font-medium"
+                        />
+                        <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-dark-400" />
+                      </div>
+                      <p className="text-[10px] text-dark-400 mt-1">
+                        Locked to your verified pincode.
+                      </p>
                     </div>
 
                     <div className="sm:col-span-2">
@@ -822,7 +948,9 @@ export default function CustomerDashboardPage() {
                                   b.paymentStatus === "paid"
                                     ? "text-emerald-700 bg-emerald-50"
                                     : b.paymentStatus === "refunded"
-                                    ? "text-red-700 bg-red-50"
+                                    ? "text-emerald-700 bg-emerald-50"
+                                    : b.status === "cancelled" && Number(b.totalPaid) > 0 && b.paymentStatus !== "unpaid"
+                                    ? "text-amber-800 bg-amber-50 border border-amber-200"
                                     : "text-amber-700 bg-amber-50"
                                 }`}
                               >
@@ -830,6 +958,8 @@ export default function CustomerDashboardPage() {
                                   ? "Paid (Escrow)"
                                   : b.paymentStatus === "refunded"
                                   ? "Refunded"
+                                  : b.status === "cancelled" && Number(b.totalPaid) > 0 && b.paymentStatus !== "unpaid"
+                                  ? "Refund Pending"
                                   : "Unpaid"}
                               </span>
                             </td>
@@ -963,21 +1093,30 @@ export default function CustomerDashboardPage() {
             <div>
               <p className="text-xs font-semibold text-dark-700 mb-2">Pick a new date</p>
               <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {rescheduleDates.map((d) => (
-                  <button
-                    key={d.date}
-                    type="button"
-                    onClick={() => handleRescheduleDate(d.date)}
-                    className={`shrink-0 min-w-[64px] px-3 py-2 rounded-xl border text-center transition-all ${
-                      rescheduleDate === d.date
-                        ? "bg-primary-500 border-primary-500 text-white shadow-xs"
-                        : "bg-surface border-border text-dark-600 hover:bg-dark-50"
-                    }`}
-                  >
-                    <span className="block text-[11px] font-semibold">{d.label}</span>
-                    <span className="block text-sm font-bold">{d.num}</span>
-                  </button>
-                ))}
+                {rescheduleDates.map((d) => {
+                  const isAvailable = isRescheduleDayAvailable(d.date);
+                  return (
+                    <button
+                      key={d.date}
+                      type="button"
+                      disabled={!isAvailable}
+                      onClick={() => isAvailable && handleRescheduleDate(d.date)}
+                      title={!isAvailable ? `${d.label} is closed` : `Select ${d.label}, ${d.date}`}
+                      className={`shrink-0 min-w-[64px] px-3 py-2 rounded-xl border text-center transition-all ${
+                        !isAvailable
+                          ? "bg-dark-50/70 border-dashed border-border/80 text-dark-400 opacity-60 cursor-not-allowed"
+                          : rescheduleDate === d.date
+                          ? "bg-primary-500 border-primary-500 text-white shadow-xs"
+                          : "bg-surface border-border text-dark-600 hover:bg-dark-50"
+                      }`}
+                    >
+                      <span className="block text-[11px] font-semibold">
+                        {isAvailable ? d.label : "Closed"}
+                      </span>
+                      <span className="block text-sm font-bold">{d.num}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

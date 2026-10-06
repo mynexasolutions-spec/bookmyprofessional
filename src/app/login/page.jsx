@@ -59,9 +59,18 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      // The Customer/Professional tabs are a hint only. The redirect effect above sends the user
-      // to the right portal based on their real profile role — never reject a valid login.
-      await login({ identifier: form.identifier, password: form.password, role: authRole });
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get("next");
+      // login() now resolves the role from the DB profile immediately
+      const result = await login({ identifier: form.identifier, password: form.password, role: authRole });
+      const resolvedRole = result?._resolvedRole || authRole;
+      if (next) {
+        router.replace(next);
+      } else if (resolvedRole === "professional") {
+        router.replace("/vendor");
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (err) {
       setErrorMessage(err.message || "Sign in failed. Please try again.");
     } finally {

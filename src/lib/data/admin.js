@@ -67,7 +67,7 @@ export async function listAllBookings(client) {
     const { data, error } = await supabase
       .from("bookings")
       .select(
-        "id, customer_id, professional_id, service_title, total_paid, date, time_slot, status, payment_status, created_at, professionals(name), customer:profiles(full_name)"
+        "id, customer_id, professional_id, service_title, total_paid, date, time_slot, status, payment_status, created_at, professionals(name), customer:profiles(full_name), payments(id, amount, status, provider, provider_ref)"
       )
       .order("created_at", { ascending: false });
     if (!error && data) {

@@ -3,8 +3,10 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { MarketplaceProvider } from "@/context/MarketplaceContext";
 import { ComingSoonProvider } from "@/context/ComingSoonContext";
+import { LocationProvider } from "@/context/LocationContext";
 import AuthModal from "@/components/AuthModal";
 import ComingSoonModal from "@/components/ComingSoonModal";
+import LiveLocationPrompt from "@/components/LiveLocationPrompt";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -84,13 +86,16 @@ export default function RootLayout({ children }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <AuthProvider>
-          <MarketplaceProvider>
-            <ComingSoonProvider>
-              {children}
-              <AuthModal />
-              <ComingSoonModal />
-            </ComingSoonProvider>
-          </MarketplaceProvider>
+          <LocationProvider>
+            <MarketplaceProvider>
+              <ComingSoonProvider>
+                <LiveLocationPrompt />
+                {children}
+                <AuthModal />
+                <ComingSoonModal />
+              </ComingSoonProvider>
+            </MarketplaceProvider>
+          </LocationProvider>
         </AuthProvider>
       </body>
     </html>
