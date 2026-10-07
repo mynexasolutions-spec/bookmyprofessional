@@ -346,11 +346,17 @@ export default function BookingModal() {
         <div className="p-4 sm:p-5 border-b border-border bg-surface shrink-0">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5">
-              <img
-                src={ikImage(bookingPro.image)}
-                alt={bookingPro.name}
-                className="w-10 h-10 rounded-xl object-cover border border-border"
-              />
+              {bookingPro.image?.trim() ? (
+                <img
+                  src={ikImage(bookingPro.image)}
+                  alt={bookingPro.name}
+                  className="w-10 h-10 rounded-xl object-cover border border-border"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs border border-border shrink-0">
+                  {bookingPro.name?.charAt(0) || "P"}
+                </div>
+              )}
               <div>
                 <h3 className="font-heading text-sm font-bold text-dark-900 leading-tight">
                   Book {bookingPro.name}

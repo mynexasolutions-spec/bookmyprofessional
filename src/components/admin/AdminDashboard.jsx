@@ -146,6 +146,7 @@ export default function AdminDashboard({
   contactMessages = [],
   announcements = [],
   auditLog = [],
+  emailLogs = [],
   adminId = "admin",
   initialTab = "overview",
 }) {

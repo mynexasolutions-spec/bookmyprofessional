@@ -1,13 +1,21 @@
 // ImageKit delivery is URL-based, so no SDK is needed to render optimized images.
 // Pass any ik.imagekit.io URL through with a transform; local/other URLs pass unchanged.
 export function ikImage(src, tr = "w-600,q-80,f-auto") {
-  const base = process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT;
-  if (!src || !base || !src.startsWith("http") || !src.includes("ik.imagekit.io")) {
-    return src;
+  if (!src || typeof src !== "string" || !src.trim()) {
+    return null;
   }
-  const url = new URL(src);
-  url.searchParams.set("tr", tr);
-  return url.toString();
+  const cleanSrc = src.trim();
+  const base = process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT;
+  if (!base || !cleanSrc.startsWith("http") || !cleanSrc.includes("ik.imagekit.io")) {
+    return cleanSrc;
+  }
+  try {
+    const url = new URL(cleanSrc);
+    url.searchParams.set("tr", tr);
+    return url.toString();
+  } catch {
+    return cleanSrc;
+  }
 }
 
 // Signed client-side upload: fetch short-lived auth params, then POST the file to ImageKit.

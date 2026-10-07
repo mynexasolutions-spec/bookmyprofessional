@@ -671,11 +671,17 @@ export default function ProfessionalDetailPage({ params }) {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={rev.userAvatar}
-                              alt={rev.userName}
-                              className="w-9 h-9 rounded-full object-cover border border-border"
-                            />
+                            {rev.userAvatar?.trim() ? (
+                              <img
+                                src={rev.userAvatar}
+                                alt={rev.userName}
+                                className="w-9 h-9 rounded-full object-cover border border-border"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs shrink-0 border border-border">
+                                {rev.userName?.charAt(0) || "U"}
+                              </div>
+                            )}
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold text-dark-900">

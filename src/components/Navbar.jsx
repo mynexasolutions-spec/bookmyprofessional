@@ -142,7 +142,7 @@ export default function Navbar() {
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                 className="flex items-center gap-2.5 py-1.5 px-3 rounded-full border border-border bg-surface hover:bg-dark-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-xs"
               >
-                {user.avatar ? (
+                {user.avatar?.trim() ? (
                   <img
                     src={user.avatar}
                     alt={user.name}
@@ -287,7 +287,7 @@ export default function Navbar() {
               href="/dashboard"
               className="sm:hidden flex items-center gap-1.5 p-1 rounded-full border border-border"
             >
-              {user.avatar ? (
+              {user.avatar?.trim() ? (
                 <img
                   src={user.avatar}
                   alt={user.name}
@@ -344,7 +344,7 @@ export default function Navbar() {
               {user ? (
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-3 p-3 bg-dark-50 rounded-xl">
-                    {user.avatar ? (
+                    {user.avatar?.trim() ? (
                       <img
                         src={user.avatar}
                         alt={user.name}

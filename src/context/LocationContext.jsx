@@ -42,7 +42,7 @@ export function LocationProvider({ children }) {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed?.state) {
+        if (parsed && (parsed.city || parsed.state || parsed.latitude || parsed.pincode)) {
           setLiveLocation(parsed);
           setPermissionStatus("granted");
           return;
@@ -141,6 +141,39 @@ export function LocationProvider({ children }) {
     } catch {}
   }, []);
 
+  // 4. Update live location from search bar or external source
+  const updateLiveLocation = useCallback((locationPayload) => {
+    if (!locationPayload) {
+      clearLiveLocation();
+      return null;
+    }
+    const normalized = {
+      latitude: locationPayload.latitude || locationPayload.lat,
+      longitude: locationPayload.longitude || locationPayload.lon || locationPayload.lng,
+      city: locationPayload.city || "",
+      district: locationPayload.district || "",
+      state: locationPayload.state || "",
+      country: locationPayload.country || "India",
+      pincode: locationPayload.pincode || "",
+      formatted:
+        locationPayload.formatted ||
+        locationPayload.displayName ||
+        (locationPayload.city
+          ? `${locationPayload.city}${locationPayload.state ? `, ${locationPayload.state}` : ""}`
+          : locationPayload.state || ""),
+      detectedAt: Date.now(),
+    };
+
+    setLiveLocation(normalized);
+    setPermissionStatus("granted");
+    setLocationError("");
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+      sessionStorage.removeItem(DISMISSED_KEY);
+    } catch {}
+    return normalized;
+  }, [clearLiveLocation]);
+
   /**
    * Strictly verifies if an entered pincode's detected state/district matches the user's live location.
    * If live location is detected in Pune (Maharashtra), and user enters a Delhi pincode:
@@ -187,6 +220,7 @@ export function LocationProvider({ children }) {
         locationError,
         permissionStatus,
         requestLiveLocation,
+        updateLiveLocation,
         dismissPrompt,
         clearLiveLocation,
         checkPincodeLocationMatch,

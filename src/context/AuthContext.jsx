@@ -212,14 +212,24 @@ export function AuthProvider({ children }) {
     showToast("You have been signed out successfully.", "info");
   };
 
-  const loginWithProvider = async (provider) => {
+  const loginWithProvider = async (provider, options = {}) => {
     const safeProvider = provider.toLowerCase();
+    const role = options.role || authRole || "customer";
+    const next = options.next || "";
+
+    const redirectUrl = new URL(`${window.location.origin}/auth/callback`);
+    if (role) redirectUrl.searchParams.set("role", role);
+    if (next) redirectUrl.searchParams.set("next", next);
 
     const supabase = createClient();
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: safeProvider,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: redirectUrl.toString(),
+        queryParams: {
+          access_type: "offline",
+          prompt: "select_account",
+        },
       },
     });
     if (error) {

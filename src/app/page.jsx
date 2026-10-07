@@ -51,9 +51,15 @@ import {
   Youtube,
   AlertCircle,
   XCircle,
+  Navigation,
+  Crosshair,
+  Loader2,
+  X,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { ikImage } from "@/lib/imagekit";
+import { useGeoLocation } from "@/hooks/useGeoLocation";
+import { useLocationSafe } from "@/context/LocationContext";
 
 // Scrolls the placeholder text only when it is wider than the input; static otherwise.
 function ScrollingPlaceholder({ text, className = "" }) {
@@ -100,6 +106,7 @@ export default function HomePage() {
     setSearchQuery,
     setSelectedLocation,
     setPincode,
+    setNearCoords,
     startBooking,
     openProDetail,
     filteredProfessionals: marketplacePros,
@@ -109,6 +116,33 @@ export default function HomePage() {
   const [heroLocation, setHeroLocation] = useState("");
   const [heroService, setHeroService] = useState("");
   const [heroFocus, setHeroFocus] = useState("");
+  const [activeGpsCoords, setActiveGpsCoords] = useState(null);
+  const [locationConfirmation, setLocationConfirmation] = useState("");
+
+  const locationCtx = useLocationSafe();
+  const { liveLocation, updateLiveLocation, clearLiveLocation } = locationCtx || {};
+
+  const { locate, status: geoStatus, clear: clearGeo } = useGeoLocation();
+  const isGeoLoading = geoStatus === "locating" || geoStatus === "geocoding";
+
+  // Bidirectionally sync with LocationContext (if detected in banner or loaded from storage)
+  useEffect(() => {
+    if (liveLocation && !heroLocation) {
+      const locText =
+        liveLocation.formatted ||
+        liveLocation.city ||
+        (liveLocation.pincode ? `Pincode ${liveLocation.pincode}` : "");
+      if (locText) {
+        setHeroLocation(locText);
+        if (liveLocation.latitude && liveLocation.longitude) {
+          const coords = { latitude: liveLocation.latitude, longitude: liveLocation.longitude };
+          setActiveGpsCoords(coords);
+          setNearCoords(coords);
+        }
+        setLocationConfirmation(`Location active: ${locText}`);
+      }
+    }
+  }, [liveLocation]);
   const [activeTab, setActiveTab] = useState("all");
   const [savedPros, setSavedPros] = useState({});
   const [newsletterEmail, setNewsletterEmail] = useState("");
@@ -205,17 +239,85 @@ export default function HomePage() {
     }
   };
 
+  const handleUseCurrentLocation = (e) => {
+    if (e) e.preventDefault();
+    setLocationConfirmation("");
+    locate(
+      ({ coords, city, pincode, state, displayName }) => {
+        setActiveGpsCoords(coords);
+        setNearCoords(coords);
+        setSelectedLocation("all");
+        setPincode("");
+        const locText = displayName || city || (pincode ? `Pincode ${pincode}` : "Current Location");
+        setHeroLocation(locText);
+        setLocationConfirmation(`Location detected: ${locText}`);
+        showToast(`Location detected: ${locText}`, "success");
+
+        // Sync with global LocationContext so banner & rest of app recognize it immediately
+        if (updateLiveLocation) {
+          updateLiveLocation({
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            city,
+            pincode,
+            state: state || "",
+            formatted: locText,
+          });
+        }
+      },
+      (err) => {
+        showToast(err.message, "error");
+      }
+    );
+  };
+
+  const handleLocationChange = (e) => {
+    const val = e.target.value;
+    setHeroLocation(val);
+    setLocationConfirmation("");
+    if (activeGpsCoords) {
+      setActiveGpsCoords(null);
+      setNearCoords(null);
+      clearGeo();
+    }
+  };
+
+  const handleClearLocation = () => {
+    setHeroLocation("");
+    setActiveGpsCoords(null);
+    setNearCoords(null);
+    setLocationConfirmation("");
+    clearGeo();
+    if (clearLiveLocation) {
+      clearLiveLocation();
+    }
+  };
+
   const handleHeroSearch = (e) => {
     if (e) e.preventDefault();
     if (heroService) setSearchQuery(heroService);
-    const place = heroLocation.trim();
-    if (/^\d{6}$/.test(place)) {
-      setPincode(place);
+
+    if (activeGpsCoords) {
+      // Real coordinates used for nearest-first sorting
+      setNearCoords(activeGpsCoords);
       setSelectedLocation("all");
-    } else if (place) {
-      setSelectedLocation(place);
       setPincode("");
+    } else {
+      // Manual search - clear stale GPS
+      setNearCoords(null);
+      const place = heroLocation.trim();
+      if (/^\d{6}$/.test(place)) {
+        setPincode(place);
+        setSelectedLocation("all");
+      } else if (place && place !== "Current Location") {
+        setSelectedLocation(place);
+        setPincode("");
+      } else {
+        setSelectedLocation("all");
+        setPincode("");
+      }
     }
+
     const element = document.getElementById("find");
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
@@ -394,29 +496,65 @@ export default function HomePage() {
               <form onSubmit={handleHeroSearch} className="mt-8 max-w-xl">
                 <div className="flex flex-col sm:flex-row items-stretch bg-surface rounded-card border border-border shadow-soft p-1.5 gap-1.5 sm:gap-0">
                   {/* Location Input */}
-                  <div className="flex items-center gap-2.5 px-3.5 py-2.5 sm:w-[38%] border-b sm:border-b-0 sm:border-r border-border">
-                    <MapPin className="h-5 w-5 text-primary-500 shrink-0" />
+                  <div className="flex items-center gap-2 px-3 py-2 sm:w-[42%] border-b sm:border-b-0 sm:border-r border-border">
+                    <MapPin className="h-4 w-4 text-primary-500 shrink-0" />
                     <div className="relative flex-1 min-w-0">
                       <input
                         type="text"
                         placeholder="Your Location or Pincode"
                         value={heroLocation}
-                        onChange={(e) => setHeroLocation(e.target.value)}
+                        onChange={handleLocationChange}
                         onFocus={() => setHeroFocus("location")}
                         onBlur={() => setHeroFocus("")}
-                        className="w-full bg-transparent text-sm text-dark-900 placeholder:text-transparent focus:outline-none"
+                        className="w-full bg-transparent text-xs sm:text-sm text-dark-900 placeholder:text-transparent focus:outline-none"
+                        aria-label="Your Location or Pincode"
                       />
                       {!heroLocation && heroFocus !== "location" && (
                         <ScrollingPlaceholder
                           text="Your Location or Pincode"
-                          className="text-sm"
+                          className="text-xs sm:text-sm"
                         />
                       )}
                     </div>
+
+                    {/* Clear button if text exists */}
+                    {heroLocation && (
+                      <button
+                        type="button"
+                        onClick={handleClearLocation}
+                        className="p-1 rounded-full text-dark-400 hover:text-dark-700 hover:bg-dark-100 transition-colors cursor-pointer"
+                        aria-label="Clear location input"
+                        title="Clear location"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {/* Touch-friendly GPS target inside location field */}
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={isGeoLoading}
+                      className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center justify-center shrink-0 min-w-[36px] min-h-[36px] ${
+                        activeGpsCoords
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs"
+                          : "bg-dark-50/80 hover:bg-primary-50 border-border hover:border-primary-300 text-dark-600 hover:text-primary-600"
+                      }`}
+                      aria-label="Use my current location"
+                      title="Use my current location"
+                    >
+                      {isGeoLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+                      ) : activeGpsCoords ? (
+                        <Crosshair className="w-4 h-4 text-emerald-600 animate-pulse" />
+                      ) : (
+                        <Navigation className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
 
                   {/* Service Input */}
-                  <div className="flex flex-1 items-center gap-2 px-3.5 py-2.5">
+                  <div className="flex flex-1 items-center gap-2 px-3 py-2">
                     <Search className="h-4 w-4 text-muted shrink-0" />
                     <div className="relative flex-1 min-w-0">
                       <input
@@ -427,6 +565,7 @@ export default function HomePage() {
                         onFocus={() => setHeroFocus("service")}
                         onBlur={() => setHeroFocus("")}
                         className="w-full bg-transparent text-xs sm:text-sm text-dark-900 placeholder:text-transparent focus:outline-none"
+                        aria-label="Search for a service"
                       />
                       {!heroService && heroFocus !== "service" && (
                         <ScrollingPlaceholder
@@ -437,17 +576,71 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  {/* Search Button */}
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="md"
-                    className="rounded-[8px] px-6 py-2.5 font-semibold text-sm whitespace-nowrap shadow-button sm:self-center cursor-pointer"
-                  >
-                    <Search className="h-4 w-4 mr-1.5" />
-                    Search
-                  </Button>
+                  {/* Buttons Container: Entry point beside the search button */}
+                  <div className="flex items-center gap-1.5 sm:self-center p-1 sm:p-0">
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={isGeoLoading}
+                      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[8px] border text-xs font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[40px] ${
+                        activeGpsCoords
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs"
+                          : "bg-surface border-border text-dark-700 hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600 shadow-xs"
+                      }`}
+                      aria-label="Use my current location"
+                      title="Use my current location"
+                    >
+                      {isGeoLoading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-500 shrink-0" />
+                      ) : (
+                        <Crosshair className={`h-3.5 w-3.5 shrink-0 ${activeGpsCoords ? "text-emerald-600" : "text-primary-500"}`} />
+                      )}
+                      <span className="hidden sm:inline">
+                        {isGeoLoading ? "Locating..." : activeGpsCoords ? "Near Me ✓" : "Near Me"}
+                      </span>
+                      <span className="sm:hidden">
+                        {isGeoLoading ? "Locating..." : "Near Me"}
+                      </span>
+                    </button>
+
+                    {/* Search Button */}
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="md"
+                      className="flex-1 sm:flex-none rounded-[8px] px-5 py-2.5 font-semibold text-xs sm:text-sm whitespace-nowrap shadow-button cursor-pointer min-h-[40px]"
+                    >
+                      <Search className="h-4 w-4 mr-1.5 shrink-0" />
+                      Search
+                    </Button>
+                  </div>
                 </div>
+
+                {/* Geolocation feedback / status note */}
+                {isGeoLoading && (
+                  <div className="mt-2.5 flex items-center gap-2 text-xs text-primary-600 font-medium">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Detecting current location and reverse-geocoding...</span>
+                  </div>
+                )}
+
+                {!isGeoLoading && activeGpsCoords && (
+                  <div className="mt-2.5 flex items-center justify-between text-xs text-emerald-700 bg-emerald-50/80 border border-emerald-200/80 px-3 py-1.5 rounded-lg shadow-xs">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>
+                        Using GPS location: <strong>{heroLocation || "Current Location"}</strong>. Matching pros sorted nearest first.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearLocation}
+                      className="text-dark-500 hover:text-dark-800 text-[11px] font-medium underline cursor-pointer ml-2"
+                    >
+                      Clear / Manual
+                    </button>
+                  </div>
+                )}
 
                 {/* Popular Tags */}
                 <div className="mt-4 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">

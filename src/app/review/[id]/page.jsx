@@ -150,11 +150,17 @@ export default function ReviewBookingPage({ params }) {
 
             {/* Target Pro Card */}
             <div className="flex items-center gap-4 p-4 bg-dark-50 rounded-2xl border border-border">
-              <img
-                src={booking.proAvatar}
-                alt={booking.proName}
-                className="w-14 h-14 rounded-xl object-cover border border-border bg-dark-100 shrink-0"
-              />
+              {booking.proAvatar?.trim() ? (
+                <img
+                  src={booking.proAvatar}
+                  alt={booking.proName}
+                  className="w-14 h-14 rounded-xl object-cover border border-border bg-dark-100 shrink-0"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-lg border border-border shrink-0">
+                  {booking.proName?.charAt(0) || "P"}
+                </div>
+              )}
               <div>
                 <h3 className="font-heading text-base font-bold text-dark-900">
                   {booking.proName}

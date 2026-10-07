@@ -31,6 +31,7 @@ import {
   MessageSquare,
   Camera,
   Heart,
+  Lock,
 } from "lucide-react";
 import { uploadImage, ikImage } from "@/lib/imagekit";
 import { formatMoney } from "@/lib/money";
@@ -408,10 +409,10 @@ export default function CustomerDashboardPage() {
           <div className="bg-surface rounded-2xl border border-border p-6 sm:p-8 shadow-card mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-primary-500 text-white flex items-center justify-center font-bold font-heading text-2xl shadow-soft overflow-hidden">
-                  {customerProfile.avatar_url ? (
+                <div className="w-14 h-14 rounded-2xl bg-primary-500 text-white flex items-center justify-center font-bold font-heading text-2xl shadow-soft overflow-hidden shrink-0">
+                  {customerProfile.avatar_url?.trim() ? (
                     <img src={ikImage(customerProfile.avatar_url)} alt="Profile" className="w-full h-full object-cover" />
-                  ) : customerProfile.name ? customerProfile.name.charAt(0) : "A"}
+                  ) : customerProfile.name ? customerProfile.name.charAt(0).toUpperCase() : "A"}
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5">
@@ -541,11 +542,17 @@ export default function CustomerDashboardPage() {
                           {/* Middle Row: Pro Info + Date + Location */}
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-start gap-4">
-                              <img
-                                src={b.proAvatar}
-                                alt={b.proName}
-                                className="w-14 h-14 rounded-2xl object-cover border border-border bg-dark-100 shrink-0"
-                              />
+                              {b.proAvatar?.trim() ? (
+                                <img
+                                  src={ikImage(b.proAvatar)}
+                                  alt={b.proName}
+                                  className="w-14 h-14 rounded-2xl object-cover border border-border bg-dark-100 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-14 h-14 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-lg border border-border shrink-0">
+                                  {b.proName?.charAt(0) || "P"}
+                                </div>
+                              )}
                               <div>
                                 <h3 className="font-heading text-base font-bold text-dark-900">
                                   {b.proName}
@@ -700,7 +707,7 @@ export default function CustomerDashboardPage() {
 
                   <div className="mb-6 flex items-center gap-5">
                     <div className="relative w-20 h-20 rounded-2xl bg-dark-100 border border-border shadow-soft overflow-hidden shrink-0">
-                      {profileForm.avatar_url ? (
+                      {profileForm.avatar_url?.trim() ? (
                         <img src={ikImage(profileForm.avatar_url)} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-dark-400">

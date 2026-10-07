@@ -148,11 +148,17 @@ export default function ReviewModal() {
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4">
           {/* Target Pro Summary */}
           <div className="flex items-center gap-3 p-3 bg-dark-50 rounded-xl border border-border">
-            <img
-              src={reviewBooking.proAvatar}
-              alt={reviewBooking.proName}
-              className="w-10 h-10 rounded-lg object-cover"
-            />
+            {reviewBooking.proAvatar?.trim() ? (
+              <img
+                src={reviewBooking.proAvatar}
+                alt={reviewBooking.proName}
+                className="w-10 h-10 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs shrink-0">
+                {reviewBooking.proName?.charAt(0) || "P"}
+              </div>
+            )}
             <div>
               <h4 className="text-xs font-bold text-dark-900">{reviewBooking.proName}</h4>
               <p className="text-[11px] text-primary-600 font-medium">

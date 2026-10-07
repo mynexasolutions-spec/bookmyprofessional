@@ -31,11 +31,9 @@ export default function LiveLocationPrompt() {
             </span>
             <span className="font-semibold text-emerald-200">Live Location Active:</span>
             <span className="text-white font-medium">
-              {liveLocation.city ? `${liveLocation.city}, ` : ""}
-              {liveLocation.state}
-            </span>
-            <span className="hidden sm:inline text-emerald-300/80 text-[11px]">
-              (Service pincodes will be verified against {liveLocation.state})
+              {liveLocation.city
+                ? `${liveLocation.city}${liveLocation.state ? `, ${liveLocation.state}` : ""}`
+                : liveLocation.state || liveLocation.formatted || "Detected"}
             </span>
           </div>
 
@@ -93,25 +91,24 @@ export default function LiveLocationPrompt() {
             >
               Not Now
             </button>
-            <Button
-              variant="primary"
-              size="sm"
+            <button
+              type="button"
               onClick={requestLiveLocation}
               disabled={isLocating}
-              className="text-xs font-semibold py-1.5 px-4 shadow-sm bg-white text-primary-950 hover:bg-primary-50 border-0 flex items-center gap-1.5"
+              className="text-xs font-semibold py-2 px-4 rounded-xl shadow-md bg-primary-500 hover:bg-primary-600 active:scale-95 text-white border-0 flex items-center gap-1.5 transition-all disabled:opacity-60 cursor-pointer"
             >
               {isLocating ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-700" />
-                  <span>Detecting...</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                  <span className="text-white font-semibold">Detecting...</span>
                 </>
               ) : (
                 <>
-                  <MapPin className="w-3.5 h-3.5 text-primary-700" />
-                  <span>Allow Location</span>
+                  <MapPin className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white font-semibold">Allow Location</span>
                 </>
               )}
-            </Button>
+            </button>
           </div>
         </div>
       </div>
