@@ -26,7 +26,7 @@ export async function POST(request) {
   const supabase = createAdminClient();
   const adminUser = await getAdminUser();
 
-  // Case 1: Direct Refund Action triggered by Admin
+  // Case 1: Direct Refund Action triggered by Admin ([ Refund ] / [ Retry Refund ])
   if (action === "refund") {
     try {
       const refundResult = await processRefund({
@@ -40,7 +40,7 @@ export async function POST(request) {
         return NextResponse.json(
           {
             error: refundResult.error || "Refund failed at payment gateway",
-            status: "refund_pending",
+            status: "refund_failed",
           },
           { status: 400 }
         );
@@ -55,12 +55,22 @@ export async function POST(request) {
             admin_name: adminUser?.name || "Admin",
             refundId: refundResult.refundId,
             amount: refundResult.amount,
+            status: refundResult.status,
           },
         },
         supabase
       );
 
-      return NextResponse.json({ ok: true, id, refund: refundResult });
+      return NextResponse.json({
+        ok: true,
+        id,
+        refund: refundResult,
+        status: refundResult.status,
+        notice:
+          refundResult.status === "refund_pending"
+            ? `Refund request submitted to PayU (Ref: ${refundResult.refundId || "Queued"}). Pending settlement.`
+            : `Refund confirmed successfully via PayU (Ref: ${refundResult.refundId}).`,
+      });
     } catch (error) {
       return NextResponse.json(
         { error: error?.message || "Refund processing failed" },
@@ -103,9 +113,21 @@ export async function POST(request) {
           ok: true,
           id,
           status,
-          refundStatus: "refund_pending",
+          refundStatus: "refund_failed",
           refundError: refundResult.error,
-          warning: `Booking cancelled, but PayU refund failed: ${refundResult.error}. Status is Refund pending.`,
+          warning: `Booking cancelled, but PayU refund failed: ${refundResult.error}. Use "Retry Refund" in the table.`,
+        });
+      }
+
+      if (refundResult.status === "refund_pending") {
+        return NextResponse.json({
+          ok: true,
+          id,
+          status,
+          refundStatus: "refund_pending",
+          refundId: refundResult.refundId,
+          amount: refundResult.amount,
+          notice: `Booking cancelled. PayU refund request queued (Ref: ${refundResult.refundId || "Queued"}). Settlement pending.`,
         });
       }
 
@@ -116,6 +138,7 @@ export async function POST(request) {
         refundStatus: "refunded",
         refundId: refundResult.refundId,
         amount: refundResult.amount,
+        message: `Booking cancelled and refund confirmed via PayU.`,
       });
     }
 

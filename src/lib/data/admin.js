@@ -64,14 +64,38 @@ export async function listAllBookings(client) {
   let dbData = [];
   try {
     const supabase = client || (await createClient());
-    const { data, error } = await supabase
-      .from("bookings")
-      .select(
-        "id, customer_id, professional_id, service_title, total_paid, date, time_slot, status, payment_status, created_at, professionals(name), customer:profiles(full_name), payments(id, amount, status, provider, provider_ref)"
-      )
-      .order("created_at", { ascending: false });
-    if (!error && data) {
-      dbData = data;
+    const [bookingsRes, refundLogsRes] = await Promise.all([
+      supabase
+        .from("bookings")
+        .select(
+          "id, customer_id, professional_id, service_title, total_paid, date, time_slot, status, payment_status, created_at, professionals(name), customer:profiles(full_name), payments(id, amount, status, provider, provider_ref)"
+        )
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("audit_log")
+        .select("entity_id, action, meta, created_at")
+        .eq("entity", "bookings")
+        .in("action", [
+          "booking.refund_processed",
+          "booking.refund_pending",
+          "booking.refund_failed",
+          "booking.manual_refund",
+        ])
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (!bookingsRes.error && bookingsRes.data) {
+      const refundLogsByBooking = {};
+      for (const log of refundLogsRes.data || []) {
+        if (log.entity_id && !refundLogsByBooking[log.entity_id]) {
+          refundLogsByBooking[log.entity_id] = log;
+        }
+      }
+
+      dbData = bookingsRes.data.map((b) => ({
+        ...b,
+        latestRefundLog: refundLogsByBooking[b.id] || null,
+      }));
     }
   } catch {
     // Ignore supabase error

@@ -236,14 +236,23 @@ export default function CustomerDashboardPage() {
         );
       case "cancelled": {
         const isRefunded = b?.paymentStatus === "refunded";
+        const isRefundFailed = b?.paymentStatus === "refund_failed";
         const isRefundPending =
-          b?.paymentStatus === "refund_pending" ||
-          (Number(b?.totalPaid) > 0 && b?.paymentStatus !== "refunded" && b?.paymentStatus !== "unpaid");
+          !isRefundFailed &&
+          (b?.paymentStatus === "refund_pending" ||
+            (Number(b?.totalPaid) > 0 && b?.paymentStatus !== "refunded" && b?.paymentStatus !== "unpaid"));
 
         if (isRefunded) {
           return (
             <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
               <CheckCircle2 className="w-3 h-3" /> Cancelled & Refunded
+            </span>
+          );
+        }
+        if (isRefundFailed) {
+          return (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-300">
+              <AlertCircle className="w-3 h-3" /> Cancelled • Refund Failed
             </span>
           );
         }

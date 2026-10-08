@@ -80,8 +80,8 @@ export async function processRefund({
     };
   }
 
-  // If already refunded with a verified provider_ref, don't re-refund
-  if (payment.status === 'refunded' && payment.provider_ref && booking.payment_status === 'refunded') {
+  // Duplicate prevention: If already confirmed as refunded, do not submit another refund
+  if (payment.status === 'refunded' && booking.payment_status === 'refunded') {
     return {
       ok: true,
       alreadyRefunded: true,
@@ -98,10 +98,12 @@ export async function processRefund({
       admin_id: adminUser?.id || null,
       action: 'booking.refund_failed',
       entity: 'bookings',
-      entityId: bookingId,
+      entity_id: bookingId,
       meta: {
         reason: failReason,
         amount: refundAmount,
+        original_txn_id: payment.provider_ref || null,
+        status: 'refund_failed',
         admin_name: adminUser?.name || 'Admin',
         simulated: true,
       },
@@ -109,7 +111,8 @@ export async function processRefund({
     return {
       ok: false,
       error: failReason,
-      refundStatus: 'refund_pending',
+      refundStatus: 'refund_failed',
+      amount: refundAmount,
     };
   }
 
@@ -123,26 +126,28 @@ export async function processRefund({
       admin_id: adminUser?.id || null,
       action: 'booking.refund_failed',
       entity: 'bookings',
-      entityId: bookingId,
+      entity_id: bookingId,
       meta: {
         reason: failReason,
         amount: refundAmount,
+        status: 'refund_failed',
         admin_name: adminUser?.name || 'Admin',
       },
     });
     return {
       ok: false,
       error: failReason,
-      refundStatus: 'refund_pending',
+      refundStatus: 'refund_failed',
+      amount: refundAmount,
     };
   }
 
-  // 5. Stubbed payment bypass
+  // 5. Stubbed payment bypass (preserves original provider_ref without overwriting it)
   if (mihpayid.startsWith('STUB-')) {
     const refundId = `RFD_STUB_${Date.now()}`;
     await supabase
       .from('payments')
-      .update({ status: 'refunded', provider_ref: refundId })
+      .update({ status: 'refunded' })
       .eq('id', payment.id);
 
     await supabase
@@ -154,10 +159,12 @@ export async function processRefund({
       admin_id: adminUser?.id || null,
       action: 'booking.refund_processed',
       entity: 'bookings',
-      entityId: bookingId,
+      entity_id: bookingId,
       meta: {
         refund_id: refundId,
+        original_txn_id: mihpayid,
         amount: refundAmount,
+        status: 'refunded',
         stub: true,
         admin_name: adminUser?.name || 'Admin',
       },
@@ -174,7 +181,7 @@ export async function processRefund({
     };
   }
 
-  // 6. Real PayU refund transaction call
+  // 6. Real PayU refund transaction call using original PayU transaction ID
   try {
     const { key, salt, refundUrl } = getPayuConfig();
     const command = 'cancel_refund_transaction';
@@ -201,12 +208,45 @@ export async function processRefund({
     if (responseData.status === 1) {
       const confirmedRefundId =
         responseData.request_id || responseData.txnid || refundToken;
+      const responseMsg = responseData.msg || '';
+      const isQueued =
+        responseMsg.toLowerCase().includes('queued') ||
+        responseMsg.toLowerCase().includes('pending') ||
+        responseMsg.toLowerCase().includes('in process');
 
+      if (isQueued) {
+        // Step 4: PayU refund request is accepted & queued, pending gateway settlement.
+        // DO NOT mark as refunded yet!
+        await supabase.from('audit_log').insert({
+          admin_id: adminUser?.id || null,
+          action: 'booking.refund_pending',
+          entity: 'bookings',
+          entity_id: bookingId,
+          meta: {
+            refund_id: confirmedRefundId,
+            original_txn_id: mihpayid,
+            amount: refundAmount,
+            status: 'refund_pending',
+            admin_name: adminUser?.name || 'Admin',
+            payu_msg: responseMsg || 'Refund Request Queued',
+            payu_response: responseData,
+          },
+        });
+
+        return {
+          ok: true,
+          status: 'refund_pending',
+          refundId: confirmedRefundId,
+          amount: refundAmount,
+          message: responseMsg || 'Refund request queued at PayU (Pending Settlement)',
+        };
+      }
+
+      // Step 3: Explicit PayU refund confirmation / settlement
       await supabase
         .from('payments')
         .update({
           status: 'refunded',
-          provider_ref: confirmedRefundId,
         })
         .eq('id', payment.id);
 
@@ -219,13 +259,15 @@ export async function processRefund({
         admin_id: adminUser?.id || null,
         action: 'booking.refund_processed',
         entity: 'bookings',
-        entityId: bookingId,
+        entity_id: bookingId,
         meta: {
           refund_id: confirmedRefundId,
           original_txn_id: mihpayid,
           amount: refundAmount,
+          status: 'refunded',
           admin_name: adminUser?.name || 'Admin',
-          payu_msg: responseData.msg || 'Success',
+          payu_msg: responseMsg || 'Success',
+          payu_response: responseData,
         },
       });
 
@@ -236,22 +278,23 @@ export async function processRefund({
         status: 'refunded',
         refundId: confirmedRefundId,
         amount: refundAmount,
-        message: 'Refund initiated successfully at PayU',
+        message: 'Refund confirmed by PayU',
       };
     }
 
-    // PayU returned failure
+    // Step 5: PayU returned failure
     const failMsg = responseData.msg || responseData.message || 'Refund failed at payment gateway';
     await alertAdminsOnRefundFailure(supabase, bookingId, failMsg, refundAmount);
     await supabase.from('audit_log').insert({
       admin_id: adminUser?.id || null,
       action: 'booking.refund_failed',
       entity: 'bookings',
-      entityId: bookingId,
+      entity_id: bookingId,
       meta: {
         error: failMsg,
         original_txn_id: mihpayid,
         amount: refundAmount,
+        status: 'refund_failed',
         admin_name: adminUser?.name || 'Admin',
         payu_response: responseData,
       },
@@ -260,7 +303,7 @@ export async function processRefund({
     return {
       ok: false,
       error: failMsg,
-      refundStatus: 'refund_pending',
+      refundStatus: 'refund_failed',
       amount: refundAmount,
     };
   } catch (netErr) {
@@ -270,10 +313,12 @@ export async function processRefund({
       admin_id: adminUser?.id || null,
       action: 'booking.refund_failed',
       entity: 'bookings',
-      entityId: bookingId,
+      entity_id: bookingId,
       meta: {
         error: errorMsg,
+        original_txn_id: mihpayid,
         amount: refundAmount,
+        status: 'refund_failed',
         admin_name: adminUser?.name || 'Admin',
       },
     });
@@ -281,7 +326,7 @@ export async function processRefund({
     return {
       ok: false,
       error: errorMsg,
-      refundStatus: 'refund_pending',
+      refundStatus: 'refund_failed',
       amount: refundAmount,
     };
   }

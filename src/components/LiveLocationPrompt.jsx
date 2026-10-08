@@ -1,11 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import { usePathname } from "next/navigation";
 import { useLocation } from "@/context/LocationContext";
 import { MapPin, Navigation, X, CheckCircle2, AlertCircle, Loader2, RotateCw } from "lucide-react";
 import Button from "./Button";
 
 export default function LiveLocationPrompt() {
+  const pathname = usePathname();
+
   const {
     liveLocation,
     isLocating,
@@ -17,6 +20,11 @@ export default function LiveLocationPrompt() {
   } = useLocation();
 
   const [minimized, setMinimized] = useState(false);
+
+  // Never show on admin dashboard or admin routes
+  if (pathname?.startsWith("/admin")) {
+    return null;
+  }
 
   // If granted, show a subtle live location pill
   if (permissionStatus === "granted" && liveLocation) {

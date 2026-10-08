@@ -227,8 +227,14 @@ export default function AdminDashboard({
   const run = async (key, url, body, successMessage, method = "POST") => {
     setBusy(key);
     try {
-      await post(url, body, method);
-      showToast(successMessage, "success");
+      const res = await post(url, body, method);
+      if (res?.warning) {
+        showToast(res.warning, "warning");
+      } else if (res?.notice) {
+        showToast(res.notice, "info");
+      } else {
+        showToast(successMessage, "success");
+      }
       router.refresh();
     } catch (error) {
       showToast(error?.message || "Action failed", "error");
@@ -745,26 +751,43 @@ export default function AdminDashboard({
                         const key = `booking:${booking.id}`;
                         const isBusy = busy === key || busy === `${key}:refund`;
                         const pay = Array.isArray(booking.payments) ? booking.payments[0] : booking.payments;
-                        const hasConfirmedRefundId = Boolean(
-                          pay?.provider_ref && (pay?.status === "refunded" || String(booking.payment_status) === "refunded")
+                        const refundLog = booking.latestRefundLog;
+
+                        // Only mark as refunded if PayU confirmed the refund with an audit log or confirmed payment status
+                        const hasConfirmedRefund = Boolean(
+                          (booking.payment_status === "refunded" && (pay?.status === "refunded" || refundLog?.action === "booking.refund_processed")) ||
+                          (pay?.status === "refunded" && refundLog?.action === "booking.refund_processed")
+                        );
+
+                        const hasFailedRefund = Boolean(
+                          refundLog?.action === "booking.refund_failed" || booking.payment_status === "refund_failed"
                         );
 
                         let displayPaymentStatus = booking.payment_status || "unpaid";
-                        if (booking.payment_status === "refunded") {
-                          if (!hasConfirmedRefundId) {
+                        if (booking.status === "cancelled") {
+                          if (hasConfirmedRefund) {
+                            displayPaymentStatus = "refunded";
+                          } else if (hasFailedRefund) {
+                            displayPaymentStatus = "refund_failed";
+                          } else if (
+                            Number(booking.total_paid) > 0 ||
+                            pay?.status === "held" ||
+                            pay?.status === "released" ||
+                            booking.payment_status === "paid" ||
+                            booking.payment_status === "refund_pending"
+                          ) {
                             displayPaymentStatus = "refund_pending";
                           }
-                        } else if (
-                          booking.status === "cancelled" &&
-                          (Number(booking.total_paid) > 0 || pay?.status === "held" || pay?.status === "released")
-                        ) {
-                          displayPaymentStatus = "refund_pending";
+                        } else if (hasConfirmedRefund) {
+                          displayPaymentStatus = "refunded";
                         }
 
                         const canRefund =
                           Number(booking.total_paid) > 0 &&
-                          (booking.status === "cancelled" || displayPaymentStatus === "refund_pending") &&
+                          (booking.status === "cancelled" || displayPaymentStatus === "refund_pending" || displayPaymentStatus === "refund_failed") &&
                           displayPaymentStatus !== "refunded";
+
+                        const isRetry = displayPaymentStatus === "refund_failed";
 
                         return (
                           <tr key={booking.id} className="hover:bg-dark-50/50 transition-colors">
@@ -785,6 +808,21 @@ export default function AdminDashboard({
                             </td>
                             <td className="px-5 py-3.5">
                               <StatusPill value={displayPaymentStatus} />
+                              {displayPaymentStatus === "refunded" && (
+                                <span className="text-[10px] text-emerald-700 block font-mono mt-0.5">
+                                  Ref: {refundLog?.meta?.refund_id || pay?.provider_ref || "PayU"}
+                                </span>
+                              )}
+                              {displayPaymentStatus === "refund_failed" && (
+                                <span className="text-[10px] text-red-600 block mt-0.5 max-w-[140px] truncate" title={refundLog?.meta?.error || refundLog?.meta?.reason || "Gateway Error"}>
+                                  Failed: {refundLog?.meta?.error || refundLog?.meta?.reason || "Gateway Error"}
+                                </span>
+                              )}
+                              {displayPaymentStatus === "refund_pending" && pay?.provider_ref && (
+                                <span className="text-[10px] text-amber-700 block font-mono mt-0.5" title={`PayU Txn: ${pay.provider_ref}`}>
+                                  Txn: {pay.provider_ref}
+                                </span>
+                              )}
                             </td>
                             <td className="px-5 py-3.5 text-right">
                               <div className="flex items-center justify-end gap-2">
@@ -800,11 +838,15 @@ export default function AdminDashboard({
                                         "Refund processed successfully via PayU"
                                       )
                                     }
-                                    className="inline-flex items-center gap-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2 py-1.5 text-xs font-semibold disabled:opacity-50 transition-colors shrink-0"
-                                    title="Process PayU Refund"
+                                    className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold disabled:opacity-50 transition-colors shrink-0 ${
+                                      isRetry
+                                        ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300"
+                                        : "bg-red-50 hover:bg-red-100 text-red-700 border border-red-200"
+                                    }`}
+                                    title={isRetry ? "Retry PayU Refund" : "Process PayU Refund"}
                                   >
                                     <RefreshCw className={`w-3 h-3 ${busy === `${key}:refund` ? "animate-spin" : ""}`} />
-                                    Refund {formatMoney(Number(booking.total_paid || 0))}
+                                    {isRetry ? "Retry Refund" : "Refund"} {formatMoney(Number(booking.total_paid || 0))}
                                   </button>
                                 )}
                                 <select
