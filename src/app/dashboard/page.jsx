@@ -36,6 +36,7 @@ import {
 import { uploadImage, ikImage } from "@/lib/imagekit";
 import { formatMoney } from "@/lib/money";
 import { nextBookingDates, getAvailableSlots, rescheduleBooking } from "@/lib/data/bookings";
+import { getDerivedBookingStatus, isBookingExpired } from "@/lib/datetime";
 import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
 import PincodeInput from "@/components/PincodeInput";
 import { listMyWishlist, removeWish } from "@/lib/data/wishlist";
@@ -51,6 +52,14 @@ export default function CustomerDashboardPage() {
   } = useMarketplace();
   const { showToast, user, isLoading } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      if (user.role === 'professional') {
+        router.replace('/vendor');
+      }
+    }
+  }, [isLoading, user, router]);
 
   const [activeTab, setActiveTab] = useState("bookings"); // "bookings" | "profile" | "invoices" | "wishlist"
   const [bookingFilter, setBookingFilter] = useState("all"); // "all" | "upcoming" | "in_progress" | "completed" | "cancelled"
@@ -210,12 +219,21 @@ export default function CustomerDashboardPage() {
   };
 
   const filteredBookings = bookings.filter((b) => {
+    const derived = getDerivedBookingStatus(b);
     if (bookingFilter === "all") return true;
+    if (bookingFilter === "upcoming") return derived === "upcoming";
     return b.status === bookingFilter;
   });
 
   const getStatusBadge = (status, b) => {
-    switch (status) {
+    const derived = getDerivedBookingStatus(b);
+    switch (derived) {
+      case "missed":
+        return (
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+            <AlertCircle className="w-3 h-3" /> Missed — Needs Action
+          </span>
+        );
       case "upcoming":
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
@@ -276,6 +294,8 @@ export default function CustomerDashboardPage() {
 
   const getCancellationEligibility = (b) => {
     if (!b || b.status !== "upcoming") return { canCancel: false, reason: "" };
+    // Expired bookings cannot be cancelled via normal flow
+    if (isBookingExpired(b)) return { canCancel: false, reason: "Appointment has expired. Contact support." };
 
     let startMs = null;
     if (b.startsAt) {
@@ -610,7 +630,7 @@ export default function CustomerDashboardPage() {
                             </div>
 
                             <div className="flex items-center gap-2.5">
-                              {b.status === "upcoming" && (() => {
+                              {getDerivedBookingStatus(b) === "upcoming" && (() => {
                                 const { canCancel, reason } = getCancellationEligibility(b);
                                 if (canCancel) {
                                   return (
@@ -641,7 +661,7 @@ export default function CustomerDashboardPage() {
                                 );
                               })()}
 
-                              {b.status === "upcoming" && b.paymentStatus === "paid" && (
+                              {getDerivedBookingStatus(b) === "upcoming" && b.paymentStatus === "paid" && (
                                 <button
                                   type="button"
                                   onClick={() => openReschedule(b)}

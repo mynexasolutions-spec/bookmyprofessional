@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
@@ -18,13 +18,15 @@ import {
   deleteCredential,
 } from "@/lib/data/vendor-profile";
 import { getEarningsSummary, listMyPayouts } from "@/lib/data/payments";
-import { listAllCategories } from "@/lib/data/categories";
+import { listAllCategories, listCategories, listSubcategories } from "@/lib/data/categories";
 import { formatInclusions } from "@/lib/inclusions";
 import { uploadImage, ikImage } from "@/lib/imagekit";
 import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
 import PincodeInput from "@/components/PincodeInput";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { createClient } from "@/lib/supabase/client";
 import { generateSlotsForDay, formatTime24to12 } from "@/lib/data/bookings";
+import { getDerivedBookingStatus, isBookingExpired } from "@/lib/datetime";
 import {
   DollarSign,
   TrendingUp,
@@ -51,6 +53,7 @@ import {
   Plus,
   Trash2,
   Pencil,
+  Lock,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 
@@ -84,8 +87,8 @@ const DEFAULT_SCHEDULE = {
   Wednesday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
   Thursday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
   Friday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
-  Saturday: { enabled: false, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
-  Sunday: { enabled: false, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
+  Saturday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
+  Sunday: { enabled: true, startTime: "09:00", endTime: "18:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00" },
 };
 
 function parseAvailabilityToSchedule(availability) {
@@ -184,9 +187,26 @@ export default function VendorPortalPage() {
     city: "",
     pincode: "",
     category: "",
+    subcategory: "",
+    role_title: "",
     services: [],
     credentials: [],
   });
+  const [categoriesList, setCategoriesList] = useState([]);
+  const [subcategoriesMap, setSubcategoriesMap] = useState({});
+
+  useEffect(() => {
+    let active = true;
+    listCategories().then((cats) => {
+      if (active && cats) setCategoriesList(cats);
+    });
+    listSubcategories().then((map) => {
+      if (active && map) setSubcategoriesMap(map);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const categoryDefaults = useRef({ inclusions: "", exclusions: "" });
   const blankServiceForm = () => ({
     id: null,
@@ -577,8 +597,11 @@ export default function VendorPortalPage() {
         city: vendorProfile.city,
         pincode: cleanPincode(vendorProfile.pincode),
         hourlyRate: Number(vendorProfile.hourlyRate) || 0,
+        category: vendorProfile.category,
+        subcategory: vendorProfile.subcategory,
+        role_title: vendorProfile.role_title,
       });
-      showToast("Experience & service location saved.", "success");
+      showToast("Profile, title & experience saved.", "success");
     } catch (err) {
       showToast(err?.message || "Could not save your profile.", "error");
     }
@@ -670,6 +693,14 @@ export default function VendorPortalPage() {
                     <h1 className="font-heading text-xl sm:text-2xl font-bold text-dark-900">
                       {user?.name || vendorProfile?.name || "Professional"}
                     </h1>
+                  </div>
+                  <p className="text-xs font-semibold text-primary-600 mt-0.5">
+                    {vendorProfile?.role_title || vendorProfile?.subcategory || vendorProfile?.category || "Professional"}
+                    {vendorProfile?.category && (vendorProfile?.role_title || vendorProfile?.subcategory) && (
+                      <span className="text-dark-400 font-normal"> • {vendorProfile.category}</span>
+                    )}
+                  </p>
+                  <div>
                     {verificationStatus === "approved" ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                         <Check className="w-3.5 h-3.5 stroke-[3]" /> Verified Pro
@@ -817,6 +848,7 @@ export default function VendorPortalPage() {
 
             {/* TAB CONTENTS */}
             <div className="p-6 sm:p-8">
+              <ErrorBoundary key={activeTab}>
               {/* TAB 1: EARNINGS & PAYOUTS */}
               {activeTab === "earnings" && (
                 <div className="space-y-8">
@@ -989,7 +1021,7 @@ export default function VendorPortalPage() {
                             <span className="text-xs text-dark-700 font-bold">{b.serviceTitle}</span>
                           </div>
                           <span className="text-xs font-bold text-primary-600 uppercase">
-                            Status: {b.status.replace("_", " ")}
+                            Status: {getDerivedBookingStatus(b).replace("_", " ")}
                           </span>
                         </div>
 
@@ -1033,15 +1065,24 @@ export default function VendorPortalPage() {
                               <MessageSquare className="w-3.5 h-3.5" />
                               Message
                             </Link>
-                            {b.status === "upcoming" && (
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(b.id, "in_progress")}
-                                className="py-2 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs"
-                              >
-                                <Play className="w-3.5 h-3.5" /> Start Service
-                              </button>
-                            )}
+                            {(() => {
+                              const derivedStatus = getDerivedBookingStatus(b);
+                              if (derivedStatus === "missed") return (
+                                <span className="text-xs text-orange-700 font-semibold bg-orange-50 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                                  <AlertCircle className="w-3.5 h-3.5" /> Missed — Contact Customer
+                                </span>
+                              );
+                              if (derivedStatus === "upcoming") return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusChange(b.id, "in_progress")}
+                                  className="py-2 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs"
+                                >
+                                  <Play className="w-3.5 h-3.5" /> Start Service
+                                </button>
+                              );
+                              return null;
+                            })()}
                             {b.status === "in_progress" && (
                               <button
                                 type="button"
@@ -1358,7 +1399,99 @@ export default function VendorPortalPage() {
                         Shown on your public profile to help customers pick the right expert.
                       </p>
                     </div>
+                    {(() => {
+                      const availableSubs = subcategoriesMap[vendorProfile.category] || [];
+                      return (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* Professional Title / Headline */}
+                      <div className="col-span-1 sm:col-span-2 lg:col-span-3">
+                        <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                          Professional Title / Headline
+                        </label>
+                        <input
+                          type="text"
+                          value={vendorProfile.role_title || ""}
+                          onChange={(e) =>
+                            setVendorProfile({ ...vendorProfile, role_title: e.target.value })
+                          }
+                          placeholder="e.g. Senior Consultant Cardiologist, Expert Web Developer"
+                          className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 font-medium"
+                        />
+                        <p className="text-[10px] text-dark-400 mt-1">
+                          This headline appears directly under your name on directory cards and your public profile.
+                        </p>
+                      </div>
+
+                      {/* Industry Category */}
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                          Industry Category
+                        </label>
+                        <select
+                          value={vendorProfile.category || ""}
+                          onChange={(e) => {
+                            const newCat = e.target.value;
+                            setVendorProfile((prev) => ({
+                              ...prev,
+                              category: newCat,
+                              subcategory: "",
+                            }));
+                          }}
+                          className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                        >
+                          <option value="">Select Category</option>
+                          {categoriesList.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Specialty Subcategory */}
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                          Specialty Subcategory
+                        </label>
+                        {availableSubs.length > 0 ? (
+                          <select
+                            value={vendorProfile.subcategory || ""}
+                            onChange={(e) => {
+                              const sub = e.target.value;
+                              setVendorProfile((prev) => ({
+                                ...prev,
+                                subcategory: sub,
+                                role_title: (!prev.role_title || prev.role_title === "Professional" || prev.role_title === prev.category) ? sub : prev.role_title,
+                              }));
+                            }}
+                            className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 font-medium text-primary-700 bg-primary-50/20"
+                          >
+                            <option value="">Select Specialty</option>
+                            {availableSubs.map((sub) => (
+                              <option key={sub} value={sub}>
+                                {sub}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={vendorProfile.subcategory || ""}
+                            onChange={(e) =>
+                              setVendorProfile({ ...vendorProfile, subcategory: e.target.value })
+                            }
+                            placeholder="e.g. General"
+                            className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                          />
+                        )}
+                        <p className="text-[10px] text-dark-400 mt-1">
+                          {availableSubs.length > 0
+                            ? `${availableSubs.length} specialties available under ${vendorProfile.category}`
+                            : "Specialty under your category"}
+                        </p>
+                      </div>
+
+                      {/* Years of Experience */}
                       <div>
                         <label className="block text-xs font-semibold text-dark-700 mb-1.5">
                           Years of Experience
@@ -1373,6 +1506,8 @@ export default function VendorPortalPage() {
                           className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
                         />
                       </div>
+
+                      {/* Base Hourly Rate */}
                       <div>
                         <label className="block text-xs font-semibold text-dark-700 mb-1.5">
                           Base Hourly Rate (₹)
@@ -1388,9 +1523,11 @@ export default function VendorPortalPage() {
                           className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
                         />
                       </div>
+
+                      {/* Specialty / Focus Area */}
                       <div>
                         <label className="block text-xs font-semibold text-dark-700 mb-1.5">
-                          Specialty
+                          Key Focus Area / Bio Line
                         </label>
                         <input
                           type="text"
@@ -1398,7 +1535,7 @@ export default function VendorPortalPage() {
                           onChange={(e) =>
                             setVendorProfile({ ...vendorProfile, specialty: e.target.value })
                           }
-                          placeholder="e.g. Emergency wiring & smart homes"
+                          placeholder="e.g. Heart surgery & angioplasty"
                           className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
                         />
                       </div>
@@ -1448,13 +1585,15 @@ export default function VendorPortalPage() {
                         </p>
                       </div>
                     </div>
+                      );
+                    })()}
                     <Button
                       type="submit"
                       variant="primary"
                       size="sm"
                       className="font-semibold shadow-button text-xs py-2.5 px-6"
                     >
-                      Save Experience & Location
+                      Save Profile & Title
                     </Button>
                   </form>
 
@@ -1469,13 +1608,13 @@ export default function VendorPortalPage() {
                       </p>
                     </div>
 
-                    {vendorProfile.services.length === 0 ? (
+                    {(vendorProfile?.services || []).length === 0 ? (
                       <div className="p-5 rounded-2xl border border-dashed border-border bg-dark-50 text-center text-xs text-dark-500">
                         No services yet. Add your first below.
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {vendorProfile.services.map((s) => (
+                        {(vendorProfile?.services || []).map((s) => (
                           <div
                             key={s.id}
                             className="flex items-start justify-between gap-4 p-4 bg-dark-50 rounded-2xl border border-border"
@@ -1645,13 +1784,13 @@ export default function VendorPortalPage() {
                       </p>
                     </div>
 
-                    {vendorProfile.credentials.length === 0 ? (
+                    {(vendorProfile?.credentials || []).length === 0 ? (
                       <div className="p-5 rounded-2xl border border-dashed border-border bg-dark-50 text-center text-xs text-dark-500">
                         No qualifications added yet.
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {vendorProfile.credentials.map((c) => (
+                        {(vendorProfile?.credentials || []).map((c) => (
                           <div
                             key={c.id}
                             className="flex items-center justify-between gap-4 p-4 bg-dark-50 rounded-2xl border border-border"
@@ -1853,6 +1992,7 @@ export default function VendorPortalPage() {
                   </div>
                 </div>
               )}
+              </ErrorBoundary>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -38,9 +38,18 @@ export default function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("role") === "professional") setAuthRole("professional");
+    const err = params.get("error");
+    if (err) {
+      if (err === "GoogleOAuthCancelled") setErrorMessage("Google sign in was cancelled.");
+      else if (err === "GoogleOAuthConfigMissing") setErrorMessage("Google OAuth is not configured yet. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.");
+      else setErrorMessage(`Sign in failed (${err}). Please try again.`);
+    }
     if (!isAuthLoading && user) {
       const next = params.get("next");
-      router.replace(next || (user.role === "professional" ? "/vendor" : "/dashboard"));
+      const target = (next && next !== "/" && next !== "/login" && next !== "/register")
+        ? next
+        : (user.role === "professional" ? "/vendor" : "/dashboard");
+      router.replace(target);
     }
   }, [isAuthLoading, user, router]);
 
@@ -64,7 +73,7 @@ export default function LoginPage() {
       // login() now resolves the role from the DB profile immediately
       const result = await login({ identifier: form.identifier, password: form.password, role: authRole });
       const resolvedRole = result?._resolvedRole || authRole;
-      if (next) {
+      if (next && next !== "/" && next !== "/login" && next !== "/register") {
         router.replace(next);
       } else if (resolvedRole === "professional") {
         router.replace("/vendor");
@@ -80,9 +89,16 @@ export default function LoginPage() {
 
   const handleSocialAuth = async (provider) => {
     try {
-      await loginWithProvider(provider.toLowerCase(), { role: authRole });
+      setIsLoading(true);
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get("next");
+      const target = (next && next !== "/" && next !== "/login" && next !== "/register")
+        ? next
+        : (authRole === "professional" ? "/vendor" : "/dashboard");
+      await loginWithProvider(provider.toLowerCase(), { role: authRole, next: target });
     } catch (err) {
       setErrorMessage(err.message || `Failed to sign in with ${provider}.`);
+      setIsLoading(false);
     }
   };
 
@@ -106,12 +122,12 @@ export default function LoginPage() {
 
         {/* Hero Copy */}
         <div className="relative z-10 my-12 max-w-md space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1 backdrop-blur-md">
+          {/* <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1 backdrop-blur-md">
             <Sparkles className="h-3.5 w-3.5 text-sky-400" />
             <span className="text-xs font-semibold text-white">
               Trusted by 15,000+ Verified Experts
             </span>
-          </div>
+          </div> */}
 
           <h2 className="font-heading text-3xl sm:text-4xl font-bold leading-tight text-white">
             Connect with certified professionals in minutes.

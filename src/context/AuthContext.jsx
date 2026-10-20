@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -17,6 +17,7 @@ function mapUser(authUser, profile) {
     phone: profile?.phone || meta.phone || "",
     role: profile?.role || meta.role || "customer",
     avatar: profile?.avatar_url || null,
+    whatsapp_consent: Boolean(meta.whatsapp_consent),
     user_metadata: meta,
   };
 }
@@ -45,7 +46,45 @@ export function AuthProvider({ children }) {
     const supabase = createClient();
 
     const hydrate = async (authUser) => {
-      const profile = await getProfile(authUser.id);
+      let profile = await getProfile(authUser.id);
+
+      // Verify if OAuth initiated with professional role but profile defaulted to customer
+      if (typeof window !== 'undefined') {
+        try {
+          const intendedRole = localStorage.getItem('oauth_role');
+          const intendedNext = localStorage.getItem('oauth_next');
+          if (intendedRole === 'professional') {
+            const supabase = createClient();
+            if (!profile || profile.role !== 'professional') {
+              await supabase.from('profiles').update({ role: 'professional' }).eq('id', authUser.id);
+              profile = { ...(profile || {}), role: 'professional' };
+            }
+            try {
+              const { data: pro } = await supabase.from('professionals').select('id').eq('id', authUser.id).maybeSingle();
+              if (!pro) {
+                await supabase.from('professionals').insert({
+                  id: authUser.id,
+                  name: profile?.full_name || authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || 'Professional',
+                  role_title: 'Professional',
+                  category: 'Doctors',
+                  city: 'Mumbai',
+                  verification_status: 'not_submitted',
+                  is_active: true,
+                });
+              }
+            } catch {}
+
+            localStorage.removeItem('oauth_role');
+            localStorage.removeItem('oauth_next');
+
+            if (window.location.pathname === '/dashboard' || window.location.pathname === '/login' || window.location.pathname === '/register') {
+              window.location.replace(intendedNext || '/vendor');
+              return;
+            }
+          }
+        } catch {}
+      }
+
       if (active) {
         setUser(mapUser(authUser, profile));
         setIsLoading(false);
@@ -140,6 +179,7 @@ export function AuthProvider({ children }) {
     subcategory,
     city,
     pincode,
+    whatsapp_consent,
   } = {}) => {
     const displayName = (fullName || name || "").trim();
 
@@ -151,7 +191,7 @@ export function AuthProvider({ children }) {
       email,
       password,
       options: {
-        data: { full_name: displayName, role, phone, city, pincode },
+        data: { full_name: displayName, role, phone, city, pincode, whatsapp_consent: Boolean(whatsapp_consent) },
       },
     });
 
@@ -161,16 +201,20 @@ export function AuthProvider({ children }) {
     }
 
     if (role === "professional" && data?.user) {
-      const insertProfile = (fields) =>
-        supabase.from("professionals").insert({
+      const insertProfile = (fields) => {
+        const cleanSub = subcategory && subcategory.trim() && subcategory.toLowerCase() !== "professional" ? subcategory.trim() : null;
+        const title = cleanSub || category || "Professional";
+        return supabase.from("professionals").insert({
           id: data.user.id,
           name: displayName,
           category,
-          subcategory: subcategory || null,
+          subcategory: cleanSub,
+          role_title: title,
           city,
           verification_status: "pending",
           ...fields,
         });
+      };
       try {
         const { error: proError } = await insertProfile(pincode ? { pincode } : {});
         if (proError && pincode) {
@@ -197,7 +241,7 @@ export function AuthProvider({ children }) {
     showToast(
       `Welcome to BookMyProfessional, ${displayName}! Your account was created successfully.`
     );
-    return { user: data.user };
+    return { user: data.user, role, redirectUrl: role === "professional" ? "/vendor" : "/dashboard" };
   };
 
   const logout = async () => {
@@ -215,11 +259,30 @@ export function AuthProvider({ children }) {
   const loginWithProvider = async (provider, options = {}) => {
     const safeProvider = provider.toLowerCase();
     const role = options.role || authRole || "customer";
-    const next = options.next || "";
+    const defaultNext = role === "professional" ? "/vendor" : "/dashboard";
+    const next = (options.next && options.next !== "/" && options.next !== "/login" && options.next !== "/register")
+      ? options.next
+      : defaultNext;
 
+    // DIRECT GOOGLE OAUTH: Bypasses Supabase Auth URL Configuration completely
+    if (safeProvider === "google") {
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("oauth_role", role);
+          localStorage.setItem("oauth_next", next);
+        } catch {}
+      }
+      const targetUrl = new URL("/api/auth/google", window.location.origin);
+      targetUrl.searchParams.set("role", role);
+      targetUrl.searchParams.set("next", next);
+      window.location.href = targetUrl.toString();
+      return;
+    }
+
+    // Fallback for non-Google providers (if configured)
     const redirectUrl = new URL(`${window.location.origin}/auth/callback`);
-    if (role) redirectUrl.searchParams.set("role", role);
-    if (next) redirectUrl.searchParams.set("next", next);
+    redirectUrl.searchParams.set("role", role);
+    redirectUrl.searchParams.set("next", next);
 
     const supabase = createClient();
     const { data, error } = await supabase.auth.signInWithOAuth({

@@ -1,25 +1,27 @@
-import { createClient } from "@/lib/supabase/client";
+﻿import { createClient } from "@/lib/supabase/client";
 import { parseInclusions } from "@/lib/inclusions";
 
-const EMPTY = { experienceYears: 0, specialty: "", city: "", pincode: "", category: "", services: [], credentials: [] };
+const EMPTY = { experienceYears: 0, specialty: "", city: "", pincode: "", category: "", subcategory: "", role_title: "", services: [], credentials: [] };
 // ponytail: empty profile on error keeps the vendor page alive while supabase/schema.sql is unapplied.
 export async function getVendorProfile(professionalId) {
   if (!professionalId) return { ...EMPTY };
   try {
     const supabase = createClient();
+    const FULL_COLUMNS =
+      "experience_years, specialty, city, name, image_url, verification_status, hourly_rate, category, subcategory, role_title, pincode, availability";
     const BASE_COLUMNS =
       "experience_years, specialty, city, name, image_url, verification_status, hourly_rate, category, availability";
     const [{ data: services }, { data: credentials }] = await Promise.all([
       supabase.from("services").select("*").eq("professional_id", professionalId).order("sort"),
       supabase.from("credentials").select("*").eq("professional_id", professionalId),
     ]);
-    let { data: pro } = await supabase
+    let { data: pro, error } = await supabase
       .from("professionals")
-      .select(`${BASE_COLUMNS}, pincode`)
+      .select(FULL_COLUMNS)
       .eq("id", professionalId)
       .maybeSingle();
-    if (!pro) {
-      // pincode column may not exist yet (schema not applied) — retry without it
+    if (error || !pro) {
+      // subcategory/role_title/pincode column may not exist yet (schema not applied) — retry without them
       ({ data: pro } = await supabase
         .from("professionals")
         .select(BASE_COLUMNS)
@@ -32,6 +34,8 @@ export async function getVendorProfile(professionalId) {
       city: pro?.city || "",
       pincode: pro?.pincode || "",
       category: pro?.category || "",
+      subcategory: pro?.subcategory || "",
+      role_title: pro?.role_title || "",
       name: pro?.name || "",
       image_url: pro?.image_url || "",
       verification_status: pro?.verification_status || "not_submitted",
@@ -88,22 +92,37 @@ export async function updateVendorBasics(professionalId, patch) {
     }
   }
 
+  const cleanSub = patch.subcategory && patch.subcategory.trim() && patch.subcategory.toLowerCase() !== "professional"
+    ? patch.subcategory.trim()
+    : null;
+  const cleanTitle = (patch.role_title || "").trim() || cleanSub || patch.category || "Professional";
+
   const row = {
     experience_years: Number(patch.experienceYears) || 0,
     specialty: patch.specialty || "",
     city: patch.city || "",
     hourly_rate: Number(patch.hourlyRate) || 0,
+    category: patch.category || "",
+    subcategory: cleanSub,
+    role_title: cleanTitle,
   };
   let { error } = await supabase
     .from("professionals")
     .update({ ...row, pincode: cleanPin || "" })
     .eq("id", professionalId);
   if (error) {
-    // pincode column may not exist yet (schema not applied) — save the rest
-    ({ error } = await supabase.from("professionals").update(row).eq("id", professionalId));
+    // If subcategory/role_title or pincode columns don't exist yet, retry with base fields
+    const baseRow = {
+      experience_years: Number(patch.experienceYears) || 0,
+      specialty: patch.specialty || "",
+      city: patch.city || "",
+      hourly_rate: Number(patch.hourlyRate) || 0,
+      category: patch.category || "",
+    };
+    ({ error } = await supabase.from("professionals").update(baseRow).eq("id", professionalId));
   }
   if (error) throw error;
-  return { ...patch, pincode: cleanPin };
+  return { ...patch, subcategory: cleanSub, role_title: cleanTitle, pincode: cleanPin };
 }
 
 

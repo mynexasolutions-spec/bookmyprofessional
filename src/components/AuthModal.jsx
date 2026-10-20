@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -67,7 +67,8 @@ export default function AuthModal() {
     subcategory: "",
     city: "Mumbai",
     pincode: "",
-    agreeTerms: true,
+    agreeTerms: false,
+    agreeWhatsApp: false,
   });
 
   const [forgotEmail, setForgotEmail] = useState("");
@@ -185,6 +186,11 @@ export default function AuthModal() {
       return;
     }
     if (authRole === "professional") {
+      const availableSubs = subcategories[signupForm.category] || [];
+      if (availableSubs.length > 0 && !signupForm.subcategory?.trim()) {
+        setErrorMessage(`Please select a specialty subcategory for ${signupForm.category}.`);
+        return;
+      }
       if (!signupForm.pincode?.trim()) {
         setErrorMessage("Please enter your 6-digit service pincode");
         return;
@@ -202,7 +208,7 @@ export default function AuthModal() {
 
     setIsLoading(true);
     try {
-      await signup({
+      const result = await signup({
         fullName: signupForm.fullName,
         email: signupForm.email,
         phone: signupForm.phone,
@@ -212,7 +218,16 @@ export default function AuthModal() {
         subcategory: authRole === "professional" ? signupForm.subcategory || undefined : undefined,
         city: authRole === "professional" ? signupForm.city : undefined,
         pincode: authRole === "professional" ? signupForm.pincode : undefined,
+        whatsapp_consent: signupForm.agreeWhatsApp,
       });
+
+      if (!result?.needsEmailConfirmation) {
+        if (authRole === "professional") {
+          router.replace("/vendor");
+        } else {
+          router.replace("/dashboard");
+        }
+      }
     } catch (error) {
       setErrorMessage(error?.message || "Unable to create your account. Please try again.");
     } finally {
@@ -249,9 +264,12 @@ export default function AuthModal() {
   // Wire Google OAuth through loginWithProvider
   const handleSocialAuth = async (provider) => {
     try {
-      await loginWithProvider(provider.toLowerCase(), { role: authRole });
+      setIsLoading(true);
+      const target = authRole === "professional" ? "/vendor" : "/dashboard";
+      await loginWithProvider(provider.toLowerCase(), { role: authRole, next: target });
     } catch (err) {
       showToast(err?.message || `Failed to sign in with ${provider}.`, "error");
+      setIsLoading(false);
     }
   };
 
@@ -669,7 +687,13 @@ export default function AuthModal() {
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-primary-900 mb-1">
-                            Subcategory (optional)
+                            {(subcategories[signupForm.category] || []).length > 0 ? (
+                              <>
+                                Specialty Subcategory <span className="text-red-500">*</span>
+                              </>
+                            ) : (
+                              "Specialty Subcategory"
+                            )}
                           </label>
                           <select
                             value={signupForm.subcategory}
@@ -677,13 +701,20 @@ export default function AuthModal() {
                               setSignupForm({ ...signupForm, subcategory: e.target.value })
                             }
                             className="w-full px-2.5 py-2 bg-white border border-primary-200 rounded-lg text-xs text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                            required={(subcategories[signupForm.category] || []).length > 0}
                           >
-                            <option value="">Not specified</option>
-                            {(subcategories[signupForm.category] || []).map((sub) => (
-                              <option key={sub} value={sub}>
-                                {sub}
-                              </option>
-                            ))}
+                            {(subcategories[signupForm.category] || []).length > 0 ? (
+                              <>
+                                <option value="">Select your specialty...</option>
+                                {(subcategories[signupForm.category] || []).map((sub) => (
+                                  <option key={sub} value={sub}>
+                                    {sub}
+                                  </option>
+                                ))}
+                              </>
+                            ) : (
+                              <option value="">General {signupForm.category}</option>
+                            )}
                           </select>
                         </div>
                         <div>
@@ -795,27 +826,55 @@ export default function AuthModal() {
                       </div>
                     </div>
 
-                    <label className="flex items-start gap-2 cursor-pointer pt-1">
-                      <input
-                        type="checkbox"
-                        checked={signupForm.agreeTerms}
-                        onChange={(e) =>
-                          setSignupForm({ ...signupForm, agreeTerms: e.target.checked })
-                        }
-                        className="mt-0.5 rounded border-border text-primary-500 focus:ring-primary-500 h-3.5 w-3.5"
-                      />
-                      <span className="text-[11px] text-dark-600 leading-tight">
-                        I agree to BookMyProfessional's{" "}
-                        <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">
-                          Terms
-                        </a>{" "}
-                        &{" "}
-                        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">
-                          Privacy Policy
-                        </a>
-                        .
-                      </span>
-                    </label>
+                    <div className="space-y-2 pt-1">
+                      <label className="flex items-start gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={signupForm.agreeTerms}
+                          onChange={(e) =>
+                            setSignupForm({ ...signupForm, agreeTerms: e.target.checked })
+                          }
+                          className="mt-0.5 rounded border-border text-primary-500 focus:ring-primary-500 h-3.5 w-3.5 shrink-0 cursor-pointer"
+                        />
+                        <span className="text-[11px] text-dark-600 leading-tight">
+                          I agree to BookMyProfessional&apos;s{" "}
+                          <a
+                            href="/terms"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary-600 hover:underline font-medium"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Terms
+                          </a>{" "}
+                          &{" "}
+                          <a
+                            href="/privacy"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary-600 hover:underline font-medium"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Privacy Policy
+                          </a>
+                          . <span className="text-rose-500 font-medium">*</span>
+                        </span>
+                      </label>
+
+                      <label className="flex items-start gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={signupForm.agreeWhatsApp}
+                          onChange={(e) =>
+                            setSignupForm({ ...signupForm, agreeWhatsApp: e.target.checked })
+                          }
+                          className="mt-0.5 rounded border-border text-primary-500 focus:ring-primary-500 h-3.5 w-3.5 shrink-0 cursor-pointer"
+                        />
+                        <span className="text-[11px] text-dark-600 leading-tight">
+                          (Optional) Receive booking updates, reminders, and notifications via WhatsApp.
+                        </span>
+                      </label>
+                    </div>
 
                     <Button
                       type="submit"

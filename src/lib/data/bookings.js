@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { createPaymentForBooking, getCommissionRate } from "./payments";
 
-import { toUtcInstant } from "@/lib/datetime";
+import { toUtcInstant, isBookingExpired } from "@/lib/datetime";
 function generateBookingId() {
   return `BMP-${Math.floor(10000 + Math.random() * 90000)}`;
 }
@@ -269,7 +269,23 @@ export async function getAvailableSlots(professionalId, date, availability, clie
     if (!baseSlots.length) return [];
 
     const taken = new Set(await listTakenSlots(professionalId, date, supabase));
-    return baseSlots.filter((s) => !taken.has(s));
+    let available = baseSlots.filter((s) => !taken.has(s));
+
+    // Convert "now" to IST wall-clock (UTC+5:30) for today comparisons
+    const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+    const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+    const todayIST = `${nowIST.getUTCFullYear()}-${String(nowIST.getUTCMonth() + 1).padStart(2, "0")}-${String(nowIST.getUTCDate()).padStart(2, "0")}`;
+    const nowHourIST = nowIST.getUTCHours() + nowIST.getUTCMinutes() / 60;
+
+    // For today: filter out slots that have already passed or are within a 1-hour buffer
+    if (date === todayIST) {
+      available = available.filter((slot) => {
+        const slotH = parseSlotHour(slot);
+        return slotH !== null && slotH >= nowHourIST + 1;
+      });
+    }
+
+    return available;
   } catch {
     return [];
   }
@@ -497,6 +513,21 @@ export async function createBooking(payload, client) {
 
 export async function updateBookingStatus(bookingId, status, client) {
   const supabase = client || createClient();
+
+  if (status === "in_progress") {
+    const { data: current } = await supabase
+      .from("bookings")
+      .select("starts_at, date, time_slot, status")
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (current && current.status === "upcoming") {
+      const mapped = mapBooking(current);
+      if (isBookingExpired(mapped)) {
+        throw userFacing("Cannot start an appointment whose scheduled time has passed. Please contact the customer to reschedule.");
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from("bookings")
     .update({ status })

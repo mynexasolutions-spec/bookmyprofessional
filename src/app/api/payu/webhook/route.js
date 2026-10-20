@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyPaymentHash, getPayuConfig, amountsMatch } from '@/lib/payu';
 import { sendUserEmail } from '@/lib/email';
+import { notifyBookingConfirmed } from '@/lib/whatsapp';
 
 function supabaseAdmin() {
   return createClient(
@@ -10,23 +11,24 @@ function supabaseAdmin() {
   );
 }
 
-async function notifyBookingPaid(booking) {
+async function notifyBookingPaid(booking, supabase) {
   try {
     const serviceTitle = booking.service_title || `Booking ${booking.id}`;
-    await sendUserEmail(booking.customer_id, {
-      subject: 'Payment received',
-      kind: 'bookings',
-      text: `Your payment for booking ${booking.id} (${serviceTitle}) was received.`,
-    });
-    if (booking.professional_id) {
-      await sendUserEmail(booking.professional_id, {
-        subject: 'New booking confirmed',
+    await Promise.allSettled([
+      sendUserEmail(booking.customer_id, {
+        subject: 'Booking Confirmed — Payment Received',
         kind: 'bookings',
-        text: `Booking ${booking.id} (${serviceTitle}) is confirmed and paid.`,
-      });
-    }
+        text: `Hi! Your payment for booking ${booking.id} (${serviceTitle}) has been received and the booking is confirmed.`,
+      }),
+      booking.professional_id && sendUserEmail(booking.professional_id, {
+        subject: 'New Booking Confirmed',
+        kind: 'bookings',
+        text: `Booking ${booking.id} (${serviceTitle}) is confirmed and paid. Please be ready for the appointment.`,
+      }),
+      notifyBookingConfirmed(booking, supabase),
+    ]);
   } catch (error) {
-    console.error('[PayU Webhook] Email failed:', error);
+    console.error('[PayU Webhook] Notification failed:', error);
   }
 }
 
@@ -87,7 +89,7 @@ export async function POST(req) {
         .update({ status: 'held', provider: 'payu', provider_ref: mihpayid || null })
         .eq('booking_id', txnid);
       // ponytail: callback/webhook race can still double-send; dedupe on a payments row if it ever matters.
-      if (!wasPaid) await notifyBookingPaid(booking);
+      if (!wasPaid) await notifyBookingPaid(booking, supabase);
     } else if (status === 'failure') {
       await supabase
         .from('bookings')

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toUtcInstant } from "../src/lib/datetime.js";
+import { toUtcInstant, getBookingStartTimestamp, isBookingExpired, getDerivedBookingStatus } from "../src/lib/datetime.js";
 
 test("Asia/Kolkata (+05:30) is converted to UTC", () => {
   assert.equal(toUtcInstant("2026-01-15", "10:00 AM", "Asia/Kolkata"), "2026-01-15T04:30:00.000Z");
@@ -60,5 +60,81 @@ test("confirmation datetime formatting shows day name and timezone", () => {
   assert.ok(res.includes("October"), "Includes month name October");
   assert.ok(res.includes("10:00 AM"), "Includes slot time");
   assert.ok(res.includes("IST, UTC+5:30"), "Includes IST timezone");
+});
+test("past unstarted bookings BMP-16447 and BMP-20407 are expired and derive missed status", () => {
+  // BMP-16447: 26 Sep 2026, 9:30 AM
+  const bmp16447 = {
+    id: "BMP-16447",
+    date: "2026-09-26",
+    timeSlot: "9:30 AM",
+    status: "upcoming",
+  };
+  // Simulated 'now' = 2026-10-20 19:30 IST
+  const now = new Date("2026-10-20T14:00:00.000Z").getTime();
+
+  assert.equal(isBookingExpired(bmp16447, now), true, "BMP-16447 must be expired");
+  assert.equal(getDerivedBookingStatus(bmp16447, now), "missed", "BMP-16447 status must be missed");
+
+  // BMP-20407: 8 Oct 2026, 9:00 AM
+  const bmp20407 = {
+    id: "BMP-20407",
+    date: "2026-10-08",
+    timeSlot: "9:00 AM",
+    status: "upcoming",
+  };
+  assert.equal(isBookingExpired(bmp20407, now), true, "BMP-20407 must be expired");
+  assert.equal(getDerivedBookingStatus(bmp20407, now), "missed", "BMP-20407 status must be missed");
 });
 
+test("future unstarted bookings remain upcoming", () => {
+  const futureBooking = {
+    id: "BMP-99999",
+    date: "2026-10-25",
+    timeSlot: "11:00 AM",
+    status: "upcoming",
+  };
+  const now = new Date("2026-10-20T14:00:00.000Z").getTime();
+
+  assert.equal(isBookingExpired(futureBooking, now), false, "Future booking must NOT be expired");
+  assert.equal(getDerivedBookingStatus(futureBooking, now), "upcoming", "Future booking must be upcoming");
+});
+
+test("completed and cancelled bookings retain their original status even in the past", () => {
+  const pastCompleted = {
+    id: "BMP-10001",
+    date: "2026-09-01",
+    timeSlot: "10:00 AM",
+    status: "completed",
+  };
+  const pastCancelled = {
+    id: "BMP-10002",
+    date: "2026-09-01",
+    timeSlot: "10:00 AM",
+    status: "cancelled",
+  };
+  const now = new Date("2026-10-20T14:00:00.000Z").getTime();
+
+  assert.equal(getDerivedBookingStatus(pastCompleted, now), "completed");
+  assert.equal(getDerivedBookingStatus(pastCancelled, now), "cancelled");
+});
+
+test("booking crossing midnight is parsed and handles UTC timezone accurately", () => {
+  const lateBooking = {
+    id: "BMP-MIDNIGHT",
+    date: "2026-10-20",
+    timeSlot: "11:30 PM",
+    status: "upcoming",
+  };
+  // 11:30 PM IST on Oct 20 = 18:00 UTC on Oct 20
+  const startMs = getBookingStartTimestamp(lateBooking);
+  assert.equal(new Date(startMs).toISOString(), "2026-10-20T18:00:00.000Z");
+
+  // 30 mins after start (12:00 AM next day IST) -> within 60 min grace window, not expired yet
+  const insideGrace = startMs + 30 * 60 * 1000;
+  assert.equal(isBookingExpired(lateBooking, insideGrace), false);
+
+  // 90 mins after start (1:00 AM next day IST) -> past grace window, expired
+  const pastGrace = startMs + 90 * 60 * 1000;
+  assert.equal(isBookingExpired(lateBooking, pastGrace), true);
+  assert.equal(getDerivedBookingStatus(lateBooking, pastGrace), "missed");
+});

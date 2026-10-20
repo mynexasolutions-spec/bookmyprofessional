@@ -1,4 +1,4 @@
--- BookMyProfessional — Supabase schema
+﻿-- BookMyProfessional — Supabase schema
 -- Paste this whole file into: Supabase Dashboard -> SQL Editor -> Run.
 -- Idempotent: safe to re-run.
 -- Admin is env-based (see .env ADMIN_ID/ADMIN_PASSWORD/ADMIN_SESSION_SECRET) and uses the
@@ -16,13 +16,32 @@ create table if not exists public.profiles (
   city text,
   address text,
   avatar_url text,
+  whatsapp_consent boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+-- Ensure whatsapp_consent column exists if profiles table already existed
+alter table public.profiles add column if not exists whatsapp_consent boolean not null default false;
 
 -- auto-create a profile row on signup
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
+  insert into public.profiles (id, email, full_name, role, phone, city, whatsapp_consent)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data->>'role', 'customer'),
+    new.raw_user_meta_data->>'phone',
+    new.raw_user_meta_data->>'city',
+    coalesce((new.raw_user_meta_data->>'whatsapp_consent')::boolean, false)
+  )
+  on conflict (id) do update set
+    whatsapp_consent = coalesce(excluded.whatsapp_consent, public.profiles.whatsapp_consent);
+  return new;
+exception when others then
+  -- Fallback to essential columns so user registration never fails
   insert into public.profiles (id, email, full_name, role)
   values (
     new.id,
@@ -587,13 +606,28 @@ create policy wishlists_insert_own on public.wishlists for insert with check (us
 drop policy if exists wishlists_delete_own on public.wishlists;
 create policy wishlists_delete_own on public.wishlists for delete using (user_id = auth.uid());
 
--- ---------- subcategories (one level: parent category -> subcategory) ----------
--- A category with parent_id set is a subcategory (e.g. Tutors -> Dance Tutor). Top-level
--- categories have parent_id null and stay the only ones shown as tiles/filter chips.
+-- ---------- subcategories (hierarchical categories: parent category -> subcategory) ----------
+-- A category with parent_id set is a subcategory (e.g. Tutors -> Dance Tutor).
+-- Top-level categories have parent_id null and stay the only ones shown as homepage tiles.
 alter table public.categories add column if not exists parent_id uuid references public.categories(id) on delete cascade;
+alter table public.categories add column if not exists show_on_home boolean not null default true;
+alter table public.categories add column if not exists inclusions jsonb not null default '[]'::jsonb;
+alter table public.categories add column if not exists exclusions jsonb not null default '[]'::jsonb;
+
+-- Drop obsolete global name unique constraint if present so subcategories under different parents can share names
+alter table public.categories drop constraint if exists categories_name_key;
+
+-- Uniqueness: Top-level category names are unique among top-level categories
+create unique index if not exists categories_top_level_unique_idx on public.categories (lower(name)) where parent_id is null;
+
+-- Uniqueness: Subcategory names are unique under the same parent category
+create unique index if not exists categories_sub_unique_idx on public.categories (parent_id, lower(name)) where parent_id is not null;
 
 -- professional's subcategory (optional text from the chosen category's children)
 alter table public.professionals add column if not exists subcategory text;
+
+-- professional's role title fallback
+alter table public.professionals add column if not exists role_title text;
 
 -- professional's service-area pincode (optional)
 alter table public.professionals add column if not exists pincode text;

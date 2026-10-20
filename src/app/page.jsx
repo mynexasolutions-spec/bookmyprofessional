@@ -173,6 +173,20 @@ export default function HomePage() {
     return () => { active = false; };
   }, []);
 
+  // Handle OAuth error redirected to root by Supabase
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const errorDesc = urlParams.get("error_description") || hashParams.get("error_description");
+    const error = urlParams.get("error") || hashParams.get("error");
+    if (errorDesc || error) {
+      const msg = errorDesc || error || "Sign in failed. Please try again.";
+      showToast(decodeURIComponent(msg.replace(/\+/g, " ")), "error");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [showToast]);
+
   const handleNewsletterSubmit = async (e) => {
     e.preventDefault();
     if (isSubscribing) return;
@@ -471,7 +485,7 @@ export default function HomePage() {
           <div className="absolute inset-0 bg-gradient-to-r from-surface/95 via-surface/80 to-transparent lg:from-surface/85 lg:via-surface/40 lg:to-transparent pointer-events-none" />
 
           <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-10 lg:py-12 w-full">
-            <div className="max-w-2xl lg:max-w-xl text-center sm:text-left">
+            <div className="max-w-2xl lg:max-w-2xl text-center sm:text-left">
               {/* Badge: Trusted Professionals. At Your Service. */}
               <div className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-surface/90 backdrop-blur-sm px-3 py-1 shadow-sm mb-4">
                 <span className="flex h-2 w-2 rounded-full ring-2 ring-primary-300 bg-primary-500" />
@@ -493,130 +507,115 @@ export default function HomePage() {
               </p>
 
               {/* Unified Two-Part Search Bar */}
-              <form onSubmit={handleHeroSearch} className="mt-8 max-w-xl">
-                <div className="flex flex-col sm:flex-row items-stretch bg-surface rounded-card border border-border shadow-soft p-1.5 gap-1.5 sm:gap-0">
-                  {/* Location Input */}
-                  <div className="flex items-center gap-2 px-3 py-2 sm:w-[42%] border-b sm:border-b-0 sm:border-r border-border">
-                    <MapPin className="h-4 w-4 text-primary-500 shrink-0" />
-                    <div className="relative flex-1 min-w-0">
-                      <input
-                        type="text"
-                        placeholder="Your Location or Pincode"
-                        value={heroLocation}
-                        onChange={handleLocationChange}
-                        onFocus={() => setHeroFocus("location")}
-                        onBlur={() => setHeroFocus("")}
-                        className="w-full bg-transparent text-xs sm:text-sm text-dark-900 placeholder:text-transparent focus:outline-none"
-                        aria-label="Your Location or Pincode"
-                      />
-                      {!heroLocation && heroFocus !== "location" && (
-                        <ScrollingPlaceholder
-                          text="Your Location or Pincode"
-                          className="text-xs sm:text-sm"
+                <form onSubmit={handleHeroSearch} className="mt-8 w-full max-w-2xl">
+                  <div className="flex flex-col sm:flex-row items-stretch bg-surface rounded-card border border-border shadow-soft p-1.5 gap-1.5 sm:gap-0">
+                    {/* Location Input */}
+                    <div className="flex items-center gap-2 px-3 py-2 sm:w-[38%] sm:min-w-[180px] border-b sm:border-b-0 sm:border-r border-border shrink-0">
+                      <MapPin className="h-4 w-4 text-primary-500 shrink-0" />
+                      <div className="relative flex-1 min-w-0">
+                        <input
+                          type="text"
+                          placeholder="Location / Pincode"
+                          value={heroLocation}
+                          onChange={handleLocationChange}
+                          onFocus={() => setHeroFocus("location")}
+                          onBlur={() => setHeroFocus("")}
+                          className="w-full bg-transparent text-xs sm:text-sm text-dark-900 placeholder:text-dark-400 focus:outline-none"
+                          aria-label="Location or Pincode"
                         />
-                      )}
-                    </div>
+                      </div>
 
-                    {/* Clear button if text exists */}
-                    {heroLocation && (
+                      {/* Clear button if text exists */}
+                      {heroLocation && (
+                        <button
+                          type="button"
+                          onClick={handleClearLocation}
+                          className="p-1 rounded-full text-dark-400 hover:text-dark-700 hover:bg-dark-100 transition-colors cursor-pointer shrink-0"
+                          aria-label="Clear location input"
+                          title="Clear location"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {/* Touch-friendly GPS target inside location field */}
                       <button
                         type="button"
-                        onClick={handleClearLocation}
-                        className="p-1 rounded-full text-dark-400 hover:text-dark-700 hover:bg-dark-100 transition-colors cursor-pointer"
-                        aria-label="Clear location input"
-                        title="Clear location"
+                        onClick={handleUseCurrentLocation}
+                        disabled={isGeoLoading}
+                        className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center justify-center shrink-0 min-w-[32px] min-h-[32px] ${
+                          activeGpsCoords
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs"
+                            : "bg-dark-50/80 hover:bg-primary-50 border-border hover:border-primary-300 text-dark-600 hover:text-primary-600"
+                        }`}
+                        aria-label="Use my current location"
+                        title="Use my current location"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        {isGeoLoading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-500" />
+                        ) : activeGpsCoords ? (
+                          <Crosshair className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                        ) : (
+                          <Navigation className="w-3.5 h-3.5" />
+                        )}
                       </button>
-                    )}
+                    </div>
 
-                    {/* Touch-friendly GPS target inside location field */}
-                    <button
-                      type="button"
-                      onClick={handleUseCurrentLocation}
-                      disabled={isGeoLoading}
-                      className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center justify-center shrink-0 min-w-[36px] min-h-[36px] ${
-                        activeGpsCoords
-                          ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs"
-                          : "bg-dark-50/80 hover:bg-primary-50 border-border hover:border-primary-300 text-dark-600 hover:text-primary-600"
-                      }`}
-                      aria-label="Use my current location"
-                      title="Use my current location"
-                    >
-                      {isGeoLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
-                      ) : activeGpsCoords ? (
-                        <Crosshair className="w-4 h-4 text-emerald-600 animate-pulse" />
-                      ) : (
-                        <Navigation className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Service Input */}
-                  <div className="flex flex-1 items-center gap-2 px-3 py-2">
-                    <Search className="h-4 w-4 text-muted shrink-0" />
-                    <div className="relative flex-1 min-w-0">
-                      <input
-                        type="text"
-                        placeholder="Search for a service (e.g. Plumber, Tutor, Doctor...)"
-                        value={heroService}
-                        onChange={(e) => setHeroService(e.target.value)}
-                        onFocus={() => setHeroFocus("service")}
-                        onBlur={() => setHeroFocus("")}
-                        className="w-full bg-transparent text-xs sm:text-sm text-dark-900 placeholder:text-transparent focus:outline-none"
-                        aria-label="Search for a service"
-                      />
-                      {!heroService && heroFocus !== "service" && (
-                        <ScrollingPlaceholder
-                          text="Search for a service (e.g. Plumber, Tutor, Doctor...)"
-                          className="text-xs sm:text-sm"
+                    {/* Service Input */}
+                    <div className="flex flex-1 items-center gap-2 px-3 py-2 min-w-0">
+                      <Search className="h-4 w-4 text-muted shrink-0" />
+                      <div className="relative flex-1 min-w-0">
+                        <input
+                          type="text"
+                          placeholder="Search service (e.g. Plumber, Tutor)"
+                          value={heroService}
+                          onChange={(e) => setHeroService(e.target.value)}
+                          onFocus={() => setHeroFocus("service")}
+                          onBlur={() => setHeroFocus("")}
+                          className="w-full bg-transparent text-xs sm:text-sm text-dark-900 placeholder:text-dark-400 focus:outline-none"
+                          aria-label="Search for a service"
                         />
-                      )}
+                      </div>
+                    </div>
+
+                    {/* Buttons Container: Entry point beside the search button */}
+                    <div className="flex items-center gap-1.5 sm:self-center p-1 sm:p-0 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleUseCurrentLocation}
+                        disabled={isGeoLoading}
+                        className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[8px] border text-xs font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[40px] ${
+                          activeGpsCoords
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs"
+                            : "bg-surface border-border text-dark-700 hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600 shadow-xs"
+                        }`}
+                        aria-label="Use my current location"
+                        title="Use my current location"
+                      >
+                        {isGeoLoading ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-500 shrink-0" />
+                        ) : (
+                          <Crosshair className={`h-3.5 w-3.5 shrink-0 ${activeGpsCoords ? "text-emerald-600" : "text-primary-500"}`} />
+                        )}
+                        <span>
+                          {isGeoLoading ? "Locating..." : activeGpsCoords ? "Near Me ✓" : "Near Me"}
+                        </span>
+                      </button>
+
+                      {/* Search Button */}
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        size="md"
+                        className="flex-1 sm:flex-none rounded-[8px] px-4 sm:px-5 py-2.5 font-semibold text-xs sm:text-sm whitespace-nowrap shadow-button cursor-pointer min-h-[40px]"
+                      >
+                        <Search className="h-4 w-4 mr-1.5 shrink-0" />
+                        Search
+                      </Button>
                     </div>
                   </div>
 
-                  {/* Buttons Container: Entry point beside the search button */}
-                  <div className="flex items-center gap-1.5 sm:self-center p-1 sm:p-0">
-                    <button
-                      type="button"
-                      onClick={handleUseCurrentLocation}
-                      disabled={isGeoLoading}
-                      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[8px] border text-xs font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[40px] ${
-                        activeGpsCoords
-                          ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs"
-                          : "bg-surface border-border text-dark-700 hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600 shadow-xs"
-                      }`}
-                      aria-label="Use my current location"
-                      title="Use my current location"
-                    >
-                      {isGeoLoading ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-500 shrink-0" />
-                      ) : (
-                        <Crosshair className={`h-3.5 w-3.5 shrink-0 ${activeGpsCoords ? "text-emerald-600" : "text-primary-500"}`} />
-                      )}
-                      <span className="hidden sm:inline">
-                        {isGeoLoading ? "Locating..." : activeGpsCoords ? "Near Me ✓" : "Near Me"}
-                      </span>
-                      <span className="sm:hidden">
-                        {isGeoLoading ? "Locating..." : "Near Me"}
-                      </span>
-                    </button>
-
-                    {/* Search Button */}
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      size="md"
-                      className="flex-1 sm:flex-none rounded-[8px] px-5 py-2.5 font-semibold text-xs sm:text-sm whitespace-nowrap shadow-button cursor-pointer min-h-[40px]"
-                    >
-                      <Search className="h-4 w-4 mr-1.5 shrink-0" />
-                      Search
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Geolocation feedback / status note */}
+                  {/* Geolocation feedback / status note */}
                 {isGeoLoading && (
                   <div className="mt-2.5 flex items-center gap-2 text-xs text-primary-600 font-medium">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />

@@ -66,8 +66,8 @@ export default function ContactPage() {
       name: "Mumbai (Main Headquarters)",
       address: "Bandra Kurla Complex, Mumbai 400051, India",
       mapQuery: "Bandra+Kurla+Complex,+Mumbai,+India",
-      phone: "+91 22 4000 4400",
-      email: "mumbai-hq@bookmyprofessional.com",
+      phone: "+91 89193 28705",
+      email: "hq@bookmyprofessional.com",
       transit: "Metro Bandra Kurla Complex (Line 3) – 2 min walk",
       parking: "Basement parking available at BKC",
       hours: "Mon – Fri: 09:00 – 20:00 IST",
@@ -113,11 +113,11 @@ export default function ContactPage() {
     {
       icon: Phone,
       title: "Direct Phone & WhatsApp",
-      details: "+91 22 4000 4400",
+      details: "+91 89193 28705",
       subtext: "Mon – Sat, 8:00 AM – 8:00 PM IST",
       badge: "Quick Response",
       actionText: "Call Now",
-      href: "tel:+912240004400",
+      href: "tel:+918919328705",
     },
     {
       icon: Mail,
@@ -799,7 +799,7 @@ export default function ContactPage() {
                 Emergency Support Line:
               </p>
               <p className="text-xs font-semibold text-primary-400">
-                +91 22 4000 4400
+                +91 89193 28705
               </p>
             </div>
           </div>

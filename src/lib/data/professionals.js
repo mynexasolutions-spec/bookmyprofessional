@@ -48,16 +48,29 @@ function summarizeReviews(reviews) {
   return { rating: Math.round(avg * 10) / 10, reviewCount: list.length };
 }
 
+export function getProfessionalTitle(pro) {
+  if (!pro) return "Professional";
+  const sub = (pro.subcategory || "").trim();
+  if (sub && sub.toLowerCase() !== "professional") return sub;
+  const cat = (pro.category || "").trim();
+  if (cat && cat.toLowerCase() !== "professional") return cat;
+  const custom = (pro.role_title || pro.role || "").trim();
+  if (custom && custom.toLowerCase() !== "professional") return custom;
+  return "Professional";
+}
+
 function mapProfessional(row, locMap) {
   const city = row.city || "";
   const loc = city ? locMap[city.toLowerCase()] : null;
   const hourlyRate = Number(row.hourly_rate) || 0;
   const reviews = (row.reviews || []).map(mapReview);
+  const displayTitle = getProfessionalTitle(row);
 
   return {
     id: row.id,
     name: row.name,
-    role: row.role_title || "Professional",
+    role: displayTitle,
+    role_title: displayTitle,
     category: row.category || "",
     subcategory: row.subcategory || "",
     specialty: row.specialty || "",

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -36,6 +36,7 @@ import {
   TrendingUp,
   Quote,
   Eye,
+  Search,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { parseInclusions, formatInclusions } from "@/lib/inclusions";
@@ -168,6 +169,19 @@ export default function AdminDashboard({
   const [reviewReason, setReviewReason] = useState("");
   const [actionType, setActionType] = useState("approve");
   const [categoryEditor, setCategoryEditor] = useState(null);
+  const [categoryFilter, setCategoryFilter] = useState("all"); // "all" | "parents" | "children" | parent_id
+  const [categorySearch, setCategorySearch] = useState("");
+
+  const filteredCategories = categories.filter((category) => {
+    if (categorySearch.trim()) {
+      const q = categorySearch.toLowerCase();
+      if (!category.name.toLowerCase().includes(q)) return false;
+    }
+    if (categoryFilter === "parents") return !category.parent_id;
+    if (categoryFilter === "children") return !!category.parent_id;
+    if (categoryFilter !== "all") return category.parent_id === categoryFilter;
+    return true;
+  });
   const [showAddPro, setShowAddPro] = useState(false);
   const [proForm, setProForm] = useState({
     name: "",
@@ -1195,26 +1209,86 @@ export default function AdminDashboard({
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-heading text-2xl font-bold text-dark-900">Categories</h2>
-                  <p className="text-sm text-muted mt-1">Manage the marketplace service categories.</p>
+                  <h2 className="font-heading text-2xl font-bold text-dark-900">Categories & Subcategories</h2>
+                  <p className="text-sm text-muted mt-1">Manage marketplace service categories and specialties with full profile protection.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCategoryEditor({
-                      id: null,
-                      name: "",
-                      sort: "",
-                      icon: "",
-                      parent_id: null,
-                      inclusions: "",
-                      exclusions: "",
-                    })
-                  }
-                  className="py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm shrink-0"
-                >
-                  + Add Category
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCategoryEditor({
+                        id: null,
+                        name: "",
+                        sort: "",
+                        icon: "",
+                        parent_id: null,
+                        inclusions: "",
+                        exclusions: "",
+                        is_subcategory: false,
+                      })
+                    }
+                    className="py-2.5 px-3.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm"
+                  >
+                    + Add Category
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const topParents = categories.filter((c) => !c.parent_id);
+                      setCategoryEditor({
+                        id: null,
+                        name: "",
+                        sort: "",
+                        icon: "",
+                        parent_id: topParents[0]?.id || null,
+                        inclusions: "",
+                        exclusions: "",
+                        is_subcategory: true,
+                      });
+                    }}
+                    className="py-2.5 px-3.5 bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200 rounded-xl text-xs font-semibold shadow-xs"
+                  >
+                    + Add Subcategory
+                  </button>
+                </div>
+              </div>
+
+              {/* Scope & Search Filters */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 p-3 bg-surface rounded-2xl border border-border shadow-xs">
+                <div className="flex-1 w-full relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-dark-400" />
+                  <input
+                    type="text"
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    placeholder="Search categories or subcategories by name..."
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-dark-50 border border-border rounded-xl text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                  />
+                </div>
+                <div className="w-full sm:w-auto flex items-center gap-2">
+                  <span className="text-xs font-medium text-dark-500 shrink-0">Filter:</span>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="w-full sm:w-60 px-3 py-2 text-xs bg-dark-50 border border-border rounded-xl text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                  >
+                    <option value="all">All Items ({categories.length})</option>
+                    <option value="parents">Top-Level Categories Only ({categories.filter((c) => !c.parent_id).length})</option>
+                    <option value="children">Subcategories Only ({categories.filter((c) => c.parent_id).length})</option>
+                    <optgroup label="Filter by Parent Category">
+                      {categories
+                        .filter((c) => !c.parent_id)
+                        .map((p) => {
+                          const count = categories.filter((c) => c.parent_id === p.id).length;
+                          return (
+                            <option key={p.id} value={p.id}>
+                              {p.name} ({count} subcategories)
+                            </option>
+                          );
+                        })}
+                    </optgroup>
+                  </select>
+                </div>
               </div>
 
               {categoryEditor && (
@@ -1223,6 +1297,10 @@ export default function AdminDashboard({
                     e.preventDefault();
                     const name = categoryEditor.name.trim();
                     if (!name) return;
+                    if (categoryEditor.is_subcategory && !categoryEditor.parent_id) {
+                      alert("Please select a parent category for this subcategory.");
+                      return;
+                    }
                     const payload = {
                       name,
                       sort: categoryEditor.sort,
@@ -1248,14 +1326,14 @@ export default function AdminDashboard({
                   className="p-4 bg-surface rounded-2xl border border-border shadow-card space-y-3"
                 >
                   <h3 className="font-heading text-sm font-bold text-dark-900">
-                    {categoryEditor.id ? "Edit category" : "Add a new category"}
+                    {categoryEditor.id ? (categoryEditor.parent_id ? "Edit subcategory" : "Edit category") : (categoryEditor.parent_id ? "Add a new subcategory" : "Add a new category")}
                   </h3>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <input
                       autoFocus
                       value={categoryEditor.name}
                       onChange={(e) => setCategoryEditor((c) => ({ ...c, name: e.target.value }))}
-                      placeholder="Category name"
+                      placeholder={categoryEditor.parent_id || categoryEditor.is_subcategory ? "Subcategory name (e.g. Cardiologist, Web Developer)" : "Category name (e.g. Doctors, IT)"}
                       className="flex-1 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-dark-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                     />
                     <select
@@ -1342,7 +1420,7 @@ export default function AdminDashboard({
                       disabled={busy === "category:new" || busy === "category:save"}
                       className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold disabled:opacity-50"
                     >
-                      {categoryEditor.id ? "Save Changes" : "Add Category"}
+                      {categoryEditor.id ? "Save Changes" : (categoryEditor.parent_id ? "Add Subcategory" : "Add Category")}
                     </button>
                     <button
                       type="button"
@@ -1375,7 +1453,14 @@ export default function AdminDashboard({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {categories.map((category) => {
+                      {filteredCategories.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-5 py-8 text-center text-dark-500">
+                            No categories or subcategories found matching your filter or search.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredCategories.map((category) => {
                         const key = `category:${category.id}`;
                         const isBusy = busy === key;
                         const parentName = category.parent_id
@@ -1385,12 +1470,19 @@ export default function AdminDashboard({
                           <React.Fragment key={category.id}>
                           <tr className="hover:bg-dark-50/50 transition-colors">
                             <td className="px-5 py-3.5">
-                              <span className="font-semibold text-dark-900">
-                                {parentName ? (
-                                  <span className="text-dark-400 font-normal">{parentName} / </span>
-                                ) : null}
-                                {category.name}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-dark-900">
+                                  {parentName ? (
+                                    <span className="text-dark-400 font-normal">{parentName} / </span>
+                                  ) : null}
+                                  {category.name}
+                                </span>
+                                {!category.parent_id && (
+                                  <span className="text-[10px] font-medium text-dark-500 bg-dark-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    {categories.filter((c) => c.parent_id === category.id).length} subcategories
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-5 py-3.5">
                               <div className="w-10 h-10 rounded-lg bg-dark-100 border border-border overflow-hidden flex items-center justify-center">
@@ -1462,6 +1554,27 @@ export default function AdminDashboard({
                                 >
                                   {category.active ? "Deactivate" : "Activate"}
                                 </button>
+                                {!category.parent_id && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setCategoryEditor({
+                                        id: null,
+                                        name: "",
+                                        sort: "",
+                                        icon: "",
+                                        parent_id: category.id,
+                                        inclusions: "",
+                                        exclusions: "",
+                                        is_subcategory: true,
+                                      })
+                                    }
+                                    className="py-2 px-3 rounded-xl border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 text-xs font-semibold flex items-center gap-1"
+                                    title={`Add a subcategory directly under ${category.name}`}
+                                  >
+                                    + Subcategory
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -1483,7 +1596,7 @@ export default function AdminDashboard({
                                   type="button"
                                   disabled={isBusy}
                                   onClick={() => {
-                                    if (!window.confirm("Delete this category?")) return;
+                                    if (!window.confirm(category.parent_id ? `Delete subcategory "${category.name}"? This cannot be undone.` : `Delete category "${category.name}" and all its data? This cannot be undone.`)) return;
                                     run(
                                       key,
                                       `/api/admin/categories?id=${encodeURIComponent(category.id)}`,
@@ -1501,7 +1614,8 @@ export default function AdminDashboard({
                           </tr>
                           </React.Fragment>
                         );
-                      })}
+                      })
+                      )}
                     </tbody>
                   </table>
                 </div>

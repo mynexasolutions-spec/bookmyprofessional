@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { cookies } from 'next/headers';
 
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
@@ -12,8 +13,41 @@ export async function GET(request) {
     return NextResponse.redirect(`${origin}/login?error=OAuthMissingCode`);
   }
 
+  // 1. Check cookie fallback for target role
+  let cookieRole = null;
   try {
-    const supabase = await createClient();
+    const cookieStore = await cookies();
+    cookieRole = cookieStore.get('oauth_role')?.value;
+  } catch {}
+
+  // Request-level intent (what tab or role was selected)
+  const requestedRole = roleParam || cookieRole || null;
+
+  try {
+    const cookieStore = await cookies();
+    const cookiesToApply = [];
+
+    // Server client that writes cookies
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              try {
+                cookieStore.set(name, value, options);
+              } catch {}
+              cookiesToApply.push({ name, value, options });
+            });
+          },
+        },
+      }
+    );
+
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (error || !data?.session?.user) {
@@ -25,23 +59,59 @@ export async function GET(request) {
     const email = authUser.email?.toLowerCase().trim();
     const meta = authUser.user_metadata || {};
 
-    let targetRole = roleParam || meta.role || 'customer';
     let adminSupabase = null;
-
     try {
       adminSupabase = createAdminClient();
     } catch {
-      // Fallback to session client if admin key is unconfigured
       adminSupabase = supabase;
     }
 
+    // Determine the resolved role
+    let resolvedRole = 'customer';
+
     if (email && adminSupabase) {
-      // 1. Link by verified email: Check if an account already exists with this email
-      const { data: existingProfile } = await adminSupabase
+      // Check existing profile by ID first, then by email
+      let existingProfile = null;
+      const { data: byId } = await adminSupabase
         .from('profiles')
         .select('*')
-        .ilike('email', email)
+        .eq('id', authUser.id)
         .maybeSingle();
+
+      if (byId) {
+        existingProfile = byId;
+      } else {
+        const { data: byEmail } = await adminSupabase
+          .from('profiles')
+          .select('*')
+          .ilike('email', email)
+          .maybeSingle();
+        existingProfile = byEmail;
+      }
+
+      // Check if user also has a professional record in 'professionals' table
+      const { data: existingProRecord } = await adminSupabase
+        .from('professionals')
+        .select('id')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      // Priority logic:
+      // 1. Explicitly selected "professional" in registration/login -> 'professional'
+      // 2. Already an existing professional in DB -> KEEP 'professional' (never demote on login)
+      // 3. Already has a row in professionals table -> KEEP 'professional'
+      // 4. Otherwise use existingProfile role if present, or requestedRole, or fallback to 'customer'
+      if (requestedRole === 'professional') {
+        resolvedRole = 'professional';
+      } else if (existingProfile?.role === 'professional' || existingProRecord) {
+        resolvedRole = 'professional';
+      } else if (requestedRole === 'customer') {
+        resolvedRole = 'customer';
+      } else if (existingProfile?.role) {
+        resolvedRole = existingProfile.role;
+      } else {
+        resolvedRole = 'customer';
+      }
 
       const fullName =
         existingProfile?.full_name ||
@@ -52,17 +122,8 @@ export async function GET(request) {
         existingProfile?.avatar_url || meta.avatar_url || meta.picture || null;
 
       if (existingProfile) {
-        // If user explicitly chose a role tab during sign-in/up, honor it.
-        // Otherwise retain existing role if already established.
-        if (roleParam) {
-          targetRole = roleParam;
-        } else if (existingProfile.role) {
-          targetRole = existingProfile.role;
-        }
-
         if (existingProfile.id !== authUser.id) {
-          // Email match on different ID (e.g. previously signed up via email/password):
-          // Consolidate data to current authUser.id so the user never has two accounts.
+          // Consolidate data to current authUser.id
           try {
             await adminSupabase
               .from('bookings')
@@ -91,19 +152,19 @@ export async function GET(request) {
               .eq('user_id', existingProfile.id);
           } catch {}
 
-          // Upsert the profile row under authUser.id preserving existing phone/city
+          // Upsert profile row under authUser.id preserving existing data
           await adminSupabase.from('profiles').upsert({
             id: authUser.id,
             email,
             full_name: fullName,
-            role: targetRole,
+            role: resolvedRole,
             phone: existingProfile.phone || '',
             city: existingProfile.city || '',
             address: existingProfile.address || '',
             avatar_url: avatarUrl,
           });
 
-          if (targetRole === 'professional') {
+          if (resolvedRole === 'professional') {
             try {
               await adminSupabase
                 .from('professionals')
@@ -118,7 +179,7 @@ export async function GET(request) {
             .update({
               full_name: fullName,
               avatar_url: avatarUrl,
-              role: targetRole,
+              role: resolvedRole,
             })
             .eq('id', authUser.id);
         }
@@ -128,13 +189,13 @@ export async function GET(request) {
           id: authUser.id,
           email,
           full_name: fullName,
-          role: targetRole,
+          role: resolvedRole,
           avatar_url: avatarUrl,
         });
       }
 
       // If user is a professional, guarantee that a row exists in professionals table
-      if (targetRole === 'professional') {
+      if (resolvedRole === 'professional') {
         const { data: pro } = await adminSupabase
           .from('professionals')
           .select('id')
@@ -158,21 +219,25 @@ export async function GET(request) {
       // Sync role into auth user metadata
       try {
         await adminSupabase.auth.admin.updateUserById(authUser.id, {
-          user_metadata: { ...meta, role: targetRole },
+          user_metadata: { ...meta, role: resolvedRole },
         });
       } catch {}
     }
 
-    // Determine redirect destination
-    if (nextParam) {
-      return NextResponse.redirect(`${origin}${nextParam}`);
-    }
+    const defaultTarget = resolvedRole === 'professional' ? '/vendor' : '/dashboard';
+    const destination = (nextParam && nextParam !== '/' && nextParam !== '/login' && nextParam !== '/register')
+      ? nextParam
+      : defaultTarget;
+    const response = NextResponse.redirect(`${origin}${destination}`);
 
-    if (targetRole === 'professional') {
-      return NextResponse.redirect(`${origin}/vendor`);
-    }
+    // Apply Supabase session cookies onto the response
+    cookiesToApply.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options);
+    });
 
-    return NextResponse.redirect(`${origin}/dashboard`);
+    // Note: oauth_role is preserved until client hydrate finishes
+
+    return response;
   } catch (err) {
     console.error('OAuth callback handler error:', err);
     return NextResponse.redirect(`${origin}/login?error=OAuthFailed`);
