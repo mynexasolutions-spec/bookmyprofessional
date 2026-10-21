@@ -16,7 +16,14 @@ import {
   deleteService,
   saveCredential,
   deleteCredential,
+  updateVendorPayoutDetails,
 } from "@/lib/data/vendor-profile";
+import {
+  validatePayoutDetails,
+  hasValidPayoutDetails,
+  getBankNameFromIFSC,
+  maskAccountNumber,
+} from "@/lib/payout-validation";
 import { getEarningsSummary, listMyPayouts } from "@/lib/data/payments";
 import { listAllCategories, listCategories, listSubcategories } from "@/lib/data/categories";
 import { formatInclusions } from "@/lib/inclusions";
@@ -29,6 +36,10 @@ import { generateSlotsForDay, formatTime24to12 } from "@/lib/data/bookings";
 import { getDerivedBookingStatus, isBookingExpired } from "@/lib/datetime";
 import {
   DollarSign,
+  Building2,
+  CreditCard,
+  QrCode,
+  X,
   TrendingUp,
   Calendar,
   Clock,
@@ -163,6 +174,20 @@ export default function VendorPortalPage() {
   const [earnings, setEarnings] = useState(null);
   const [payouts, setPayouts] = useState(null);
 
+  // Bank & UPI payout details state
+  const [payoutDetails, setPayoutDetails] = useState(null);
+  const [isEditingPayoutDetails, setIsEditingPayoutDetails] = useState(false);
+  const [isSavingPayoutDetails, setIsSavingPayoutDetails] = useState(false);
+  const [payoutForm, setPayoutForm] = useState({
+    type: "bank",
+    account_holder: "",
+    account_number: "",
+    confirm_account_number: "",
+    ifsc_code: "",
+    bank_name: "",
+    upi_id: "",
+  });
+
   // Weekly schedule state
   const [scheduleState, setScheduleState] = useState(() => ({ ...DEFAULT_SCHEDULE }));
   const [savedScheduleState, setSavedScheduleState] = useState(null); // null if unsaved draft
@@ -253,6 +278,9 @@ export default function VendorPortalPage() {
     getVendorProfile(user.id).then((profile) => {
       if (!active || !profile) return;
       setVendorProfile(profile);
+      if (profile.payout_details && typeof profile.payout_details === "object") {
+        setPayoutDetails(profile.payout_details);
+      }
       const parsed = parseAvailabilityToSchedule(profile.availability);
       if (parsed) {
         setScheduleState(parsed);
@@ -413,8 +441,74 @@ export default function VendorPortalPage() {
 
   const allApproved = verificationStatus === "approved";
 
+  const hasValidPayout = hasValidPayoutDetails(payoutDetails);
+
+  const openPayoutDetailsEditor = () => {
+    if (payoutDetails && typeof payoutDetails === "object") {
+      setPayoutForm({
+        type: payoutDetails.type || (payoutDetails.upi_id ? "upi" : "bank"),
+        account_holder: payoutDetails.account_holder || "",
+        account_number: payoutDetails.account_number || "",
+        confirm_account_number: payoutDetails.account_number || "",
+        ifsc_code: payoutDetails.ifsc_code || "",
+        bank_name: payoutDetails.bank_name || "",
+        upi_id: payoutDetails.upi_id || "",
+      });
+    } else {
+      setPayoutForm({
+        type: "bank",
+        account_holder: vendorProfile?.name || user?.user_metadata?.full_name || "",
+        account_number: "",
+        confirm_account_number: "",
+        ifsc_code: "",
+        bank_name: "",
+        upi_id: "",
+      });
+    }
+    setIsEditingPayoutDetails(true);
+  };
+
+  const handleSavePayoutDetails = async (e) => {
+    e.preventDefault();
+    if (payoutForm.type === "bank") {
+      if (payoutForm.account_number !== payoutForm.confirm_account_number) {
+        showToast("Bank account numbers do not match.", "error");
+        return;
+      }
+    }
+    const validation = validatePayoutDetails(payoutForm);
+    if (!validation.valid) {
+      const firstErr = Object.values(validation.errors)[0] || "Please check payout details.";
+      showToast(firstErr, "error");
+      return;
+    }
+
+    if (!user?.id) {
+      showToast("Please sign in to update payout details.", "error");
+      return;
+    }
+
+    setIsSavingPayoutDetails(true);
+    try {
+      const saved = await updateVendorPayoutDetails(user.id, payoutForm);
+      setPayoutDetails(saved);
+      setVendorProfile((prev) => ({ ...prev, payout_details: saved }));
+      setIsEditingPayoutDetails(false);
+      showToast("Payout details saved and verified successfully!", "success");
+    } catch (err) {
+      showToast(err?.message || "Failed to save payout details.", "error");
+    } finally {
+      setIsSavingPayoutDetails(false);
+    }
+  };
+
   const handlePayoutSubmit = async (e) => {
     e.preventDefault();
+    if (!hasValidPayout) {
+      showToast("Add bank details to request a payout.", "error");
+      openPayoutDetailsEditor();
+      return;
+    }
     const amt = parseFloat(payoutAmountInput);
     if (!amt || amt <= 0) {
       showToast("Please enter a valid payout amount.", "error");
@@ -424,7 +518,7 @@ export default function VendorPortalPage() {
       showToast("Requested amount exceeds available balance.", "error");
       return;
     }
-    const success = await requestPayout(amt);
+    const success = await requestPayout(amt, payoutDetails);
     if (success) {
       setIsRequestingPayout(false);
       if (user?.id) {
@@ -903,14 +997,84 @@ export default function VendorPortalPage() {
                     </div>
                   </div>
 
+                  {/* Payout Destination Details Card */}
+                  <div className={`p-5 rounded-2xl border transition-all ${hasValidPayout ? "bg-surface border-border shadow-xs" : "bg-amber-50/70 border-amber-200"}`}>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-start sm:items-center gap-3.5">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${hasValidPayout ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                          {hasValidPayout ? (
+                            payoutDetails?.type === "upi" ? <QrCode className="w-5 h-5" /> : <Building2 className="w-5 h-5" />
+                          ) : (
+                            <AlertCircle className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-heading text-sm font-bold text-dark-900">
+                              {hasValidPayout ? "Verified Payout Destination" : "Payout Details Required"}
+                            </h4>
+                            {hasValidPayout ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                <Check className="w-3 h-3 stroke-[2.5]" /> Verified
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                                Action Required
+                              </span>
+                            )}
+                          </div>
+                          {hasValidPayout ? (
+                            <div className="text-xs text-dark-600 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                              {payoutDetails?.type === "upi" ? (
+                                <>
+                                  <span className="font-semibold text-dark-800">UPI ID: {payoutDetails.upi_id}</span>
+                                  {payoutDetails.account_holder && <span>• Name: {payoutDetails.account_holder}</span>}
+                                </>
+                              ) : (
+                                <>
+                                  <span className="font-semibold text-dark-800">{payoutDetails?.bank_name || "Bank Account"}</span>
+                                  <span>• A/C: {maskAccountNumber(payoutDetails?.account_number)}</span>
+                                  <span>• IFSC: <span className="font-mono">{payoutDetails?.ifsc_code}</span></span>
+                                  {payoutDetails?.account_holder && <span>• Holder: {payoutDetails.account_holder}</span>}
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-amber-900 mt-1 font-medium">
+                              Add bank details to request a payout. Withdrawals cannot be requested without a verified bank account or UPI ID.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={openPayoutDetailsEditor}
+                        className={`py-2 px-4 rounded-xl text-xs font-semibold shrink-0 transition-all flex items-center gap-1.5 ${hasValidPayout ? "border border-border text-dark-700 hover:bg-dark-50" : "bg-amber-600 hover:bg-amber-700 text-white shadow-button"}`}
+                      >
+                        {hasValidPayout ? (
+                          <>
+                            <Pencil className="w-3.5 h-3.5" /> Edit Bank / UPI
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-3.5 h-3.5" /> Add Bank Details
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Request Payout Action Box */}
                   <div className="p-6 bg-gradient-to-r from-primary-900 to-dark-900 rounded-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-5 shadow-soft">
                     <div>
                       <h3 className="font-heading text-lg font-bold text-white">
-                        Withdraw Net Earnings to Bank Account
+                        Withdraw Net Earnings
                       </h3>
                       <p className="text-xs text-white/80 mt-1">
-                        Transfers sent via IMPS/NEFT directly to your verified bank account.
+                        {hasValidPayout
+                          ? `Direct transfer to your verified ${payoutDetails?.type === "upi" ? `UPI ID (${payoutDetails.upi_id})` : `bank account (ending in ${payoutDetails?.account_number?.slice(-4) || ""})`}.`
+                          : "Add your bank account or UPI details above to unlock instant withdrawals."}
                       </p>
                     </div>
 
@@ -944,16 +1108,42 @@ export default function VendorPortalPage() {
                         </button>
                       </form>
                     ) : (
-                      <Button
-                        variant="primary"
-                        size="md"
-                        disabled={stats.available <= 0}
-                        onClick={() => setIsRequestingPayout(true)}
-                        className="font-semibold text-xs py-3 px-6 shadow-button bg-primary-500 hover:bg-primary-600"
-                      >
-                        <ArrowUpRight className="w-4 h-4 mr-1.5" />
-                        Request Instant Payout ({formatMoney(stats.available)})
-                      </Button>
+                      <div className="flex flex-col items-start md:items-end gap-1.5 w-full md:w-auto">
+                        <Button
+                          variant="primary"
+                          size="md"
+                          disabled={stats.available <= 0 || !hasValidPayout}
+                          onClick={() => {
+                            if (!hasValidPayout) {
+                              showToast("Add bank details to request a payout.", "error");
+                              openPayoutDetailsEditor();
+                              return;
+                            }
+                            if (stats.available <= 0) {
+                              showToast("You currently have ₹0.00 available to withdraw. Complete client bookings to earn balance.", "info");
+                              return;
+                            }
+                            setIsRequestingPayout(true);
+                          }}
+                          className={`font-semibold text-xs py-3 px-6 shadow-button ${!hasValidPayout || stats.available <= 0 ? "opacity-60 cursor-not-allowed bg-dark-700 hover:bg-dark-700" : "bg-primary-500 hover:bg-primary-600"}`}
+                        >
+                          <ArrowUpRight className="w-4 h-4 mr-1.5" />
+                          Request Instant Payout ({formatMoney(stats.available)})
+                        </Button>
+                        {!hasValidPayout ? (
+                          <span className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" /> Add bank details to request a payout.
+                          </span>
+                        ) : stats.available <= 0 ? (
+                          <span className="text-[11px] text-white/75 font-medium flex items-center gap-1">
+                            <Info className="w-3 h-3 text-white/70" /> Balance is {formatMoney(stats.available)}. Payouts unlock once client bookings are completed.
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-emerald-300 font-medium flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-300" /> Ready to withdraw to verified destination.
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -1587,6 +1777,27 @@ export default function VendorPortalPage() {
                     </div>
                       );
                     })()}
+                    {/* Bank & Payout Destination Section in Profile */}
+                    <div className="p-4 bg-dark-50 rounded-2xl border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-xs font-bold text-dark-900 flex items-center gap-1.5">
+                          <Building2 className="w-4 h-4 text-primary-600" /> Bank & Payout Information
+                        </h4>
+                        <p className="text-[11px] text-dark-500 mt-0.5">
+                          {hasValidPayout
+                            ? `Configured destination: ${payoutDetails?.type === "upi" ? `UPI (${payoutDetails.upi_id})` : `${payoutDetails?.bank_name || "Bank Account"} (${maskAccountNumber(payoutDetails?.account_number)})`}`
+                            : "No bank account or UPI details added yet. Add details to receive client payouts."}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={openPayoutDetailsEditor}
+                        className="py-1.5 px-3 rounded-xl border border-border bg-white text-dark-700 hover:bg-dark-50 text-xs font-semibold shrink-0"
+                      >
+                        {hasValidPayout ? "Update Bank Details" : "+ Add Bank Details"}
+                      </button>
+                    </div>
+
                     <Button
                       type="submit"
                       variant="primary"
@@ -1996,6 +2207,197 @@ export default function VendorPortalPage() {
             </div>
           </div>
         </div>
+        {/* PAYOUT DETAILS MODAL */}
+        {isEditingPayoutDetails && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+            <div className="bg-surface border border-border rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl relative space-y-5">
+              <div className="flex items-center justify-between border-b border-border pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading text-base font-bold text-dark-900">
+                      Payout & Bank Account Details
+                    </h3>
+                    <p className="text-xs text-dark-500">
+                      Direct deposit for your earnings withdrawals.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingPayoutDetails(false)}
+                  className="p-1.5 rounded-xl text-dark-400 hover:text-dark-700 hover:bg-dark-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Mode Selector Tabs */}
+              <div className="flex rounded-xl bg-dark-100 p-1 border border-border text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setPayoutForm((prev) => ({ ...prev, type: "bank" }))}
+                  className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${payoutForm.type === "bank" ? "bg-white text-primary-700 shadow-xs" : "text-dark-600 hover:text-dark-900"}`}
+                >
+                  <CreditCard className="w-3.5 h-3.5" /> Bank Transfer (IMPS / NEFT)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayoutForm((prev) => ({ ...prev, type: "upi" }))}
+                  className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${payoutForm.type === "upi" ? "bg-white text-primary-700 shadow-xs" : "text-dark-600 hover:text-dark-900"}`}
+                >
+                  <QrCode className="w-3.5 h-3.5" /> UPI ID
+                </button>
+              </div>
+
+              <form onSubmit={handleSavePayoutDetails} className="space-y-4">
+                {payoutForm.type === "bank" ? (
+                  <>
+                    <div>
+                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                        Account Holder Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={payoutForm.account_holder}
+                        onChange={(e) => setPayoutForm({ ...payoutForm, account_holder: e.target.value })}
+                        placeholder="As shown in bank passbook (e.g. Ramesh Kumar)"
+                        className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 font-medium"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                          IFSC Code <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={11}
+                          value={payoutForm.ifsc_code}
+                          onChange={(e) => {
+                            const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
+                            const detected = getBankNameFromIFSC(val);
+                            setPayoutForm((prev) => ({
+                              ...prev,
+                              ifsc_code: val,
+                              bank_name: detected || prev.bank_name,
+                            }));
+                          }}
+                          placeholder="e.g. HDFC0001234"
+                          className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 font-mono font-bold uppercase"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                          Bank Name
+                        </label>
+                        <input
+                          type="text"
+                          value={payoutForm.bank_name}
+                          onChange={(e) => setPayoutForm({ ...payoutForm, bank_name: e.target.value })}
+                          placeholder="e.g. HDFC Bank, SBI"
+                          className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                        Bank Account Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={payoutForm.account_number}
+                        onChange={(e) => setPayoutForm({ ...payoutForm, account_number: e.target.value.replace(/\D/g, "") })}
+                        placeholder="Enter 9 to 18 digit account number"
+                        className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                        Confirm Account Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={payoutForm.confirm_account_number}
+                        onChange={(e) => setPayoutForm({ ...payoutForm, confirm_account_number: e.target.value.replace(/\D/g, "") })}
+                        placeholder="Re-enter bank account number"
+                        className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 font-mono"
+                      />
+                      {payoutForm.confirm_account_number && payoutForm.account_number !== payoutForm.confirm_account_number && (
+                        <p className="text-[11px] text-red-600 mt-1 font-medium">Account numbers do not match.</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                        UPI ID / VPA <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={payoutForm.upi_id}
+                        onChange={(e) => setPayoutForm({ ...payoutForm, upi_id: e.target.value.trim() })}
+                        placeholder="e.g. yourname@okhdfcbank or 9876543210@paytm"
+                        className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                        Registered Name (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={payoutForm.account_holder}
+                        onChange={(e) => setPayoutForm({ ...payoutForm, account_holder: e.target.value })}
+                        placeholder="Name linked with your UPI ID"
+                        className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="p-3 bg-dark-50 rounded-xl border border-border text-[11px] text-dark-500 flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>
+                    Your banking information is securely encrypted and used strictly to deposit your earnings withdrawals.
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingPayoutDetails(false)}
+                    className="py-2.5 px-4 rounded-xl border border-border text-xs font-semibold text-dark-600 hover:bg-dark-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={isSavingPayoutDetails}
+                    className="py-2.5 px-5 text-xs font-semibold shadow-button bg-primary-600 hover:bg-primary-700"
+                  >
+                    {isSavingPayoutDetails ? "Verifying & Saving..." : "Save Payout Details"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

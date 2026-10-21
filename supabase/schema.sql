@@ -1,4 +1,4 @@
-﻿-- BookMyProfessional — Supabase schema
+-- BookMyProfessional — Supabase schema
 -- Paste this whole file into: Supabase Dashboard -> SQL Editor -> Run.
 -- Idempotent: safe to re-run.
 -- Admin is env-based (see .env ADMIN_ID/ADMIN_PASSWORD/ADMIN_SESSION_SECRET) and uses the
@@ -611,6 +611,8 @@ create policy wishlists_delete_own on public.wishlists for delete using (user_id
 -- Top-level categories have parent_id null and stay the only ones shown as homepage tiles.
 alter table public.categories add column if not exists parent_id uuid references public.categories(id) on delete cascade;
 alter table public.categories add column if not exists show_on_home boolean not null default true;
+
+
 alter table public.categories add column if not exists inclusions jsonb not null default '[]'::jsonb;
 alter table public.categories add column if not exists exclusions jsonb not null default '[]'::jsonb;
 
@@ -659,3 +661,8 @@ alter table public.services add column if not exists exclusions jsonb not null d
 -- Admin ticks a top-level category in Admin -> Categories to show it in the homepage
 -- "Explore Our Top Categories" grid. Unticked categories stay in the directory only.
 alter table public.categories add column if not exists show_on_home boolean not null default true;
+
+
+-- ---------- professional payout details (bank account / UPI destination) ----------
+alter table public.professionals add column if not exists payout_details jsonb not null default '{}'::jsonb;
+alter table public.payouts add column if not exists payout_details jsonb;

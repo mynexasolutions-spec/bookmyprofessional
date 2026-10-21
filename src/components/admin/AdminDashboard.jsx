@@ -12,6 +12,7 @@ import {
   Calendar,
   Users,
   DollarSign,
+  Copy,
   Check,
   X,
   EyeOff,
@@ -1118,7 +1119,7 @@ export default function AdminDashboard({
                       <tr className="border-b border-border">
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Professional</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Amount</th>
-                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Method</th>
+                        <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Payout Destination</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Requested</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide">Status</th>
                         <th className="px-5 py-3 font-semibold uppercase text-[10px] tracking-wide text-right">Actions</th>
@@ -1137,7 +1138,92 @@ export default function AdminDashboard({
                             <td className="px-5 py-3.5 font-bold text-dark-900">
                               {formatMoney(Number(payout.amount || 0))}
                             </td>
-                            <td className="px-5 py-3.5 text-dark-600">{payout.method || "—"}</td>
+                            <td className="px-5 py-3.5">
+                              {(() => {
+                                const pd = payout.payout_details;
+                                if (pd && (pd.type === "upi" || pd.upi_id)) {
+                                  return (
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                          UPI
+                                        </span>
+                                        <span className="font-mono font-bold text-dark-900 select-all">{pd.upi_id}</span>
+                                        <button
+                                          type="button"
+                                          title="Copy UPI ID"
+                                          onClick={() => {
+                                            navigator.clipboard?.writeText(pd.upi_id);
+                                            showToast("Copied UPI ID to clipboard", "success");
+                                          }}
+                                          className="p-1 hover:bg-dark-100 rounded text-dark-500 hover:text-dark-900 transition-colors"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                      {pd.account_holder && (
+                                        <div className="text-[11px] text-dark-500">Name: <span className="font-medium text-dark-700">{pd.account_holder}</span></div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                if (pd && (pd.account_number || pd.ifsc_code)) {
+                                  return (
+                                    <div className="space-y-1 text-xs">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                          Bank
+                                        </span>
+                                        <span className="font-semibold text-dark-800">{pd.bank_name || "Bank Account"}</span>
+                                      </div>
+                                      <div className="text-[11px] text-dark-600">
+                                        A/C: <span className="font-mono font-bold text-dark-900 select-all">{pd.account_number}</span>
+                                        <button
+                                          type="button"
+                                          title="Copy Account Number"
+                                          onClick={() => {
+                                            navigator.clipboard?.writeText(pd.account_number);
+                                            showToast("Copied Account Number", "success");
+                                          }}
+                                          className="inline-flex p-1 hover:bg-dark-100 rounded text-dark-500 hover:text-dark-900 ml-1 transition-colors"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                      <div className="text-[11px] text-dark-600">
+                                        IFSC: <span className="font-mono font-bold text-dark-900 select-all">{pd.ifsc_code}</span>
+                                        <button
+                                          type="button"
+                                          title="Copy IFSC Code"
+                                          onClick={() => {
+                                            navigator.clipboard?.writeText(pd.ifsc_code);
+                                            showToast("Copied IFSC Code", "success");
+                                          }}
+                                          className="inline-flex p-1 hover:bg-dark-100 rounded text-dark-500 hover:text-dark-900 ml-1 transition-colors"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                      {pd.account_holder && (
+                                        <div className="text-[11px] text-dark-500">Holder: <span className="font-medium text-dark-700">{pd.account_holder}</span></div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                if (payout.method) {
+                                  return (
+                                    <div className="text-dark-700 font-medium text-[11px] max-w-xs break-words">
+                                      {payout.method}
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                                    ⚠️ Missing bank details
+                                  </span>
+                                );
+                              })()}
+                            </td>
                             <td className="px-5 py-3.5 text-dark-500 whitespace-nowrap" suppressHydrationWarning>
                               {payout.requested_at ? new Date(payout.requested_at).toLocaleDateString() : "—"}
                             </td>
@@ -1150,9 +1236,20 @@ export default function AdminDashboard({
                                   <button
                                     type="button"
                                     disabled={isBusy}
-                                    onClick={() =>
-                                      run(key, "/api/admin/payout", { payoutId: payout.id, status: "paid" }, "Payout marked paid")
-                                    }
+                                    onClick={() => {
+                                      const pd = payout.payout_details;
+                                      const dest = pd
+                                        ? (pd.type === "upi" || pd.upi_id
+                                            ? "UPI ID: " + pd.upi_id + (pd.account_holder ? " (" + pd.account_holder + ")" : "")
+                                            : "Bank A/C: " + pd.account_number + " (IFSC: " + pd.ifsc_code + (pd.account_holder ? ", Holder: " + pd.account_holder : "") + ")")
+                                        : (payout.method || "No details");
+                                      const msg = pd || payout.method
+                                        ? "Confirm transfer of " + formatMoney(Number(payout.amount || 0)) + " to\n" + dest + "\n\nHas this payment been transferred? Click OK to mark as Paid."
+                                        : "WARNING: No bank account or UPI details recorded for this professional! Are you sure you want to mark this payout as paid?";
+                                      if (window.confirm(msg)) {
+                                        run(key, "/api/admin/payout", { payoutId: payout.id, status: "paid" }, "Payout marked paid");
+                                      }
+                                    }}
                                     className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
                                   >
                                     <Check className="w-3.5 h-3.5" /> Mark Paid
