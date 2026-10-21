@@ -4,6 +4,8 @@
  * and excluding utility authentication pages from search engine indexing (noindex, follow).
  */
 
+export const dynamic = "force-dynamic";
+
 import RegisterClient from "./RegisterClient";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional.com";
