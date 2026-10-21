@@ -25,6 +25,18 @@ export default function BrowseProfessionalsPage() {
       </div>
 
       <main className="flex-1">
+        {/* SEO H1 — visible intro above the directory grid */}
+        <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8 pt-8 pb-4">
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-dark-900">
+            Find &amp; Hire Verified Professionals Near You
+          </h1>
+          <p className="text-sm text-dark-500 mt-2 max-w-2xl">
+            Browse India&apos;s largest directory of background-verified doctors, tutors, electricians,
+            plumbers, IT experts, beauticians, and more. Filter by specialty, location, rating, and
+            availability to find your perfect match.
+          </p>
+        </div>
+
         <MarketplaceDirectory />
       </main>
     </div>

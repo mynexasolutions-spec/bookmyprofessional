@@ -242,7 +242,10 @@ export default function AboutPage() {
                   <img
                     src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=900&auto=format&fit=crop&q=80"
                     alt="Professional Collaboration"
+                    width={900}
+                    height={675}
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                   <div className="absolute bottom-6 left-6 right-6 text-white">
@@ -442,7 +445,7 @@ export default function AboutPage() {
             </div>
 
             <div>
-              <h4 className="font-heading text-sm font-bold text-white mb-3">Company</h4>
+              <h3 className="font-heading text-sm font-bold text-white mb-3">Company</h3>
               <ul className="space-y-2 text-xs text-white/70">
                 <li>
                   <Link href="/about" className="hover:text-white transition-colors">
@@ -468,7 +471,7 @@ export default function AboutPage() {
             </div>
 
             <div>
-              <h4 className="font-heading text-sm font-bold text-white mb-3">Legal & Safety</h4>
+              <h3 className="font-heading text-sm font-bold text-white mb-3">Legal & Safety</h3>
               <ul className="space-y-2 text-xs text-white/70">
                 <li>
                   <Link href="/about" className="hover:text-white transition-colors">
@@ -489,7 +492,7 @@ export default function AboutPage() {
             </div>
 
             <div>
-              <h4 className="font-heading text-sm font-bold text-white mb-3">Support</h4>
+              <h3 className="font-heading text-sm font-bold text-white mb-3">Support</h3>
               <p className="text-xs text-white/70 mb-2">
                 Have a question or need assistance with a booking?
               </p>

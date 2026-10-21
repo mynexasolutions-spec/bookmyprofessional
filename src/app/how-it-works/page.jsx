@@ -40,6 +40,135 @@ export default function HowItWorksPage() {
 
       <main className="flex-1">
         <HowItWorks />
+
+        {/* DETAILED SERVICE BREAKDOWN & SEO CONTENT */}
+        <section className="bg-surface py-16 border-t border-border">
+          <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 space-y-14">
+            {/* Value Pillars */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="bg-dark-50/70 p-6 rounded-2xl border border-border/80">
+                <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-lg mb-4">
+                  01
+                </div>
+                <h2 className="font-heading text-lg font-bold text-dark-900 mb-2">
+                  Multi-Tier Verification
+                </h2>
+                <p className="text-xs sm:text-sm text-dark-600 leading-relaxed">
+                  Every doctor, tutor, electrician, technician, and consultant undergoes strict government ID checks, educational qualification review, and practical skill verification before taking appointments.
+                </p>
+              </div>
+
+              <div className="bg-dark-50/70 p-6 rounded-2xl border border-border/80">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-lg mb-4">
+                  02
+                </div>
+                <h2 className="font-heading text-lg font-bold text-dark-900 mb-2">
+                  Guaranteed Escrow Protection
+                </h2>
+                <p className="text-xs sm:text-sm text-dark-600 leading-relaxed">
+                  Your payment is securely held in escrow via PayU. The professional is only paid once the service is delivered and marked complete, giving you peace of mind and complete financial security.
+                </p>
+              </div>
+
+              <div className="bg-dark-50/70 p-6 rounded-2xl border border-border/80">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center font-bold text-lg mb-4">
+                  03
+                </div>
+                <h2 className="font-heading text-lg font-bold text-dark-900 mb-2">
+                  Transparent Pricing &amp; Rescheduling
+                </h2>
+                <p className="text-xs sm:text-sm text-dark-600 leading-relaxed">
+                  No hidden platform fees, surprise travel surcharges, or opaque estimates. View clear upfront hourly or service rates, with instant free rescheduling up to 24 hours prior to your scheduled time.
+                </p>
+              </div>
+            </div>
+
+            {/* Step-by-Step Guidance */}
+            <div className="space-y-6">
+              <div className="border-b border-border pb-4">
+                <h2 className="font-heading text-2xl font-bold text-dark-900">
+                  Step-by-Step Service Guide for Customers &amp; Clients
+                </h2>
+                <p className="text-xs sm:text-sm text-dark-500 mt-1">
+                  Everything you need to know about booking, consulting, and completing a milestone on BookMyProfessional.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs sm:text-sm text-dark-700 leading-relaxed">
+                <div className="space-y-4 bg-background p-6 rounded-xl border border-border">
+                  <h3 className="font-heading font-bold text-dark-900 text-base flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-primary-600 text-white flex items-center justify-center text-xs">A</span>
+                    Finding &amp; Selecting the Best Professional
+                  </h3>
+                  <p>
+                    Use our verified directory to filter by profession category, specialty subcategory, city, pincode, and customer ratings. Review detailed professional portfolios, badges, experience timelines, and previous client feedback.
+                  </p>
+                  <p>
+                    Whether you need an in-person home visit in Hyderabad, Bangalore, or Mumbai, or a remote consultation via video, you can view the exact slot availability in real time.
+                  </p>
+                </div>
+
+                <div className="space-y-4 bg-background p-6 rounded-xl border border-border">
+                  <h3 className="font-heading font-bold text-dark-900 text-base flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-primary-600 text-white flex items-center justify-center text-xs">B</span>
+                    Completing the Service &amp; Payout Release
+                  </h3>
+                  <p>
+                    Once your consultation or project appointment is completed satisfactorily, mark the booking as finished in your customer dashboard. You will receive an official digital invoice with full GST details.
+                  </p>
+                  <p>
+                    Leave an honest, verified review to help fellow community members. In the rare event of a dispute, our dedicated resolution team intervenes to enforce fair refunds or free rework.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* How It Works FAQ */}
+            <div className="space-y-6">
+              <h2 className="font-heading text-2xl font-bold text-dark-900 border-b border-border pb-4">
+                Frequently Asked Questions About How It Works
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="bg-background p-5 rounded-xl border border-border space-y-2">
+                  <h3 className="font-semibold text-dark-900 text-sm">
+                    How does the escrow payment guarantee protect me?
+                  </h3>
+                  <p className="text-xs text-dark-600 leading-relaxed">
+                    When you book an appointment, your payment is held safely by our escrow partner. The service professional does not receive payment until the service has been marked complete by you.
+                  </p>
+                </div>
+
+                <div className="bg-background p-5 rounded-xl border border-border space-y-2">
+                  <h3 className="font-semibold text-dark-900 text-sm">
+                    What happens if I need to cancel or reschedule?
+                  </h3>
+                  <p className="text-xs text-dark-600 leading-relaxed">
+                    You can reschedule or cancel directly from your customer dashboard. Cancellations made at least 24 hours prior to the appointment receive a full 100% refund straight to your original payment method.
+                  </p>
+                </div>
+
+                <div className="bg-background p-5 rounded-xl border border-border space-y-2">
+                  <h3 className="font-semibold text-dark-900 text-sm">
+                    How are professionals vetted and background checked?
+                  </h3>
+                  <p className="text-xs text-dark-600 leading-relaxed">
+                    Every professional must upload government-issued identification, proof of address, educational or professional licenses, and certifications. Our compliance team verifies all records before activating their profile.
+                  </p>
+                </div>
+
+                <div className="bg-background p-5 rounded-xl border border-border space-y-2">
+                  <h3 className="font-semibold text-dark-900 text-sm">
+                    Can I communicate with the professional before the visit?
+                  </h3>
+                  <p className="text-xs text-dark-600 leading-relaxed">
+                    Yes. Once your booking is initiated, you receive immediate WhatsApp and SMS notifications with the verified professional&apos;s direct contact details to coordinate service specifics.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
       {/* FOOTER */}
@@ -63,7 +192,7 @@ export default function HowItWorksPage() {
             </div>
 
             <div>
-              <h4 className="font-heading text-sm font-bold text-white mb-3">Company</h4>
+              <h3 className="font-heading text-sm font-bold text-white mb-3">Company</h3>
               <ul className="space-y-2 text-xs text-white/70">
                 <li>
                   <Link href="/about" className="hover:text-white transition-colors">
@@ -94,7 +223,7 @@ export default function HowItWorksPage() {
             </div>
 
             <div>
-              <h4 className="font-heading text-sm font-bold text-white mb-3">Legal & Safety</h4>
+              <h3 className="font-heading text-sm font-bold text-white mb-3">Legal & Safety</h3>
               <ul className="space-y-2 text-xs text-white/70">
                 <li>
                   <Link href="/about" className="hover:text-white transition-colors">
@@ -115,7 +244,7 @@ export default function HowItWorksPage() {
             </div>
 
             <div>
-              <h4 className="font-heading text-sm font-bold text-white mb-3">Support</h4>
+              <h3 className="font-heading text-sm font-bold text-white mb-3">Support</h3>
               <p className="text-xs text-white/70 mb-2">
                 Have a question or need assistance with a booking?
               </p>

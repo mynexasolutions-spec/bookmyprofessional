@@ -1274,12 +1274,15 @@ export default function HomePage() {
                             <img
                               src={item.avatar}
                               alt={item.name}
+                              width={44}
+                              height={44}
                               className="w-11 h-11 rounded-full object-cover border border-border"
+                              loading="lazy"
                             />
                             <div>
-                              <h4 className="font-heading font-bold text-sm text-dark-900 leading-tight">
+                              <h3 className="font-heading font-bold text-sm text-dark-900 leading-tight">
                                 {item.name}
-                              </h4>
+                              </h3>
                               <p className="font-heading text-xs text-muted mt-0.5">
                                 {item.location}
                               </p>
@@ -1320,7 +1323,10 @@ export default function HomePage() {
                     <img
                       src="/images/top_categories/apple-logo.svg"
                       alt="Apple logo"
+                      width={40}
+                      height={40}
                       className="w-10 h-10 object-contain filter invert"
+                      loading="lazy"
                     />
                     <div className="text-left leading-none">
                       <span className="text-[10px] text-dark-200 uppercase font-medium block mb-1">
@@ -1341,7 +1347,10 @@ export default function HomePage() {
                     <img
                       src="/images/top_categories/playstore.webp"
                       alt="Google Play logo"
+                      width={40}
+                      height={40}
                       className="w-10 h-10 object-contain"
+                      loading="lazy"
                     />
                     <div className="text-left leading-none">
                       <span className="text-[10px] text-dark-200 uppercase font-medium block mb-1">
@@ -1361,7 +1370,9 @@ export default function HomePage() {
                   <img
                     src="/images/top_categories/mobile_img.png"
                     alt="BookMyProfessional Mobile Application Mockup"
-                    className="w-full h-auto object-contain "
+                    width={420}
+                    height={630}
+                    className="w-full h-auto object-contain"
                     loading="lazy"
                   />
                 </div>
@@ -1547,9 +1558,9 @@ export default function HomePage() {
 
             {/* Column 2: Quick Links */}
             <div className="lg:ml-3">
-              <h4 className="font-heading text-sm sm:text-base font-bold text-white mb-4 ">
+              <h3 className="font-heading text-sm sm:text-base font-bold text-white mb-4">
                 Quick Links
-              </h4>
+              </h3>
               <ul className="space-y-2.5 text-xs sm:text-sm text-white/75 font-normal">
                 <li>
                   <Link href="/" className="hover:text-white transition-colors">
@@ -1581,9 +1592,9 @@ export default function HomePage() {
 
             {/* Column 3: For Professionals */}
             <div>
-              <h4 className="font-heading text-sm sm:text-base font-bold text-white mb-4">
+              <h3 className="font-heading text-sm sm:text-base font-bold text-white mb-4">
                 For Professionals
-              </h4>
+              </h3>
               <ul className="space-y-2.5 text-xs sm:text-sm text-white/75 font-normal">
                 <li>
                   <Link
@@ -1616,9 +1627,9 @@ export default function HomePage() {
 
             {/* Column 4: For Customers */}
             <div>
-              <h4 className="font-heading text-sm sm:text-base font-bold text-white mb-4">
+              <h3 className="font-heading text-sm sm:text-base font-bold text-white mb-4">
                 For Customers
-              </h4>
+              </h3>
               <ul className="space-y-2.5 text-xs sm:text-sm text-white/75 font-normal">
                 <li>
                   <Link
@@ -1656,9 +1667,9 @@ export default function HomePage() {
 
             {/* Column 5: Subscribe to our Newsletter */}
             <div>
-              <h4 className="font-heading text-sm sm:text-base font-bold text-white mb-4">
+              <h3 className="font-heading text-sm sm:text-base font-bold text-white mb-4">
                 Subscribe to our Newsletter
-              </h4>
+              </h3>
               <p className="text-xs sm:text-sm text-white/75 mb-4">
                 Get the latest updates and offers.
               </p>

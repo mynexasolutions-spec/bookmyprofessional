@@ -499,9 +499,9 @@ export default function ContactPage() {
 
                 {/* Quick Shortcuts */}
                 <div className="bg-surface rounded-3xl border border-border p-6 shadow-card">
-                  <h4 className="font-heading text-sm font-bold text-dark-900 mb-3">
+                  <h3 className="font-heading text-sm font-bold text-dark-900 mb-3">
                     Quick Access
-                  </h4>
+                  </h3>
                   <div className="space-y-2 text-xs">
                     <Link
                       href="/dashboard"
@@ -747,7 +747,7 @@ export default function ContactPage() {
             </div>
 
             <div>
-              <h4 className="font-heading text-sm font-bold text-white mb-3">Company</h4>
+              <h3 className="font-heading text-sm font-bold text-white mb-3">Company</h3>
               <ul className="space-y-2 text-xs text-white/70">
                 <li>
                   <Link href="/about" className="hover:text-white transition-colors">
@@ -773,7 +773,7 @@ export default function ContactPage() {
             </div>
 
             <div>
-              <h4 className="font-heading text-sm font-bold text-white mb-3">Legal & Safety</h4>
+              <h3 className="font-heading text-sm font-bold text-white mb-3">Legal & Safety</h3>
               <ul className="space-y-2 text-xs text-white/70">
                 <li>
                   <Link href="/about" className="hover:text-white transition-colors">
@@ -794,7 +794,7 @@ export default function ContactPage() {
             </div>
 
             <div>
-              <h4 className="font-heading text-sm font-bold text-white mb-3">Support Hotline</h4>
+              <h3 className="font-heading text-sm font-bold text-white mb-3">Support Hotline</h3>
               <p className="text-xs text-white/70 mb-1">
                 Emergency Support Line:
               </p>

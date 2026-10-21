@@ -128,6 +128,8 @@ function CompareVisual() {
           <img
             src={pro.img}
             alt=""
+            width={28}
+            height={28}
             className="h-7 w-7 shrink-0 rounded-full object-cover"
             loading="lazy"
           />
@@ -208,8 +210,10 @@ function GetServiceVisual() {
   return (
     <div className="flex w-full items-end justify-center">
       <img
-        src="/images/how-it-works plumber.png"
+        src="/images/how-it-works-plumber.webp"
         alt="Professional arriving and completing the service"
+        width={320}
+        height={220}
         className="mx-auto h-auto max-h-[220px] w-auto max-w-full object-contain"
         loading="lazy"
       />
@@ -268,9 +272,9 @@ export default function HowItWorks() {
             </span>
           </div>
 
-          <h2 className="mt-5 font-heading text-3xl font-bold tracking-tight text-dark-900 sm:text-4xl lg:text-[42px]">
+          <h1 className="mt-5 font-heading text-3xl font-bold tracking-tight text-dark-900 sm:text-4xl lg:text-[42px]">
             How <span className="text-primary-500">BookMyProfessional</span> Works
-          </h2>
+          </h1>
 
           <p className="mt-4 text-base font-medium text-dark-700 sm:text-lg">
             Getting professional help has never been this easy.
@@ -342,7 +346,9 @@ export default function HowItWorks() {
                   <img
                     key={src}
                     src={src}
-                    alt=""
+                    alt="Verified professional"
+                    width={40}
+                    height={40}
                     className="h-10 w-10 rounded-full object-cover ring-2 ring-white"
                     loading="lazy"
                   />

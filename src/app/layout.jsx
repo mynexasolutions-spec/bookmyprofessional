@@ -38,21 +38,45 @@ const SITE_DESCRIPTION =
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: SITE_TITLE,
+  title: {
+    default: SITE_TITLE,
+    template: "%s | Book My Professional",
+  },
   description: SITE_DESCRIPTION,
-  keywords: "professionals, book expert, hire consultants, verified services",
-  alternates: { canonical: "/" },
+  keywords: [
+    "hire professionals India",
+    "verified service experts",
+    "book doctor consultation",
+    "home tutor booking",
+    "certified electrician plumber",
+    "freelance IT consultants",
+    "BookMyProfessional"
+  ],
   openGraph: {
     type: "website",
+    locale: "en_IN",
     url: SITE_URL,
     siteName: SITE_NAME,
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: `${SITE_URL}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: "Book My Professional - Hire Verified Experts Across India",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
+    images: [`${SITE_URL}/og-image.png`],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
