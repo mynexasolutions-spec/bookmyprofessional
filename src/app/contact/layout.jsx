@@ -1,8 +1,8 @@
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional.com";
 
 export const metadata = {
-  title: "Contact Us — Support, HQ Address & Business Enquiries",
-  description: "Get in touch with BookMyProfessional's support team for booking help, professional verification queries, partnership discussions, or general feedback. We respond within 24 hours.",
+  title: "Contact Support & Office Address",
+  description: "Get in touch with BookMyProfessional support for booking assistance, verification queries, or business partnerships. Our team responds within 24 hours.",
   alternates: {
     canonical: `${SITE_URL}/contact`,
   },

@@ -1,8 +1,8 @@
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional.com";
 
 export const metadata = {
-  title: "Browse Verified Professionals | Hire Doctors, Tutors, Electricians & More",
-  description: "Search and hire verified, background-checked doctors, tutors, electricians, plumbers, IT experts, beauticians, cleaners and consultants across India. Compare profiles, ratings, and availability.",
+  title: "Browse Verified Professionals",
+  description: "Search and hire verified service professionals across India. Compare vetted profiles, client ratings, transparent pricing, and book appointments with ease.",
   alternates: {
     canonical: `${SITE_URL}/professionals`,
   },

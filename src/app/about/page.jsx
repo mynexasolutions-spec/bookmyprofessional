@@ -375,6 +375,8 @@ export default function AboutPage() {
                       <img
                         src={person.image}
                         alt={person.name}
+                        width={280}
+                        height={224}
                         className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                         loading="lazy"
                       />

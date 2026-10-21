@@ -5,7 +5,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional
 
 export const metadata = {
   title: "Terms & Conditions",
-  description: "Read BookMyProfessional's Terms and Conditions. Understand our rules for platform use, booking and scheduling, escrow payment protection, cancellation and refund policy, professional verification, and acceptable use standards.",
+  description: "Review BookMyProfessional Terms & Conditions covering appointments, escrow payments, cancellation policies, and professional code of conduct.",
   alternates: {
     canonical: `${SITE_URL}/terms`,
   },

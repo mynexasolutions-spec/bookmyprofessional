@@ -2,7 +2,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional
 
 export const metadata = {
   title: "How It Works | Book My Professional",
-  description: "Learn how BookMyProfessional connects you with verified experts in 4 simple steps. Discover our escrow payment protection, multi-tier background verification, and satisfaction guarantee.",
+  description: "Discover how BookMyProfessional connects you with verified experts in 4 steps with secure escrow payment protection and guaranteed quality.",
   alternates: {
     canonical: `${SITE_URL}/how-it-works`,
   },

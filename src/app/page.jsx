@@ -702,6 +702,8 @@ export default function HomePage() {
                       <img
                         src={tileImage}
                         alt={cat.title}
+                        width={200}
+                        height={200}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         loading="lazy"
                         onError={(e) => { e.currentTarget.style.display = "none"; }}
@@ -919,6 +921,8 @@ export default function HomePage() {
                           <img
                             src={ikImage(pro.image)}
                             alt={pro.name}
+                            width={280}
+                            height={280}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             loading="lazy"
                           />

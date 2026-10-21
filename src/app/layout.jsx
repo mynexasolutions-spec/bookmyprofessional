@@ -43,6 +43,9 @@ export const metadata = {
     template: "%s | Book My Professional",
   },
   description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: SITE_URL,
+  },
   keywords: [
     "hire professionals India",
     "verified service experts",

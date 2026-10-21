@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import MarketplaceDirectory from "@/components/MarketplaceDirectory";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight, ShieldCheck, Clock, Award, CreditCard } from "lucide-react";
 
 export default function BrowseProfessionalsPage() {
   return (
@@ -25,16 +25,62 @@ export default function BrowseProfessionalsPage() {
       </div>
 
       <main className="flex-1">
-        {/* SEO H1 — visible intro above the directory grid */}
-        <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8 pt-8 pb-4">
-          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-dark-900">
-            Find &amp; Hire Verified Professionals Near You
-          </h1>
-          <p className="text-sm text-dark-500 mt-2 max-w-2xl">
-            Browse India&apos;s largest directory of background-verified doctors, tutors, electricians,
-            plumbers, IT experts, beauticians, and more. Filter by specialty, location, rating, and
-            availability to find your perfect match.
-          </p>
+        {/* SEO HERO & DIRECTORY INTRO */}
+        <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8 pt-8 pb-6">
+          <div className="max-w-3xl">
+            <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-dark-900 tracking-tight">
+              Find &amp; Hire Verified Professionals Near You
+            </h1>
+            <p className="text-sm sm:text-base text-dark-600 mt-3 leading-relaxed">
+              Explore India&apos;s trusted directory of background-checked experts across healthcare,
+              education, home maintenance, wellness, technology, and business consulting. Compare verified
+              credentials, authentic customer reviews, transparent hourly rates, and live appointment slots
+              to hire with complete confidence.
+            </p>
+          </div>
+
+          {/* VALUE PILLARS STRIP */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-6 pt-5 border-t border-border/80">
+            <div className="flex items-start gap-2.5">
+              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-heading text-xs font-bold text-dark-900">100% ID Verified</h3>
+                <p className="text-[11px] text-dark-500 mt-0.5 leading-snug">Govt ID &amp; certification audited</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <div className="p-2 rounded-lg bg-blue-50 text-blue-600 shrink-0">
+                <CreditCard className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-heading text-xs font-bold text-dark-900">Escrow Protected</h3>
+                <p className="text-[11px] text-dark-500 mt-0.5 leading-snug">Pay only when service is complete</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <div className="p-2 rounded-lg bg-amber-50 text-amber-600 shrink-0">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-heading text-xs font-bold text-dark-900">Instant Booking</h3>
+                <p className="text-[11px] text-dark-500 mt-0.5 leading-snug">Real-time availability calendars</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <div className="p-2 rounded-lg bg-purple-50 text-purple-600 shrink-0">
+                <Award className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-heading text-xs font-bold text-dark-900">Rated &amp; Reviewed</h3>
+                <p className="text-[11px] text-dark-500 mt-0.5 leading-snug">Feedback from verified customers</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <MarketplaceDirectory />

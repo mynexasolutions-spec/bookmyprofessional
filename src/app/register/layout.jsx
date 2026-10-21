@@ -1,8 +1,12 @@
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional.com";
 
 export const metadata = {
-  title: "Create a Free Account — Join as Customer or Professional",
-  description: "Sign up to BookMyProfessional as a customer to book verified experts, or register as a professional to offer your services and grow your business across India.",
+  title: "Create an Account | Book My Professional",
+  description: "Register for BookMyProfessional to hire verified experts across India or list your services to connect with local clients.",
+  robots: {
+    index: false,
+    follow: true,
+  },
   alternates: {
     canonical: `${SITE_URL}/register`,
   },

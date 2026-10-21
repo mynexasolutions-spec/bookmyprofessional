@@ -5,7 +5,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional
 
 export const metadata = {
   title: "Privacy Policy",
-  description: "Read BookMyProfessional's Privacy Policy. Learn what personal data we collect, how we use it to connect customers with professionals, how payments are protected, and your rights to access, update or delete your information.",
+  description: "Read BookMyProfessional Privacy Policy to understand how your personal details, booking records, and payment security are safeguarded under Indian law.",
   alternates: {
     canonical: `${SITE_URL}/privacy`,
   },

@@ -2,7 +2,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional
 
 export const metadata = {
   title: "About Us — Our Story, Mission & Team",
-  description: "Learn about BookMyProfessional — India's trusted platform for verified professionals. Discover our founding story, values, multi-tier verification process, and our vision to eliminate friction in hiring experts.",
+  description: "Learn about BookMyProfessional, India's trusted platform for verified professionals. Explore our founding story, verification standards, and company mission.",
   alternates: {
     canonical: `${SITE_URL}/about`,
   },

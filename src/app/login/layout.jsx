@@ -1,8 +1,12 @@
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional.com";
 
 export const metadata = {
-  title: "Sign In to Your Account",
-  description: "Sign in to your BookMyProfessional account to manage bookings, view appointments, and connect with verified professionals or your clients. Login as a customer or a professional.",
+  title: "Sign In | Book My Professional",
+  description: "Sign in to your BookMyProfessional account to manage appointments, bookings, and direct messages with verified professionals.",
+  robots: {
+    index: false,
+    follow: true,
+  },
   alternates: {
     canonical: `${SITE_URL}/login`,
   },
