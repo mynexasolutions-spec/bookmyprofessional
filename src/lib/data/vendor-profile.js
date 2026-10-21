@@ -1,15 +1,14 @@
-import { createClient } from "@/lib/supabase/client";
+﻿import { createClient } from "@/lib/supabase/client";
 import { parseInclusions } from "@/lib/inclusions";
-import { validatePayoutDetails, getBankNameFromIFSC } from "@/lib/payout-validation";
 
-const EMPTY = { experienceYears: 0, specialty: "", city: "", pincode: "", category: "", subcategory: "", role_title: "", services: [], credentials: [], payout_details: null };
+const EMPTY = { experienceYears: 0, specialty: "", city: "", pincode: "", category: "", subcategory: "", role_title: "", services: [], credentials: [] };
 // ponytail: empty profile on error keeps the vendor page alive while supabase/schema.sql is unapplied.
 export async function getVendorProfile(professionalId) {
   if (!professionalId) return { ...EMPTY };
   try {
     const supabase = createClient();
     const FULL_COLUMNS =
-      "experience_years, specialty, city, name, image_url, verification_status, hourly_rate, category, subcategory, role_title, pincode, availability, payout_details";
+      "experience_years, specialty, city, name, image_url, verification_status, hourly_rate, category, subcategory, role_title, pincode, availability";
     const BASE_COLUMNS =
       "experience_years, specialty, city, name, image_url, verification_status, hourly_rate, category, availability";
     const [{ data: services }, { data: credentials }] = await Promise.all([
@@ -22,7 +21,7 @@ export async function getVendorProfile(professionalId) {
       .eq("id", professionalId)
       .maybeSingle();
     if (error || !pro) {
-      // subcategory/role_title/pincode/payout_details column may not exist yet (schema not applied) — retry without them
+      // subcategory/role_title/pincode column may not exist yet (schema not applied) — retry without them
       ({ data: pro } = await supabase
         .from("professionals")
         .select(BASE_COLUMNS)
@@ -42,7 +41,6 @@ export async function getVendorProfile(professionalId) {
       verification_status: pro?.verification_status || "not_submitted",
       hourlyRate: Number(pro?.hourly_rate) || 0,
       availability: pro?.availability || null,
-      payout_details: pro?.payout_details || null,
       services: services || [],
       credentials: credentials || [],
     };
@@ -127,6 +125,7 @@ export async function updateVendorBasics(professionalId, patch) {
   return { ...patch, subcategory: cleanSub, role_title: cleanTitle, pincode: cleanPin };
 }
 
+
 export async function updateVendorSchedule(professionalId, availability) {
   const supabase = createClient();
   const { error } = await supabase
@@ -135,38 +134,6 @@ export async function updateVendorSchedule(professionalId, availability) {
     .eq("id", professionalId);
   if (error) throw error;
   return availability;
-}
-
-export async function updateVendorPayoutDetails(professionalId, payoutDetails) {
-  if (!professionalId) throw new Error("Professional ID is required.");
-  const validation = validatePayoutDetails(payoutDetails);
-  if (!validation.valid) {
-    const firstErr = Object.values(validation.errors)[0] || "Invalid payout details.";
-    throw Object.assign(new Error(firstErr), { isUserFacing: true, errors: validation.errors });
-  }
-
-  const supabase = createClient();
-  const clean = {
-    type: payoutDetails.type || (payoutDetails.upi_id ? "upi" : "bank"),
-    account_holder: String(payoutDetails.account_holder || "").trim(),
-    account_number: String(payoutDetails.account_number || "").trim(),
-    ifsc_code: String(payoutDetails.ifsc_code || "").trim().toUpperCase(),
-    bank_name: String(payoutDetails.bank_name || getBankNameFromIFSC(payoutDetails.ifsc_code) || "").trim(),
-    upi_id: String(payoutDetails.upi_id || "").trim(),
-    updated_at: new Date().toISOString(),
-  };
-
-  const { error } = await supabase
-    .from("professionals")
-    .update({ payout_details: clean })
-    .eq("id", professionalId);
-
-  if (error) {
-    console.error("[updateVendorPayoutDetails] Error saving payout details:", error);
-    throw new Error(error.message || "Failed to save payout details.");
-  }
-
-  return clean;
 }
 
 export async function saveService(professionalId, service) {

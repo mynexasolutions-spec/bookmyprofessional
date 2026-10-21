@@ -57,7 +57,7 @@ export async function POST(request) {
     try {
       const { data } = await supabase
         .from("payouts")
-        .select("professional_id, amount, method")
+        .select("professional_id, amount")
         .eq("id", payoutId)
         .maybeSingle();
       payout = data;
@@ -91,7 +91,7 @@ export async function POST(request) {
           subject: status === "paid" ? "Your payout has been paid" : "Your payout request was rejected",
           text:
             status === "paid"
-              ? `Your payout of ${formatMoney(payout.amount)} has been marked as paid to your verified destination (${payout.method || "Bank/UPI"}).\nYou can see it in your payout history on the vendor portal.\n— BookMyProfessional`
+              ? `Your payout of ${formatMoney(payout.amount)} has been marked as paid.\nYou can see it in your payout history on the vendor portal.\n— BookMyProfessional`
               : `Your payout request of ${formatMoney(payout.amount)} was rejected.\nOpen your vendor portal for details.\n— BookMyProfessional`,
         });
       } catch {

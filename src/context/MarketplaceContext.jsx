@@ -455,7 +455,7 @@ export function MarketplaceProvider({ children }) {
   };
 
   // Request Payout
-  const requestPayout = async (amount, payoutDetails) => {
+  const requestPayout = async (amount) => {
     const amt = parseFloat(amount);
     if (!user?.id) {
       showToast("You must be logged in to request a payout.", "error");
@@ -463,13 +463,12 @@ export function MarketplaceProvider({ children }) {
     }
     
     try {
-      await requestPayoutRow(user.id, amt, payoutDetails);
+      await requestPayoutRow(user.id, amt, "Bank Transfer (NEFT/IMPS)");
       showToast(`Payout request of ${formatMoney(amt)} submitted successfully!`, "success");
       return true;
     } catch (error) {
       console.error(error);
-      const msg = error?.isUserFacing ? error.message : "Failed to submit payout request. Check your balance or bank details.";
-      showToast(msg, "error");
+      showToast("Failed to submit payout request. Check your balance.", "error");
       return false;
     }
   };

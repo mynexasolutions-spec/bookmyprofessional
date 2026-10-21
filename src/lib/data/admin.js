@@ -124,47 +124,14 @@ export async function listPayouts(client) {
   let dbData = [];
   try {
     const supabase = client || (await createClient());
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from("payouts")
       .select(
-        "id, professional_id, amount, status, method, payout_details, requested_at, processed_at, professional:profiles(full_name, email, phone)"
+        "id, professional_id, amount, status, method, requested_at, processed_at, professional:profiles(full_name, email)"
       )
       .order("requested_at", { ascending: false });
-
-    if (error) {
-      // Fallback if payout_details column doesn't exist yet on payouts table
-      ({ data, error } = await supabase
-        .from("payouts")
-        .select(
-          "id, professional_id, amount, status, method, requested_at, processed_at, professional:profiles(full_name, email, phone)"
-        )
-        .order("requested_at", { ascending: false }));
-    }
-
     if (!error && data) {
-      // Enrich any payout missing snapshot payout_details by checking the professional's profile
-      const proIdsWithMissingDetails = [
-        ...new Set(data.filter((p) => !p.payout_details && p.professional_id).map((p) => p.professional_id)),
-      ];
-
-      if (proIdsWithMissingDetails.length > 0) {
-        try {
-          const { data: pros } = await supabase
-            .from("professionals")
-            .select("id, payout_details")
-            .in("id", proIdsWithMissingDetails);
-
-          const proMap = new Map((pros || []).map((pr) => [pr.id, pr.payout_details]));
-          dbData = data.map((p) => ({
-            ...p,
-            payout_details: p.payout_details || proMap.get(p.professional_id) || null,
-          }));
-        } catch {
-          dbData = data;
-        }
-      } else {
-        dbData = data;
-      }
+      dbData = data;
     }
   } catch {
     // Ignore supabase error

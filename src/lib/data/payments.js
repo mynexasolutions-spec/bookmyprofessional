@@ -1,9 +1,4 @@
 import { createClient } from "@/lib/supabase/client";
-import {
-  validatePayoutDetails,
-  hasValidPayoutDetails,
-  formatPayoutMethod,
-} from "@/lib/payout-validation";
 
 function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
@@ -163,89 +158,18 @@ export async function getEarningsSummary(professionalId, client) {
   }
 }
 
-export async function requestPayout(professionalId, amount, payoutDetailsOrMethod, client) {
-  if (!professionalId) throw new Error("Professional ID is required.");
-  const numericAmount = round2(amount);
-  if (!numericAmount || numericAmount <= 0) {
-    const err = new Error("Please specify a valid payout amount.");
-    err.isUserFacing = true;
-    throw err;
-  }
-
+export async function requestPayout(professionalId, amount, method, client) {
   const supabase = client || createClient();
-
-  // Determine payout destination details
-  let payoutDetails = null;
-  let methodString = "";
-
-  if (payoutDetailsOrMethod && typeof payoutDetailsOrMethod === "object") {
-    payoutDetails = payoutDetailsOrMethod;
-  } else if (typeof payoutDetailsOrMethod === "string" && payoutDetailsOrMethod.trim()) {
-    methodString = payoutDetailsOrMethod.trim();
-  }
-
-  // If payout details were not passed directly, look up from the professional profile
-  if (!payoutDetails) {
-    try {
-      const { data: pro } = await supabase
-        .from("professionals")
-        .select("payout_details")
-        .eq("id", professionalId)
-        .maybeSingle();
-      if (pro?.payout_details && typeof pro.payout_details === "object" && Object.keys(pro.payout_details).length > 0) {
-        payoutDetails = pro.payout_details;
-      }
-    } catch {
-      // Column may not exist or network error
-    }
-  }
-
-  // Validate that valid bank or UPI details exist before allowing payout request
-  if (!payoutDetails || !hasValidPayoutDetails(payoutDetails)) {
-    const err = new Error("Add bank details to request a payout.");
-    err.isUserFacing = true;
-    throw err;
-  }
-
-  const formattedMethod = formatPayoutMethod(payoutDetails);
-
-  // Try inserting with payout_details snapshot column
-  try {
-    const { data, error } = await supabase
-      .from("payouts")
-      .insert({
-        professional_id: professionalId,
-        amount: numericAmount,
-        status: "requested",
-        method: formattedMethod,
-        payout_details: payoutDetails,
-      })
-      .select()
-      .single();
-
-    if (!error && data) return data;
-    if (error && !error.message?.includes("payout_details")) {
-      throw error;
-    }
-  } catch (err) {
-    // If payout_details column is not yet applied, fallback to base insert
-    if (!err.message?.includes("payout_details")) {
-      throw err;
-    }
-  }
-
-  // Fallback: insert without payout_details column (method string preserves the destination info)
   const { data, error } = await supabase
     .from("payouts")
     .insert({
       professional_id: professionalId,
-      amount: numericAmount,
+      amount: round2(amount),
       status: "requested",
-      method: formattedMethod,
+      method: method || null,
     })
     .select()
     .single();
-
   if (error) throw error;
   return data;
 }
