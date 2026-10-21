@@ -84,6 +84,49 @@ export default function BrowseProfessionalsPage() {
         </div>
 
         <MarketplaceDirectory />
+
+        {/* FREQUENTLY ASKED QUESTIONS & HIRING GUIDE */}
+        <section className="bg-surface border-t border-border mt-16 py-14">
+          <div className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8">
+            <div className="max-w-3xl">
+              <h2 className="font-heading text-xl sm:text-2xl font-bold text-dark-900 tracking-tight">
+                Hiring Verified Professionals on BookMyProfessional
+              </h2>
+              <p className="mt-2 text-xs sm:text-sm text-dark-600 leading-relaxed">
+                Whether you need a licensed physician, certified home tutor, skilled electrician, or an IT consultant, BookMyProfessional connects you directly with vetted domain specialists across major cities in India.
+              </p>
+            </div>
+
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-5 rounded-2xl bg-dark-50/70 border border-border/80 space-y-2">
+                <h3 className="font-heading text-sm font-bold text-dark-900">
+                  How are professionals verified?
+                </h3>
+                <p className="text-xs text-dark-600 leading-relaxed">
+                  Every listed service expert undergoes strict government identity verification, professional credential auditing, and background screening before being approved to offer consultations and services.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-dark-50/70 border border-border/80 space-y-2">
+                <h3 className="font-heading text-sm font-bold text-dark-900">
+                  How does escrow payment protection work?
+                </h3>
+                <p className="text-xs text-dark-600 leading-relaxed">
+                  When you schedule an appointment, your payment is held securely in escrow. Funds are only transferred to the expert after your service milestone is completed and satisfied.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-dark-50/70 border border-border/80 space-y-2">
+                <h3 className="font-heading text-sm font-bold text-dark-900">
+                  Can I reschedule or cancel my booking?
+                </h3>
+                <p className="text-xs text-dark-600 leading-relaxed">
+                  Yes, you can easily reschedule or cancel appointments directly from your customer dashboard with prompt refunds according to our fair cancellation policy.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
