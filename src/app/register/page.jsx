@@ -16,11 +16,6 @@ export async function generateMetadata({ searchParams }) {
   const role = searchParams?.role;
 
   // Authentication utility pages are intentionally excluded from organic indexing (noindex, follow)
-  const robots = {
-    index: false,
-    follow: true,
-  };
-
   // Canonical always points to clean route /register
   const canonical = `${SITE_URL}/register`;
 
@@ -29,7 +24,6 @@ export async function generateMetadata({ searchParams }) {
       title: "Join as a Professional",
       description:
         "Register as a verified professional on BookMyProfessional to connect with customers, manage your appointments, and grow your service business across India.",
-      robots,
       alternates: { canonical },
       openGraph: {
         type: "website", locale: "en_IN",
@@ -55,7 +49,6 @@ export async function generateMetadata({ searchParams }) {
     title: "Create a Free Account",
     description:
       "Sign up on BookMyProfessional to hire verified experts near you or list your professional services and connect with customers across India.",
-    robots,
     alternates: { canonical },
     openGraph: {
       type: "website", locale: "en_IN",

@@ -16,11 +16,6 @@ export async function generateMetadata({ searchParams }) {
   const role = searchParams?.role;
 
   // Authentication utility pages are intentionally excluded from organic indexing (noindex, follow)
-  const robots = {
-    index: false,
-    follow: true,
-  };
-
   // Canonical always points to the clean canonical route /login
   const canonical = `${SITE_URL}/login`;
 
@@ -29,7 +24,6 @@ export async function generateMetadata({ searchParams }) {
       title: "Professional Login",
       description:
         "Sign in to your BookMyProfessional professional account to manage your appointments, client messages, availability schedule, and service listings.",
-      robots,
       alternates: { canonical },
       openGraph: {
         type: "website", locale: "en_IN",
@@ -53,7 +47,6 @@ export async function generateMetadata({ searchParams }) {
       title: "Customer Login",
       description:
         "Sign in to your BookMyProfessional customer account to view upcoming bookings, track service requests, and communicate with verified professionals.",
-      robots,
       alternates: { canonical },
       openGraph: {
         type: "website", locale: "en_IN",
@@ -77,7 +70,6 @@ export async function generateMetadata({ searchParams }) {
     title: "Sign In",
     description:
       "Sign in to your BookMyProfessional account to manage appointments, bookings, and direct messages with verified professionals.",
-    robots,
     alternates: { canonical },
     openGraph: {
       type: "website", locale: "en_IN",
