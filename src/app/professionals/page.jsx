@@ -46,7 +46,7 @@ export default function BrowseProfessionalsPage() {
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-heading text-xs font-bold text-dark-900">100% ID Verified</h3>
+                <p className="font-heading text-xs font-bold text-dark-900">100% ID Verified</p>
                 <p className="text-[11px] text-dark-500 mt-0.5 leading-snug">Govt ID &amp; certification audited</p>
               </div>
             </div>
@@ -56,7 +56,7 @@ export default function BrowseProfessionalsPage() {
                 <CreditCard className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-heading text-xs font-bold text-dark-900">Escrow Protected</h3>
+                <p className="font-heading text-xs font-bold text-dark-900">Escrow Protected</p>
                 <p className="text-[11px] text-dark-500 mt-0.5 leading-snug">Pay only when service is complete</p>
               </div>
             </div>
@@ -66,7 +66,7 @@ export default function BrowseProfessionalsPage() {
                 <Clock className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-heading text-xs font-bold text-dark-900">Instant Booking</h3>
+                <p className="font-heading text-xs font-bold text-dark-900">Instant Booking</p>
                 <p className="text-[11px] text-dark-500 mt-0.5 leading-snug">Real-time availability calendars</p>
               </div>
             </div>
@@ -76,7 +76,7 @@ export default function BrowseProfessionalsPage() {
                 <Award className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-heading text-xs font-bold text-dark-900">Rated &amp; Reviewed</h3>
+                <p className="font-heading text-xs font-bold text-dark-900">Rated &amp; Reviewed</p>
                 <p className="text-[11px] text-dark-500 mt-0.5 leading-snug">Feedback from verified customers</p>
               </div>
             </div>

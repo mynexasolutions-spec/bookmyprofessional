@@ -296,9 +296,9 @@ export default function HowItWorks() {
                   >
                     {i + 1}
                   </span>
-                  <h3 className="mt-4 font-heading text-lg font-bold text-dark-900 sm:text-xl">
+                  <h2 className="mt-4 font-heading text-lg font-bold text-dark-900 sm:text-xl">
                     {step.title}
-                  </h3>
+                  </h2>
                   <p className="mt-1.5 text-sm leading-relaxed text-muted">{step.desc}</p>
                   <div className="mt-5 flex flex-1 items-end">{step.visual}</div>
                 </div>
@@ -324,9 +324,9 @@ export default function HowItWorks() {
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary-600">
                 Ready to get started?
               </p>
-              <h3 className="mt-3 font-heading text-2xl font-bold tracking-tight text-dark-900 sm:text-3xl lg:text-4xl">
+              <h2 className="mt-3 font-heading text-2xl font-bold tracking-tight text-dark-900 sm:text-3xl lg:text-4xl">
                 Book a <span className="text-primary-500">Trusted Professional</span> Today
-              </h3>
+              </h2>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-dark-600 sm:text-base">
                 Join thousands of happy customers who found the right professionals for their
                 needs.

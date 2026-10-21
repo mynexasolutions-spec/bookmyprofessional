@@ -3,10 +3,6 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional
 export const metadata = {
   title: "Reset Password | Book My Professional",
   description: "Reset your BookMyProfessional password securely with a one-time verification link sent to your registered email.",
-  robots: {
-    index: false,
-    follow: true,
-  },
   alternates: {
     canonical: `${SITE_URL}/forgot-password`,
   },

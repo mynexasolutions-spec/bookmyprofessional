@@ -262,9 +262,9 @@ export default function ContactPage() {
                           {c.badge}
                         </span>
                       </div>
-                      <h3 className="font-heading text-base font-bold text-dark-900 mb-1">
+                      <h2 className="font-heading text-base font-bold text-dark-900 mb-1">
                         {c.title}
-                      </h3>
+                      </h2>
                       <p className="text-sm font-semibold text-primary-600 mb-1">
                         {c.details}
                       </p>
