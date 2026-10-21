@@ -11,7 +11,7 @@ export const metadata = {
     locale: "en_IN",
     url: `${SITE_URL}/professionals`,
     siteName: "Book My Professional",
-    title: "Browse Verified Professionals | Book My Professional",
+    title: "Browse Verified Professionals",
     description: "Search and hire verified doctors, tutors, electricians, plumbers, IT experts and more across India. Compare profiles, ratings, and book instantly.",
     images: [
       {
@@ -24,7 +24,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Browse Verified Professionals | Book My Professional",
+    title: "Browse Verified Professionals",
     description: "Search and hire verified doctors, tutors, electricians, plumbers, IT experts and more across India.",
     images: [`${SITE_URL}/og-image.png`],
   },

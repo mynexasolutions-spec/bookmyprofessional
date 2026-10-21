@@ -1,7 +1,7 @@
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmyprofessional.com";
 
 export const metadata = {
-  title: "How It Works | Book My Professional",
+  title: "How It Works",
   description: "Discover how BookMyProfessional connects you with verified experts in 4 steps with secure escrow payment protection and guaranteed quality.",
   alternates: {
     canonical: `${SITE_URL}/how-it-works`,
@@ -11,7 +11,7 @@ export const metadata = {
     locale: "en_IN",
     url: `${SITE_URL}/how-it-works`,
     siteName: "Book My Professional",
-    title: "How It Works | Book My Professional",
+    title: "How It Works",
     description: "Learn how BookMyProfessional connects you with verified experts in 4 simple steps with escrow payment security.",
     images: [
       {
@@ -24,7 +24,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "How It Works | Book My Professional",
+    title: "How It Works",
     description: "Learn how BookMyProfessional connects you with verified experts in 4 simple steps with escrow payment security.",
     images: [`${SITE_URL}/og-image.png`],
   },

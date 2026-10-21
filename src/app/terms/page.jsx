@@ -14,7 +14,7 @@ export const metadata = {
     locale: "en_IN",
     url: `${SITE_URL}/terms`,
     siteName: "Book My Professional",
-    title: "Terms & Conditions | Book My Professional",
+    title: "Terms & Conditions",
     description: "BookMyProfessional's platform terms covering bookings, escrow payments, cancellations, refunds, and professional verification.",
     images: [
       {
@@ -27,7 +27,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Terms & Conditions | Book My Professional",
+    title: "Terms & Conditions",
     description: "Platform terms covering bookings, escrow payments, cancellations, and professional verification.",
     images: [`${SITE_URL}/og-image.png`],
   },

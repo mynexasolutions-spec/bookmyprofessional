@@ -11,7 +11,7 @@ export const metadata = {
     locale: "en_IN",
     url: `${SITE_URL}/contact`,
     siteName: "Book My Professional",
-    title: "Contact Us | Book My Professional",
+    title: "Contact Us",
     description: "Reach out to our support team for booking help, verification queries, or business partnerships. We respond within 24 hours.",
     images: [
       {
@@ -24,7 +24,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Contact Us | Book My Professional",
+    title: "Contact Us",
     description: "Reach our support team for booking help, professional verification, or business enquiries.",
     images: [`${SITE_URL}/og-image.png`],
   },

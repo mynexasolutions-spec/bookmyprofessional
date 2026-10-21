@@ -14,7 +14,7 @@ export const metadata = {
     locale: "en_IN",
     url: `${SITE_URL}/privacy`,
     siteName: "Book My Professional",
-    title: "Privacy Policy | Book My Professional",
+    title: "Privacy Policy",
     description: "Understand how BookMyProfessional handles your personal data, payment security, and data rights under Indian privacy law.",
     images: [
       {
@@ -27,7 +27,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Privacy Policy | Book My Professional",
+    title: "Privacy Policy",
     description: "Understand how BookMyProfessional handles your personal data and privacy rights.",
     images: [`${SITE_URL}/og-image.png`],
   },

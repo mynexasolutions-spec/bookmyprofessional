@@ -11,7 +11,7 @@ export const metadata = {
     locale: "en_IN",
     url: `${SITE_URL}/about`,
     siteName: "Book My Professional",
-    title: "About Us | Book My Professional",
+    title: "About Us",
     description: "India's trusted platform for verified professionals. Discover our mission to connect people with the best doctors, tutors, electricians, and more.",
     images: [
       {
@@ -24,7 +24,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "About Us | Book My Professional",
+    title: "About Us",
     description: "India's trusted platform for verified professionals. Discover our story and mission.",
     images: [`${SITE_URL}/og-image.png`],
   },
