@@ -238,11 +238,13 @@ export async function sendPayoutPaidWhatsApp(profile, payout) {
 
   const amountStr = formatMoney(payout.amount);
   const destination = payout.method || 'verified bank/UPI account';
+  const utrLine = payout.transaction_ref ? `🔍 *UTR / Ref:* ${payout.transaction_ref}\n` : '';
   const body =
     `✅ *Payout Dispatched!*\n\n` +
     `Hi ${profile.full_name || 'there'}, your payout of ${amountStr} has been successfully transferred to your destination (${destination}).\n\n` +
-    `📋 *Payout ID:* ${payout.id}\n\n` +
-    `Check your vendor portal for full transaction records.\n\n` +
+    `📋 *Payout ID:* ${payout.id}\n` +
+    utrLine +
+    `\nCheck your bank account or UPI app for the credit reflection.\n\n` +
     `— BookMyProfessional`;
 
   return await sendWhatsApp({ to: profile.phone, body });

@@ -373,14 +373,22 @@ export default function VendorPortalPage() {
 
   const payoutRows =
     payouts !== null
-      ? payouts.map((p) => ({
-          id: p.id,
-          date: p.requested_at ? new Date(p.requested_at).toLocaleDateString() : "",
-          amount: Number(p.amount) || 0,
-          status: p.status,
-          method: p.method || "Bank Transfer",
-        }))
+      ? payouts.map((p) => {
+          const pd = p.payout_details && typeof p.payout_details === "object" ? p.payout_details : {};
+          return {
+            id: p.id,
+            date: p.requested_at ? new Date(p.requested_at).toLocaleDateString() : "",
+            amount: Number(p.amount) || 0,
+            status: p.status,
+            method: p.method || "Bank Transfer",
+            transactionRef: pd.transaction_ref || null,
+            failureReason: pd.failure_reason || null,
+            rejectionReason: pd.rejection_reason || null,
+          };
+        })
       : proVendorState.payoutHistory;
+
+  const pendingPayout = payoutRows.find((p) => p.status === "requested" || p.status === "processing");
 
   useEffect(() => {
     setPayoutAmountInput(String(stats.available));
@@ -1142,11 +1150,15 @@ export default function VendorPortalPage() {
                         <Button
                           variant="primary"
                           size="md"
-                          disabled={stats.available <= 0 || !hasValidPayout}
+                          disabled={stats.available <= 0 || !hasValidPayout || !!pendingPayout}
                           onClick={() => {
                             if (!hasValidPayout) {
                               showToast("Add bank details to request a payout.", "error");
                               openPayoutDetailsEditor();
+                              return;
+                            }
+                            if (pendingPayout) {
+                              showToast("You already have a payout transfer in progress. Please wait for it to complete.", "info");
                               return;
                             }
                             if (stats.available <= 0) {
@@ -1155,14 +1167,20 @@ export default function VendorPortalPage() {
                             }
                             setIsRequestingPayout(true);
                           }}
-                          className={`font-semibold text-xs py-3 px-6 shadow-button ${!hasValidPayout || stats.available <= 0 ? "opacity-60 cursor-not-allowed bg-dark-700 hover:bg-dark-700" : "bg-primary-500 hover:bg-primary-600"}`}
+                          className={`font-semibold text-xs py-3 px-6 shadow-button ${!hasValidPayout || stats.available <= 0 || !!pendingPayout ? "opacity-60 cursor-not-allowed bg-dark-700 hover:bg-dark-700" : "bg-primary-500 hover:bg-primary-600"}`}
                         >
                           <ArrowUpRight className="w-4 h-4 mr-1.5" />
-                          Request Instant Payout ({formatMoney(stats.available)})
+                          {pendingPayout
+                            ? `Payout In Progress (${formatMoney(pendingPayout.amount)})`
+                            : `Request Instant Payout (${formatMoney(stats.available)})`}
                         </Button>
                         {!hasValidPayout ? (
                           <span className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
                             <AlertCircle className="w-3 h-3" /> Add bank details to request a payout.
+                          </span>
+                        ) : pendingPayout ? (
+                          <span className="text-[11px] text-blue-200 font-medium flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-blue-300 animate-spin" /> Transfer of {formatMoney(pendingPayout.amount)} is {pendingPayout.status === 'processing' ? 'being processed by finance' : 'in queue for manual transfer'}.
                           </span>
                         ) : stats.available <= 0 ? (
                           <span className="text-[11px] text-white/75 font-medium flex items-center gap-1">
@@ -1201,9 +1219,54 @@ export default function VendorPortalPage() {
                               <td className="p-4 text-dark-600">{p.method}</td>
                               <td className="p-4 font-bold text-emerald-700">{formatMoney(Number(p.amount))}</td>
                               <td className="p-4">
-                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md">
-                                  <CheckCircle2 className="w-3 h-3" /> {p.status}
-                                </span>
+                                {p.status === "paid" && (
+                                  <div className="space-y-0.5">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                                      <CheckCircle2 className="w-3 h-3" /> Paid
+                                    </span>
+                                    {p.transactionRef && (
+                                      <div className="text-[10px] text-dark-500 font-mono">
+                                        UTR: <span className="font-bold text-dark-800 select-all">{p.transactionRef}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {p.status === "processing" && (
+                                  <div className="space-y-0.5">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">
+                                      <Clock className="w-3 h-3 animate-spin" /> Processing Transfer
+                                    </span>
+                                    <div className="text-[10px] text-blue-600 font-medium">Bank transfer in progress</div>
+                                  </div>
+                                )}
+                                {p.status === "requested" && (
+                                  <div className="space-y-0.5">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                                      <Clock className="w-3 h-3" /> Requested
+                                    </span>
+                                    <div className="text-[10px] text-amber-600 font-medium">Pending admin verification</div>
+                                  </div>
+                                )}
+                                {p.status === "failed" && (
+                                  <div className="space-y-0.5">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2.5 py-1 rounded-md border border-red-200">
+                                      <AlertCircle className="w-3 h-3" /> Transfer Failed
+                                    </span>
+                                    {p.failureReason && (
+                                      <div className="text-[10px] text-red-600 max-w-xs">{p.failureReason}</div>
+                                    )}
+                                  </div>
+                                )}
+                                {p.status === "rejected" && (
+                                  <div className="space-y-0.5">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200">
+                                      <X className="w-3 h-3" /> Rejected
+                                    </span>
+                                    {p.rejectionReason && (
+                                      <div className="text-[10px] text-rose-600 max-w-xs">{p.rejectionReason}</div>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           ))}

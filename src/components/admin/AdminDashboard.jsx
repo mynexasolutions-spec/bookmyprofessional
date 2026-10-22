@@ -172,6 +172,11 @@ export default function AdminDashboard({
   const [categoryEditor, setCategoryEditor] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState("all"); // "all" | "parents" | "children" | parent_id
   const [categorySearch, setCategorySearch] = useState("");
+  const [payoutConfirmModal, setPayoutConfirmModal] = useState(null);
+  const [payoutTxnRefInput, setPayoutTxnRefInput] = useState("");
+  const [payoutNotesInput, setPayoutNotesInput] = useState("");
+  const [payoutConfirmedCheckbox, setPayoutConfirmedCheckbox] = useState(false);
+  const [isSubmittingPayout, setIsSubmittingPayout] = useState(false);
 
   const filteredCategories = categories.filter((category) => {
     if (categorySearch.trim()) {
@@ -227,6 +232,131 @@ export default function AdminDashboard({
     comment: "",
     avatar: "",
   });
+
+  const handleConfirmPayoutTransfer = async (e) => {
+    e.preventDefault();
+    if (!payoutConfirmModal) return;
+    const { payout } = payoutConfirmModal;
+
+    if (!payoutTxnRefInput.trim()) {
+      showToast("Please enter the Bank UTR / UPI reference number.", "error");
+      return;
+    }
+    if (!payoutConfirmedCheckbox) {
+      showToast("Please confirm that the transfer has been completed in your bank/UPI app.", "error");
+      return;
+    }
+
+    setIsSubmittingPayout(true);
+    try {
+      await post("/api/admin/payout", {
+        payoutId: payout.id,
+        status: "paid",
+        transactionRef: payoutTxnRefInput.trim(),
+        notes: payoutNotesInput.trim() || undefined,
+      }, "POST");
+
+      showToast(`Payout marked as Paid with UTR: ${payoutTxnRefInput.trim()}`, "success");
+      setPayoutConfirmModal(null);
+      setPayoutTxnRefInput("");
+      setPayoutNotesInput("");
+      setPayoutConfirmedCheckbox(false);
+      router.refresh();
+    } catch (err) {
+      showToast(err?.message || "Failed to confirm payout transfer", "error");
+    } finally {
+      setIsSubmittingPayout(false);
+    }
+  };
+
+  const handleStartPayoutProcessing = async (payout) => {
+    const key = `payout:${payout.id}`;
+    setBusy(key);
+    try {
+      await post("/api/admin/payout", {
+        payoutId: payout.id,
+        status: "processing",
+      }, "POST");
+      showToast("Payout status set to Processing Transfer.", "success");
+      router.refresh();
+    } catch (err) {
+      showToast(err?.message || "Failed to update payout status", "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleMarkPayoutFailed = async (payout) => {
+    const reason = window.prompt(
+      `Enter reason why the transfer of ${formatMoney(payout.amount)} failed:\n(This will restore the balance back to the professional)`,
+      "Beneficiary bank rejected transfer / Invalid account details"
+    );
+    if (!reason || !reason.trim()) return;
+
+    const key = `payout:${payout.id}`;
+    setBusy(key);
+    try {
+      await post("/api/admin/payout", {
+        payoutId: payout.id,
+        status: "failed",
+        failureReason: reason.trim(),
+      }, "POST");
+      showToast("Payout marked as Failed. Funds restored to professional.", "info");
+      router.refresh();
+    } catch (err) {
+      showToast(err?.message || "Failed to update payout status", "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleRevertPayoutToRequested = async (payout) => {
+    if (
+      window.confirm(
+        `Revert payout of ${formatMoney(payout.amount)} back to 'Requested'?\n\nUse this if money was NOT transferred yet, so you can perform the manual transfer with a real UTR.`
+      )
+    ) {
+      const key = `payout:${payout.id}`;
+      setBusy(key);
+      try {
+        await post("/api/admin/payout", {
+          payoutId: payout.id,
+          status: "requested",
+          notes: "Reverted by admin for transfer reconciliation",
+        }, "POST");
+        showToast("Payout reverted to Requested for transfer processing.", "success");
+        router.refresh();
+      } catch (err) {
+        showToast(err?.message || "Failed to revert payout", "error");
+      } finally {
+        setBusy(null);
+      }
+    }
+  };
+
+  const handleRejectPayout = async (payout) => {
+    const reason = window.prompt(
+      `Enter reason for rejecting payout request of ${formatMoney(payout.amount)}:`,
+      "Rejected by admin"
+    );
+    if (reason === null) return;
+
+    const key = `payout:${payout.id}`;
+    setBusy(key);
+    try {
+      await post("/api/admin/payout", {
+        payoutId: payout.id,
+        status: "rejected",
+        rejectionReason: reason.trim() || "Rejected by admin",
+      }, "POST");
+      showToast("Payout rejected", "info");
+      router.refresh();
+    } catch (err) {
+      showToast(err?.message || "Failed to reject payout", "error");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const post = async (url, body, method = "POST") => {
     const res = await fetch(url, {
@@ -1228,70 +1358,239 @@ export default function AdminDashboard({
                               {payout.requested_at ? new Date(payout.requested_at).toLocaleDateString() : "—"}
                             </td>
                             <td className="px-5 py-3.5">
-                              <StatusPill value={payout.status} />
+                              {(() => {
+                                const pd = payout.payout_details && typeof payout.payout_details === "object" ? payout.payout_details : {};
+                                if (payout.status === "paid") {
+                                  return (
+                                    <div className="space-y-1">
+                                      <StatusPill value="paid" />
+                                      {pd.transaction_ref ? (
+                                        <div className="text-[10px] font-mono font-bold text-dark-700 flex items-center gap-1">
+                                          <span>UTR: {pd.transaction_ref}</span>
+                                          <button
+                                            type="button"
+                                            title="Copy UTR"
+                                            onClick={() => {
+                                              navigator.clipboard?.writeText(pd.transaction_ref);
+                                              showToast("Copied UTR", "success");
+                                            }}
+                                            className="p-0.5 hover:bg-dark-100 rounded text-dark-400 hover:text-dark-700"
+                                          >
+                                            <Copy className="w-2.5 h-2.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span className="block text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                          ⚠️ No UTR recorded
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                if (payout.status === "processing") {
+                                  return (
+                                    <div className="space-y-0.5">
+                                      <StatusPill value="processing" />
+                                      <span className="block text-[10px] text-blue-600 font-medium">In transfer process</span>
+                                    </div>
+                                  );
+                                }
+                                if (payout.status === "failed") {
+                                  return (
+                                    <div className="space-y-0.5">
+                                      <StatusPill value="failed" />
+                                      {pd.failure_reason && (
+                                        <span className="block text-[10px] text-red-600 max-w-xs truncate" title={pd.failure_reason}>
+                                          {pd.failure_reason}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                if (payout.status === "rejected") {
+                                  return (
+                                    <div className="space-y-0.5">
+                                      <StatusPill value="rejected" />
+                                      {pd.rejection_reason && (
+                                        <span className="block text-[10px] text-rose-600 max-w-xs truncate" title={pd.rejection_reason}>
+                                          {pd.rejection_reason}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                return <StatusPill value={payout.status} />;
+                              })()}
                             </td>
                             <td className="px-5 py-3.5">
-                              {canAct ? (
-                                <div className="flex items-center justify-end gap-2.5">
-                                  <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    onClick={() => {
-                                      const pd = payout.payout_details;
-                                      const dest = pd
-                                        ? (pd.type === "upi" || pd.upi_id
-                                            ? "UPI ID: " + pd.upi_id + (pd.account_holder ? " (" + pd.account_holder + ")" : "")
-                                            : "Bank A/C: " + pd.account_number + " (IFSC: " + pd.ifsc_code + (pd.account_holder ? ", Holder: " + pd.account_holder : "") + ")")
-                                        : (payout.method || "No details");
-                                      const msg = pd || payout.method
-                                        ? "Confirm transfer of " + formatMoney(Number(payout.amount || 0)) + " to\n" + dest + "\n\nHas this payment been transferred? Click OK to mark as Paid."
-                                        : "WARNING: No bank account or UPI details recorded for this professional! Are you sure you want to mark this payout as paid?";
-                                      if (window.confirm(msg)) {
-                                        run(key, "/api/admin/payout", { payoutId: payout.id, status: "paid" }, "Payout marked paid");
-                                      }
-                                    }}
-                                    className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
-                                  >
-                                    <Check className="w-3.5 h-3.5" /> Mark Paid
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    onClick={() =>
-                                      run(key, "/api/admin/payout", { payoutId: payout.id, status: "rejected" }, "Payout rejected")
-                                    }
-                                    className="py-2 px-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
-                                  >
-                                    <X className="w-3.5 h-3.5" /> Reject
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-end gap-2.5">
-                                  <span className="text-dark-400 text-xs italic mr-2">Processed</span>
-                                  <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    onClick={async () => {
-                                      if (window.confirm("Delete this payout record?")) {
-                                        setBusy(key);
-                                        try {
-                                          await post("/api/admin/payout", { payoutId: payout.id, action: "delete" }, "POST");
-                                          showToast("Payout deleted", "success");
-                                          router.refresh();
-                                        } catch(e) {
-                                          showToast(e.message, "error");
-                                        } finally {
-                                          setBusy(null);
+                              {(() => {
+                                const pd = payout.payout_details && typeof payout.payout_details === "object" ? payout.payout_details : {};
+                                
+                                // State: Requested
+                                if (payout.status === "requested") {
+                                  return (
+                                    <div className="flex items-center justify-end gap-2 flex-wrap">
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() => handleStartPayoutProcessing(payout)}
+                                        className="py-1.5 px-3 rounded-xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors"
+                                      >
+                                        <Clock className="w-3.5 h-3.5" /> Start Transfer
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() => {
+                                          setPayoutConfirmModal({ payout });
+                                          setPayoutTxnRefInput("");
+                                          setPayoutNotesInput("");
+                                          setPayoutConfirmedCheckbox(false);
+                                        }}
+                                        className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1 shadow-xs"
+                                      >
+                                        <Check className="w-3.5 h-3.5" /> Confirm Transfer
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() => handleRejectPayout(payout)}
+                                        className="py-1.5 px-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold"
+                                      >
+                                        Reject
+                                      </button>
+                                    </div>
+                                  );
+                                }
+
+                                // State: Processing
+                                if (payout.status === "processing") {
+                                  return (
+                                    <div className="flex items-center justify-end gap-2 flex-wrap">
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() => {
+                                          setPayoutConfirmModal({ payout });
+                                          setPayoutTxnRefInput("");
+                                          setPayoutNotesInput("");
+                                          setPayoutConfirmedCheckbox(false);
+                                        }}
+                                        className="py-1.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs"
+                                      >
+                                        <Check className="w-3.5 h-3.5" /> Confirm Transfer
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={() => handleMarkPayoutFailed(payout)}
+                                        className="py-1.5 px-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold"
+                                      >
+                                        Transfer Failed
+                                      </button>
+                                    </div>
+                                  );
+                                }
+
+                                // State: Paid (Reconciliation & Audit)
+                                if (payout.status === "paid") {
+                                  return (
+                                    <div className="flex items-center justify-end gap-2 flex-wrap">
+                                      {!pd.transaction_ref ? (
+                                        <>
+                                          <button
+                                            type="button"
+                                            disabled={isBusy}
+                                            onClick={() => {
+                                              setPayoutConfirmModal({ payout });
+                                              setPayoutTxnRefInput("");
+                                              setPayoutNotesInput("");
+                                              setPayoutConfirmedCheckbox(false);
+                                            }}
+                                            className="py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold flex items-center gap-1 shadow-xs"
+                                            title="Add UTR if bank transfer was completed"
+                                          >
+                                            <Check className="w-3 h-3" /> Add UTR
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={isBusy}
+                                            onClick={() => handleRevertPayoutToRequested(payout)}
+                                            className="py-1.5 px-2.5 rounded-lg border border-amber-300 bg-white hover:bg-amber-50 text-amber-800 text-[11px] font-semibold"
+                                            title="Revert back to Requested if money was not sent yet"
+                                          >
+                                            Revert to Requested
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={isBusy}
+                                            onClick={() => handleMarkPayoutFailed(payout)}
+                                            className="py-1.5 px-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-[11px] font-semibold"
+                                            title="Mark Failed if transfer bounced"
+                                          >
+                                            Mark Failed
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <span className="text-emerald-700 text-xs font-semibold flex items-center gap-1 mr-2">
+                                          <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                                        </span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        disabled={isBusy}
+                                        onClick={async () => {
+                                          if (window.confirm("Delete this payout record?")) {
+                                            setBusy(key);
+                                            try {
+                                              await post("/api/admin/payout", { payoutId: payout.id, action: "delete" }, "POST");
+                                              showToast("Payout deleted", "success");
+                                              router.refresh();
+                                            } catch (e) {
+                                              showToast(e.message, "error");
+                                            } finally {
+                                              setBusy(null);
+                                            }
+                                          }
+                                        }}
+                                        className="p-1.5 rounded-lg text-dark-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                        title="Delete Record"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  );
+                                }
+
+                                // State: Failed / Rejected
+                                return (
+                                  <div className="flex items-center justify-end gap-2">
+                                    <span className="text-dark-400 text-xs italic mr-2 capitalize">{payout.status}</span>
+                                    <button
+                                      type="button"
+                                      disabled={isBusy}
+                                      onClick={async () => {
+                                        if (window.confirm("Delete this payout record?")) {
+                                          setBusy(key);
+                                          try {
+                                            await post("/api/admin/payout", { payoutId: payout.id, action: "delete" }, "POST");
+                                            showToast("Payout deleted", "success");
+                                            router.refresh();
+                                          } catch (e) {
+                                            showToast(e.message, "error");
+                                          } finally {
+                                            setBusy(null);
+                                          }
                                         }
-                                      }
-                                    }}
-                                    className="p-2 rounded-lg text-dark-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                    title="Delete Record"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              )}
+                                      }}
+                                      className="p-1.5 rounded-lg text-dark-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                      title="Delete Record"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                );
+                              })()}
                             </td>
                           </tr>
                         );
@@ -2795,6 +3094,207 @@ export default function AdminDashboard({
       </div>
 
       {/* DOCUMENT VIEWER & REVIEW MODAL */}
+      {/* CONFIRM PAYOUT TRANSFER MODAL */}
+      {payoutConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-surface border border-border rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl relative space-y-5">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading text-base font-bold text-dark-900">
+                    Confirm Manual Transfer
+                  </h3>
+                  <p className="text-xs text-dark-500">
+                    Verify transfer details and record bank UTR before marking as Paid.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPayoutConfirmModal(null)}
+                className="p-1.5 rounded-xl text-dark-400 hover:text-dark-700 hover:bg-dark-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Destination Details Card */}
+            <div className="p-4 rounded-2xl bg-dark-50 border border-border space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-dark-500">Professional:</span>
+                <span className="font-bold text-dark-900">
+                  {payoutConfirmModal.payout.professional?.full_name || "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-dark-500">Transfer Amount:</span>
+                <span className="font-heading text-base font-bold text-emerald-700">
+                  {formatMoney(Number(payoutConfirmModal.payout.amount || 0))}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-border/80">
+                <span className="text-[11px] font-semibold text-dark-500 uppercase tracking-wider block mb-1.5">
+                  Destination Details
+                </span>
+                {(() => {
+                  const pd = payoutConfirmModal.payout.payout_details && typeof payoutConfirmModal.payout.payout_details === "object"
+                    ? payoutConfirmModal.payout.payout_details
+                    : null;
+                  if (pd && (pd.type === "upi" || pd.upi_id)) {
+                    return (
+                      <div className="bg-white p-3 rounded-xl border border-purple-200 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-purple-700">UPI ID</span>
+                          <div className="flex items-center gap-1 font-mono font-bold text-dark-900 select-all">
+                            <span>{pd.upi_id}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(pd.upi_id);
+                                showToast("Copied UPI ID", "success");
+                              }}
+                              className="p-1 hover:bg-dark-100 rounded text-dark-500"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        {pd.account_holder && (
+                          <div className="flex items-center justify-between text-dark-600 text-[11px]">
+                            <span>Registered Name:</span>
+                            <span className="font-medium">{pd.account_holder}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  if (pd && (pd.account_number || pd.ifsc_code)) {
+                    return (
+                      <div className="bg-white p-3 rounded-xl border border-blue-200 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-dark-500">Bank:</span>
+                          <span className="font-semibold text-dark-900">{pd.bank_name || "Bank Account"}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-dark-500">Account Number:</span>
+                          <div className="flex items-center gap-1 font-mono font-bold text-dark-900 select-all">
+                            <span>{pd.account_number}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(pd.account_number);
+                                showToast("Copied Account Number", "success");
+                              }}
+                              className="p-1 hover:bg-dark-100 rounded text-dark-500"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-dark-500">IFSC Code:</span>
+                          <div className="flex items-center gap-1 font-mono font-bold text-dark-900 select-all">
+                            <span>{pd.ifsc_code}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(pd.ifsc_code);
+                                showToast("Copied IFSC Code", "success");
+                              }}
+                              className="p-1 hover:bg-dark-100 rounded text-dark-500"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        {pd.account_holder && (
+                          <div className="flex items-center justify-between text-dark-600 text-[11px]">
+                            <span>Account Holder:</span>
+                            <span className="font-medium">{pd.account_holder}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="bg-white p-3 rounded-xl border border-border text-xs font-medium text-dark-800">
+                      {payoutConfirmModal.payout.method || "No payout destination on file"}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Form to Record UTR */}
+            <form onSubmit={handleConfirmPayoutTransfer} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                  Bank UTR / UPI Reference Number / IMPS Ref <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={payoutTxnRefInput}
+                  onChange={(e) => setPayoutTxnRefInput(e.target.value)}
+                  placeholder="e.g. 429381029482 (from NetBanking or UPI receipt)"
+                  className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500 font-mono font-semibold"
+                />
+                <p className="text-[10px] text-dark-400 mt-1">
+                  Enter the unique transaction reference generated by your bank or UPI provider when the transfer cleared.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-dark-700 mb-1.5">
+                  Internal Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={payoutNotesInput}
+                  onChange={(e) => setPayoutNotesInput(e.target.value)}
+                  placeholder="e.g. Sent via HDFC Corporate NetBanking"
+                  className="w-full px-3.5 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <label className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/70 border border-amber-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  required
+                  checked={payoutConfirmedCheckbox}
+                  onChange={(e) => setPayoutConfirmedCheckbox(e.target.checked)}
+                  className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 shrink-0"
+                />
+                <span className="text-[11px] text-amber-900 font-medium leading-relaxed">
+                  I confirm that {formatMoney(Number(payoutConfirmModal.payout.amount || 0))} has been debited from the platform's bank/UPI account and successfully transferred to this professional.
+                </span>
+              </label>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPayoutConfirmModal(null)}
+                  className="py-2.5 px-4 rounded-xl border border-border text-xs font-semibold text-dark-600 hover:bg-dark-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPayout || !payoutTxnRefInput.trim() || !payoutConfirmedCheckbox}
+                  className="py-2.5 px-5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm disabled:opacity-50 transition-colors"
+                >
+                  {isSubmittingPayout ? "Verifying..." : "Confirm & Mark Paid"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {viewingDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-surface border border-border rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">

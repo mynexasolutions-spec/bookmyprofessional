@@ -161,8 +161,12 @@ export async function getEarningsSummary(professionalId, client) {
     let paidOut = 0;
     let pendingWithdrawals = 0;
     (payouts || []).forEach((p) => {
-      if (p.status === "requested") pendingWithdrawals += (Number(p.amount) || 0);
-      else paidOut += (Number(p.amount) || 0);
+      if (p.status === "requested" || p.status === "processing") {
+        pendingWithdrawals += (Number(p.amount) || 0);
+      } else if (p.status === "paid") {
+        paidOut += (Number(p.amount) || 0);
+      }
+      // 'failed' and 'rejected' do not reduce available earnings
     });
 
     return {
@@ -170,6 +174,7 @@ export async function getEarningsSummary(professionalId, client) {
       commission: round2(commission),
       released: round2(released),
       available: round2(Math.max(0, released - paidOut - pendingWithdrawals)),
+      pendingWithdrawals: round2(pendingWithdrawals),
       paidOut: round2(paidOut),
       commissionRate: rate,
     };
@@ -188,6 +193,40 @@ export async function requestPayout(professionalId, amount, payoutDetailsOrMetho
   }
 
   const supabase = client || createClient();
+
+  // 1. Prevent duplicate concurrent payout requests
+  try {
+    const { data: activeRequests } = await supabase
+      .from("payouts")
+      .select("id, amount, status")
+      .eq("professional_id", professionalId)
+      .in("status", ["requested", "processing"]);
+
+    if (activeRequests && activeRequests.length > 0) {
+      const active = activeRequests[0];
+      const err = new Error(
+        `You already have a payout request of ₹${active.amount} in progress (${active.status}). Please wait for it to be processed before requesting another.`
+      );
+      err.isUserFacing = true;
+      throw err;
+    }
+  } catch (err) {
+    if (err?.isUserFacing) throw err;
+  }
+
+  // 2. Protect balance: verify requested amount does not exceed available balance
+  try {
+    const summary = await getEarningsSummary(professionalId, supabase);
+    if (summary && numericAmount > summary.available) {
+      const err = new Error(
+        `Requested amount (₹${numericAmount}) exceeds your available balance (₹${summary.available}).`
+      );
+      err.isUserFacing = true;
+      throw err;
+    }
+  } catch (err) {
+    if (err?.isUserFacing) throw err;
+  }
 
   // Determine payout destination details
   let payoutDetails = null;

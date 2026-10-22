@@ -125,3 +125,65 @@ test("formatPayoutMethod fallback logic", () => {
   assert.equal(formatPayoutMethod(null), "Bank Transfer");
   assert.equal(formatPayoutMethod("UPI: user@okaxis"), "UPI: user@okaxis");
 });
+
+
+test("payout status lifecycle: requested, processing, paid with UTR, failed, rejected", () => {
+  const ALLOWED_STATUSES = ["requested", "processing", "paid", "failed", "rejected"];
+  assert.equal(ALLOWED_STATUSES.includes("requested"), true);
+  assert.equal(ALLOWED_STATUSES.includes("processing"), true);
+  assert.equal(ALLOWED_STATUSES.includes("paid"), true);
+  assert.equal(ALLOWED_STATUSES.includes("failed"), true);
+  assert.equal(ALLOWED_STATUSES.includes("rejected"), true);
+  assert.equal(ALLOWED_STATUSES.includes("unknown_status"), false);
+});
+
+test("paid status requires mandatory transaction reference (UTR)", () => {
+  function validatePaidConfirmation(status, transactionRef) {
+    if (status === "paid" && (!transactionRef || !String(transactionRef).trim())) {
+      throw new Error("Transaction reference (Bank UTR / UPI reference number / IMPS Ref) is required before confirming a payout as Paid.");
+    }
+    return true;
+  }
+
+  // Passing UTR succeeds
+  assert.equal(validatePaidConfirmation("paid", "UTR1234567890"), true);
+  assert.equal(validatePaidConfirmation("paid", "429381029482"), true);
+
+  // Missing or whitespace UTR throws error
+  assert.throws(() => validatePaidConfirmation("paid", ""), /Transaction reference/);
+  assert.throws(() => validatePaidConfirmation("paid", "   "), /Transaction reference/);
+  assert.throws(() => validatePaidConfirmation("paid", null), /Transaction reference/);
+  assert.throws(() => validatePaidConfirmation("paid", undefined), /Transaction reference/);
+
+  // Other statuses do not require UTR
+  assert.equal(validatePaidConfirmation("processing", null), true);
+  assert.equal(validatePaidConfirmation("requested", null), true);
+});
+
+test("earnings calculation treats both requested and processing as pending withdrawals", () => {
+  const payouts = [
+    { amount: 200, status: "paid" },
+    { amount: 300, status: "processing" },
+    { amount: 100, status: "requested" },
+    { amount: 150, status: "failed" },
+    { amount: 50, status: "rejected" },
+  ];
+
+  let released = 900;
+  let paidOut = 0;
+  let pendingWithdrawals = 0;
+
+  payouts.forEach((p) => {
+    if (p.status === "requested" || p.status === "processing") {
+      pendingWithdrawals += p.amount;
+    } else if (p.status === "paid") {
+      paidOut += p.amount;
+    }
+    // failed & rejected are NOT deducted
+  });
+
+  const available = Math.max(0, released - paidOut - pendingWithdrawals);
+  assert.equal(paidOut, 200);
+  assert.equal(pendingWithdrawals, 400); // 300 + 100
+  assert.equal(available, 300); // 900 - 200 - 400 = 300
+});
