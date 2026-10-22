@@ -100,6 +100,8 @@ export const DEFAULT_NOTIFICATION_PREFS = {
   bookings: true,
   reviewReplies: true,
   announcements: true,
+  whatsapp: true,
+  email: true,
 };
 
 // ponytail: defaults on error / no session so the toggles always render.

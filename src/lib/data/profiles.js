@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { cleanPhone, isValidIndianPhone } from "@/lib/phone";
 
 // ponytail: profile reads fall back to null while supabase/schema.sql is unapplied.
 // Remove the try/catch once the profiles table exists in every environment.
@@ -35,6 +36,24 @@ export async function getMyProfile() {
 
 export async function updateProfile(userId, patch) {
   const supabase = createClient();
+
+  // Server-side phone validation when phone is being saved
+  if ("phone" in patch) {
+    if (!patch.phone || !String(patch.phone).trim()) {
+      throw Object.assign(
+        new Error("Phone number is required. Please enter your 10-digit mobile number."),
+        { isUserFacing: true, field: "phone" }
+      );
+    }
+    const cleanNum = cleanPhone(patch.phone);
+    if (!isValidIndianPhone(cleanNum)) {
+      throw Object.assign(
+        new Error("Please enter a valid 10-digit Indian mobile number (must start with 6, 7, 8, or 9)."),
+        { isUserFacing: true, field: "phone" }
+      );
+    }
+    patch = { ...patch, phone: cleanNum };
+  }
 
   // Server-side pincode validation when pincode is being saved
   if ("pincode" in patch && patch.pincode) {
@@ -99,4 +118,3 @@ export async function updateProfile(userId, patch) {
 
   return data;
 }
-

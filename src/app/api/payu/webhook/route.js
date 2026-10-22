@@ -1,35 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyPaymentHash, getPayuConfig, amountsMatch } from '@/lib/payu';
-import { sendUserEmail } from '@/lib/email';
-import { notifyBookingConfirmed } from '@/lib/whatsapp';
+import { dispatchBookingConfirmedNotifications } from '@/lib/booking-notifications';
 
 function supabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
-}
-
-async function notifyBookingPaid(booking, supabase) {
-  try {
-    const serviceTitle = booking.service_title || `Booking ${booking.id}`;
-    await Promise.allSettled([
-      sendUserEmail(booking.customer_id, {
-        subject: 'Booking Confirmed — Payment Received',
-        kind: 'bookings',
-        text: `Hi! Your payment for booking ${booking.id} (${serviceTitle}) has been received and the booking is confirmed.`,
-      }),
-      booking.professional_id && sendUserEmail(booking.professional_id, {
-        subject: 'New Booking Confirmed',
-        kind: 'bookings',
-        text: `Booking ${booking.id} (${serviceTitle}) is confirmed and paid. Please be ready for the appointment.`,
-      }),
-      notifyBookingConfirmed(booking, supabase),
-    ]);
-  } catch (error) {
-    console.error('[PayU Webhook] Notification failed:', error);
-  }
 }
 
 export async function POST(req) {
@@ -79,17 +57,23 @@ export async function POST(req) {
     }
 
     if (status === 'success') {
-      const wasPaid = booking.payment_status === 'paid';
-      await supabase
+      // Atomic conditional update — succeeds only if payment_status is not yet 'paid'
+      const { data: updatedRows } = await supabase
         .from('bookings')
         .update({ payment_status: 'paid', status: 'upcoming' })
-        .eq('id', txnid);
+        .eq('id', txnid)
+        .neq('payment_status', 'paid')
+        .select('*');
+
       await supabase
         .from('payments')
         .update({ status: 'held', provider: 'payu', provider_ref: mihpayid || null })
         .eq('booking_id', txnid);
-      // ponytail: callback/webhook race can still double-send; dedupe on a payments row if it ever matters.
-      if (!wasPaid) await notifyBookingPaid(booking, supabase);
+
+      // Only dispatch notifications if this webhook call was the one that updated to 'paid'
+      if (updatedRows && updatedRows.length > 0) {
+        await dispatchBookingConfirmedNotifications(updatedRows[0] || booking, supabase);
+      }
     } else if (status === 'failure') {
       await supabase
         .from('bookings')

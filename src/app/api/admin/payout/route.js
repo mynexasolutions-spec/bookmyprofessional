@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction } from "@/lib/data/admin";
 import { sendUserEmail } from "@/lib/email";
 import { formatMoney } from "@/lib/money";
+import { notifyPayoutPaid } from "@/lib/whatsapp";
 
 export async function POST(request) {
   if (!(await isAdminRequest())) {
@@ -57,7 +58,7 @@ export async function POST(request) {
     try {
       const { data } = await supabase
         .from("payouts")
-        .select("professional_id, amount, method")
+        .select("id, professional_id, amount, method")
         .eq("id", payoutId)
         .maybeSingle();
       payout = data;
@@ -83,7 +84,7 @@ export async function POST(request) {
       // Ignore logging errors
     }
 
-    // ponytail: email is best-effort — a mail failure must never fail the payout update.
+    // Email and WhatsApp are best-effort — a notification failure must never fail the payout update.
     if (payout?.professional_id) {
       try {
         await sendUserEmail(payout.professional_id, {
@@ -95,7 +96,18 @@ export async function POST(request) {
               : `Your payout request of ${formatMoney(payout.amount)} was rejected.\nOpen your vendor portal for details.\n— BookMyProfessional`,
         });
       } catch {
-        // ignore — the payout was already updated
+        // ignore
+      }
+
+      if (status === "paid") {
+        try {
+          await notifyPayoutPaid(
+            { id: payoutId, professional_id: payout.professional_id, amount: payout.amount, method: payout.method },
+            supabase
+          );
+        } catch {
+          // ignore
+        }
       }
     }
   } catch (error) {

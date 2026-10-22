@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Button from "@/components/Button";
 import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
+import { cleanPhone, isValidIndianPhone } from "@/lib/phone";
 import PincodeInput from "@/components/PincodeInput";
 
 export default function RegisterPage() {
@@ -107,7 +108,7 @@ export default function RegisterPage() {
       setErrorMessage("Please enter your phone number.");
       return;
     }
-    if (!/^[6-9]\d{9}$/.test(form.phone.replace(/\D/g, ""))) {
+    if (!isValidIndianPhone(form.phone)) {
       setErrorMessage("Please enter a valid 10-digit Indian mobile number.");
       return;
     }
@@ -227,7 +228,7 @@ export default function RegisterPage() {
       const result = await signup({
         fullName: form.fullName,
         email: form.email,
-        phone: form.phone,
+        phone: cleanPhone(form.phone),
         password: form.password,
         role: authRole,
         category: authRole === "professional" ? form.category : undefined,
@@ -444,8 +445,9 @@ export default function RegisterPage() {
                   <input
                     type="tel"
                     required
+                    maxLength={10}
                     value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
                     placeholder="10-digit mobile number"
                     className="w-full pl-9 pr-3 py-2.5 bg-surface border border-border rounded-xl text-xs text-dark-900 focus:outline-none focus:border-primary-500"
                   />
@@ -610,7 +612,7 @@ export default function RegisterPage() {
                   className="mt-0.5 rounded text-primary-500 focus:ring-primary-500 h-4 w-4 shrink-0 cursor-pointer"
                 />
                 <span className="text-[11px] text-dark-600 leading-tight">
-                  (Optional) Receive booking updates, reminders, and notifications via WhatsApp.
+                  (Optional) Opt in to receive booking updates, appointment reminders, and other relevant notifications through WhatsApp.
                 </span>
               </label>
             </div>

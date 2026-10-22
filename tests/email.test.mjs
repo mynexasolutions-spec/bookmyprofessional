@@ -21,3 +21,9 @@ test("shouldEmail defaults to on when prefs is null", () => {
 test("shouldEmail honours an announcements opt-out", () => {
   assert.equal(shouldEmail({ announcements: false }, "announcements"), false);
 });
+
+test("shouldEmail honours a global email toggle opt-out", () => {
+  assert.equal(shouldEmail({ email: false, bookings: true }, "bookings"), false);
+  assert.equal(shouldEmail({ email: false }, "announcements"), false);
+  assert.equal(shouldEmail({ email: false }, "account"), true);
+});

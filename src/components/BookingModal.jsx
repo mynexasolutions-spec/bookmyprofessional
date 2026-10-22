@@ -9,6 +9,7 @@ import {
   nextBookingDates,
 } from "@/lib/data/bookings";
 import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
+import { cleanPhone, isValidIndianPhone } from "@/lib/phone";
 import PincodeInput from "@/components/PincodeInput";
 import { ikImage } from "@/lib/imagekit";
 import {
@@ -221,8 +222,13 @@ export default function BookingModal() {
       return;
     }
     if (!selectedTimeSlot) return;
-    if (!addressDetails.phone?.trim()) {
+    const cleanCustomerPhone = cleanPhone(addressDetails.phone);
+    if (!cleanCustomerPhone) {
       setBookingError("Please enter your phone number before confirming the booking.");
+      return;
+    }
+    if (!isValidIndianPhone(cleanCustomerPhone)) {
+      setBookingError("Please enter a valid 10-digit Indian mobile number (must start with 6, 7, 8, or 9).");
       return;
     }
     if (!addressDetails.street?.trim()) {
@@ -252,7 +258,7 @@ export default function BookingModal() {
       notes: addressDetails.notes,
       customerName: addressDetails.name,
       customerEmail: addressDetails.email,
-      customerPhone: addressDetails.phone,
+      customerPhone: cleanCustomerPhone,
       paymentMethod: "PayU",
       paymentStatus: "unpaid"
     };
@@ -632,9 +638,10 @@ export default function BookingModal() {
                     <input
                       type="tel"
                       required
+                      maxLength={10}
                       value={addressDetails.phone}
                       onChange={(e) =>
-                        setAddressDetails({ ...addressDetails, phone: e.target.value })
+                        setAddressDetails({ ...addressDetails, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })
                       }
                       placeholder="10-digit mobile number"
                       className="w-full pl-9 pr-3 py-2 bg-dark-50 border border-border rounded-lg text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
@@ -912,7 +919,7 @@ export default function BookingModal() {
                   (currentStep === 2 && !selectedTimeSlot) ||
                   (currentStep === 3 &&
                     (!addressDetails.name.trim() ||
-                      !addressDetails.phone.trim() ||
+                      !addressDetails.phone.trim() || !/^[6-9]\d{9}$/.test(addressDetails.phone.replace(/\D/g, "")) ||
                       !addressDetails.street.trim() ||
                       !addressDetails.city.trim() ||
                       !addressDetails.postalCode.trim() ||

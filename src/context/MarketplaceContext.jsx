@@ -359,6 +359,17 @@ export function MarketplaceProvider({ children }) {
       refunded = false;
       showToast(err?.message || "Booking cancelled. Refund is pending gateway confirmation.", "error");
     }
+    // Trigger WhatsApp cancellation notifications
+    try {
+      fetch('/api/notifications/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'booking_cancelled', bookingId }),
+      }).catch(() => {});
+    } catch {
+      // non-blocking
+    }
+
     if (refunded) {
       setBookings((prev) =>
         prev.map((b) => (b.id === bookingId ? { ...b, paymentStatus: "refunded" } : b))

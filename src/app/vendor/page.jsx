@@ -25,6 +25,7 @@ import {
   maskAccountNumber,
 } from "@/lib/payout-validation";
 import { getEarningsSummary, listMyPayouts } from "@/lib/data/payments";
+import { getNotificationPrefs, updateNotificationPrefs } from "@/lib/data/notifications";
 import { listAllCategories, listCategories, listSubcategories } from "@/lib/data/categories";
 import { formatInclusions } from "@/lib/inclusions";
 import { uploadImage, ikImage } from "@/lib/imagekit";
@@ -65,6 +66,7 @@ import {
   Trash2,
   Pencil,
   Lock,
+  Bell,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 
@@ -167,6 +169,33 @@ export default function VendorPortalPage() {
   }, [isLoading, user, router]);
 
   const [activeTab, setActiveTab] = useState("earnings"); // "earnings" | "bookings" | "schedule" | "verification"
+  const [notifPrefs, setNotifPrefs] = useState({
+    whatsapp: false,
+    email: true,
+    bookings: true,
+    announcements: true,
+  });
+
+  useEffect(() => {
+    getNotificationPrefs().then((p) => {
+      if (p) setNotifPrefs(p);
+    });
+  }, []);
+
+  const handleVendorPrefToggle = async (key) => {
+    if (!notifPrefs) return;
+    const nextVal = !notifPrefs[key];
+    const next = { ...notifPrefs, [key]: nextVal };
+    setNotifPrefs(next);
+    const saved = await updateNotificationPrefs({ [key]: nextVal });
+    if (saved) {
+      setNotifPrefs(saved);
+      showToast("Notification preferences updated.", "success");
+    } else {
+      showToast("Unable to save preferences right now.", "error");
+    }
+  };
+
   const [payoutAmountInput, setPayoutAmountInput] = useState(
     proVendorState.availablePayout.toString()
   );
@@ -919,6 +948,7 @@ export default function VendorPortalPage() {
                 { id: "schedule", label: "Working Hours & Schedule", icon: Clock },
                 { id: "services", label: "Services & Experience", icon: Briefcase },
                 { id: "verification", label: "Documents & Verification", icon: FileCheck },
+                { id: "settings", label: "Notification Settings", icon: Bell },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -2201,6 +2231,69 @@ export default function VendorPortalPage() {
                       </label>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* TAB 6: NOTIFICATION SETTINGS */}
+              {activeTab === "settings" && (
+                <div className="p-6 sm:p-8 space-y-6 max-w-2xl">
+                  <div>
+                    <h3 className="font-heading text-lg font-bold text-dark-900">
+                      Notification Preferences
+                    </h3>
+                    <p className="text-xs text-dark-500 mt-1">
+                      Manage how you receive alerts for new bookings, schedule changes, and payout updates.
+                    </p>
+                  </div>
+
+                  {!notifPrefs ? (
+                    <p className="text-xs text-dark-400">Loading preferences…</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {[
+                        {
+                          key: "whatsapp",
+                          label: "WhatsApp Notifications",
+                          hint: "Receive WhatsApp alerts for new bookings, client cancellations, and payout disbursements.",
+                        },
+                        {
+                          key: "email",
+                          label: "Email Notifications",
+                          hint: "Receive booking confirmations and appointment reminders via email.",
+                        },
+                        {
+                          key: "bookings",
+                          label: "Booking Updates & Schedule Alerts",
+                          hint: "Get notified when customers book, reschedule, or cancel services.",
+                        },
+                        {
+                          key: "announcements",
+                          label: "Platform News & Payout Announcements",
+                          hint: "Important updates regarding payout schedules, platform features, and policies.",
+                        },
+                      ].map((row) => (
+                        <label
+                          key={row.key}
+                          className="flex items-start justify-between gap-4 p-4 rounded-xl border border-border bg-dark-50/50 hover:bg-dark-50 transition-colors cursor-pointer"
+                        >
+                          <div>
+                            <span className="block text-xs font-semibold text-dark-900">
+                              {row.label}
+                            </span>
+                            <span className="block text-[11px] text-dark-500 mt-0.5">
+                              {row.hint}
+                            </span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={!!notifPrefs[row.key]}
+                            onChange={() => handleVendorPrefToggle(row.key)}
+                            className="mt-0.5 rounded text-primary-500 focus:ring-primary-500 h-4 w-4 shrink-0 cursor-pointer"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               </ErrorBoundary>

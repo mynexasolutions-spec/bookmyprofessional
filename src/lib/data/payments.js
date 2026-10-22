@@ -1,3 +1,18 @@
+
+function triggerPayoutRequestedNotification(payoutId) {
+  try {
+    const origin = typeof window !== 'undefined'
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+    fetch(`${origin}/api/notifications/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'payout_requested', payoutId }),
+    }).catch(() => {});
+  } catch {
+    // Non-blocking notification dispatch
+  }
+}
 import { createClient } from "@/lib/supabase/client";
 import {
   validatePayoutDetails,
@@ -223,7 +238,10 @@ export async function requestPayout(professionalId, amount, payoutDetailsOrMetho
       .select()
       .single();
 
-    if (!error && data) return data;
+    if (!error && data) {
+      if (data.id) triggerPayoutRequestedNotification(data.id);
+      return data;
+    }
     if (error && !error.message?.includes("payout_details")) {
       throw error;
     }

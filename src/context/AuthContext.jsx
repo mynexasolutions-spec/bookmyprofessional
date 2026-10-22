@@ -17,7 +17,7 @@ function mapUser(authUser, profile) {
     phone: profile?.phone || meta.phone || "",
     role: profile?.role || meta.role || "customer",
     avatar: profile?.avatar_url || null,
-    whatsapp_consent: Boolean(meta.whatsapp_consent),
+    whatsapp_consent: Boolean(profile?.whatsapp_consent ?? meta.whatsapp_consent),
     user_metadata: meta,
   };
 }

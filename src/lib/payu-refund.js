@@ -2,8 +2,9 @@ import { createAdminClient } from './supabase/admin.js';
 import { generateRefundHash, getPayuConfig, toPayuAmount } from './payu.js';
 import { sendUserEmail } from './email.js';
 import { formatMoney } from './money.js';
+import { notifyRefundProcessed } from './whatsapp.js';
 
-async function emailRefundCustomer(bookingId, customerId, amount) {
+async function emailRefundCustomer(bookingId, customerId, amount, supabase) {
   if (!customerId) return;
   try {
     await sendUserEmail(customerId, {
@@ -13,6 +14,13 @@ async function emailRefundCustomer(bookingId, customerId, amount) {
     });
   } catch {
     // best-effort email notification
+  }
+  try {
+    if (supabase) {
+      await notifyRefundProcessed({ id: bookingId, customer_id: customerId }, amount, supabase);
+    }
+  } catch {
+    // best-effort whatsapp notification
   }
 }
 
@@ -170,7 +178,7 @@ export async function processRefund({
       },
     });
 
-    await emailRefundCustomer(bookingId, booking.customer_id, refundAmount);
+    await emailRefundCustomer(bookingId, booking.customer_id, refundAmount, supabase);
 
     return {
       ok: true,
@@ -271,7 +279,7 @@ export async function processRefund({
         },
       });
 
-      await emailRefundCustomer(bookingId, booking.customer_id, refundAmount);
+      await emailRefundCustomer(bookingId, booking.customer_id, refundAmount, supabase);
 
       return {
         ok: true,

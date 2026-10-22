@@ -5,6 +5,7 @@ export function shouldEmail(prefs, kind) {
   // account-critical mail always sends; other kinds honour the user's notification prefs.
   if (kind === "account") return true;
   const p = prefs || {};
+  if (p.email === false) return false;
   return p[kind] !== false;
 }
 

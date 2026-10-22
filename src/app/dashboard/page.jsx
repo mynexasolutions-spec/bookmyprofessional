@@ -38,6 +38,7 @@ import { formatMoney } from "@/lib/money";
 import { nextBookingDates, getAvailableSlots, rescheduleBooking } from "@/lib/data/bookings";
 import { getDerivedBookingStatus, isBookingExpired } from "@/lib/datetime";
 import { cleanPincode, isValidPincodeFormat } from "@/lib/pincode";
+import { cleanPhone, isValidIndianPhone } from "@/lib/phone";
 import PincodeInput from "@/components/PincodeInput";
 import { listMyWishlist, removeWish } from "@/lib/data/wishlist";
 
@@ -189,6 +190,16 @@ export default function CustomerDashboardPage() {
   const handleProfileSave = async (e) => {
     e.preventDefault();
 
+    const cleanNum = cleanPhone(profileForm.phone);
+    if (!cleanNum) {
+      showToast("Phone number is required. Please enter your 10-digit mobile number.", "error");
+      return;
+    }
+    if (!isValidIndianPhone(cleanNum)) {
+      showToast("Please enter a valid 10-digit Indian mobile number (must start with 6, 7, 8, or 9).", "error");
+      return;
+    }
+
     if (profileForm.pincode) {
       const cleanPin = cleanPincode(profileForm.pincode);
       if (!isValidPincodeFormat(cleanPin)) {
@@ -203,7 +214,7 @@ export default function CustomerDashboardPage() {
         await updateProfile(user.id, {
           full_name: profileForm.name,
           email: profileForm.email,
-          phone: profileForm.phone,
+          phone: cleanNum,
           city: profileForm.city,
           pincode: cleanPincode(profileForm.pincode),
           address: profileForm.address,
@@ -214,7 +225,8 @@ export default function CustomerDashboardPage() {
       }
     }
 
-    setCustomerProfile(profileForm);
+    setCustomerProfile({ ...profileForm, phone: cleanNum });
+    setProfileForm((prev) => ({ ...prev, phone: cleanNum }));
     showToast("Profile details updated successfully!", "success");
   };
 
@@ -792,22 +804,50 @@ export default function CustomerDashboardPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-dark-700 mb-1.5">
-                        Phone Number <span className="text-red-500">*</span>
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-dark-700">
+                          Phone Number <span className="text-red-500">*</span>
+                        </label>
+                        {(() => {
+                          const digits = cleanPhone(profileForm.phone);
+                          if (!digits) return null;
+                          if (digits.length === 10 && isValidIndianPhone(digits)) {
+                            return <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">✓ Valid 10 digits</span>;
+                          }
+                          if (digits.length === 10) {
+                            return <span className="text-[10px] text-amber-600 font-semibold">Must start with 6-9</span>;
+                          }
+                          return (
+                            <span className="text-[10px] text-amber-600 font-semibold">
+                              {digits.length}/10 digits ({10 - digits.length} more)
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-400" />
                         <input
                           type="tel"
                           required
+                          maxLength={10}
                           value={profileForm.phone || ""}
-                          placeholder="e.g. +91 98765 43210"
-                          onChange={(e) =>
-                            setProfileForm({ ...profileForm, phone: e.target.value })
-                          }
-                          className="w-full pl-9 pr-3 py-2.5 bg-dark-50 border border-border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none focus:border-primary-500"
+                          placeholder="10-digit mobile number"
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                            setProfileForm({ ...profileForm, phone: val });
+                          }}
+                          className={`w-full pl-9 pr-3 py-2.5 bg-dark-50 border rounded-xl text-xs text-dark-900 focus:bg-white focus:outline-none transition-colors ${
+                            !profileForm.phone
+                              ? "border-border focus:border-primary-500"
+                              : cleanPhone(profileForm.phone).length === 10 && isValidIndianPhone(profileForm.phone)
+                              ? "border-emerald-300 focus:border-emerald-500"
+                              : "border-amber-300 focus:border-amber-500"
+                          }`}
                         />
                       </div>
+                      <p className="text-[10px] text-dark-400 mt-1">
+                        10-digit Indian mobile number without country code or prefix (e.g. 9699942331)
+                      </p>
                     </div>
 
                     <div>
@@ -896,6 +936,16 @@ export default function CustomerDashboardPage() {
                   ) : (
                     <div className="space-y-2.5">
                       {[
+                        {
+                          key: "whatsapp",
+                          label: "WhatsApp notifications",
+                          hint: "Receive booking updates, status changes and alerts directly on WhatsApp.",
+                        },
+                        {
+                          key: "email",
+                          label: "Email notifications",
+                          hint: "Receive booking confirmations, invoices and reminders via email.",
+                        },
                         {
                           key: "bookings",
                           label: "Booking updates",

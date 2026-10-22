@@ -3,6 +3,7 @@ import { isAdminRequest, getAdminUser } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction, updateBookingStatusAdmin } from "@/lib/data/admin";
 import { processRefund } from "@/lib/payu-refund";
+import { notifyBookingCompleted, notifyBookingCancelled } from "@/lib/whatsapp";
 
 const STATUSES = ["upcoming", "in_progress", "completed", "cancelled"];
 
@@ -88,6 +89,13 @@ export async function POST(request) {
   }
 
   try {
+    // Fetch booking details before update for notification dispatch
+    const { data: booking } = await supabase
+      .from("bookings")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
     await updateBookingStatusAdmin(supabase, id, status);
     await logAdminAction(
       {
@@ -98,6 +106,16 @@ export async function POST(request) {
       },
       supabase
     );
+
+    // Trigger WhatsApp notifications
+    if (booking) {
+      const updatedBooking = { ...booking, status };
+      if (status === "completed") {
+        notifyBookingCompleted(updatedBooking, supabase).catch(() => {});
+      } else if (status === "cancelled") {
+        notifyBookingCancelled(updatedBooking, supabase).catch(() => {});
+      }
+    }
 
     // If cancelled, automatically call PayU refund API with the original transaction ID
     if (status === "cancelled") {
