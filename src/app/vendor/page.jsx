@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
@@ -1069,7 +1069,7 @@ export default function VendorPortalPage() {
                   <div className="p-6 bg-gradient-to-r from-primary-900 to-dark-900 rounded-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-5 shadow-soft">
                     <div>
                       <h3 className="font-heading text-lg font-bold text-white">
-                        Withdraw Net Earnings
+                        Withdraw Your Earnings
                       </h3>
                       <p className="text-xs text-white/80 mt-1">
                         {hasValidPayout
