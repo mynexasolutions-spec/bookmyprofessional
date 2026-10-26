@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -38,6 +38,7 @@ import {
   Quote,
   Eye,
   Search,
+  Clock,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { parseInclusions, formatInclusions } from "@/lib/inclusions";
