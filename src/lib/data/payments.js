@@ -161,10 +161,22 @@ export async function getEarningsSummary(professionalId, client) {
     let paidOut = 0;
     let pendingWithdrawals = 0;
     (payouts || []).forEach((p) => {
+      const hasVerifiedRef = !!(
+        p.payout_details &&
+        typeof p.payout_details === "object" &&
+        p.payout_details.transaction_ref &&
+        String(p.payout_details.transaction_ref).trim()
+      );
       if (p.status === "requested" || p.status === "processing") {
         pendingWithdrawals += (Number(p.amount) || 0);
       } else if (p.status === "paid") {
-        paidOut += (Number(p.amount) || 0);
+        if (hasVerifiedRef) {
+          paidOut += (Number(p.amount) || 0);
+        } else {
+          // Unverified payout record where transfer UTR was never confirmed/recorded.
+          // Money has not been credited to professional's bank, so keep in unpaid pending withdrawals.
+          pendingWithdrawals += (Number(p.amount) || 0);
+        }
       }
       // 'failed' and 'rejected' do not reduce available earnings
     });

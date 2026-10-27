@@ -388,7 +388,9 @@ export default function VendorPortalPage() {
         })
       : proVendorState.payoutHistory;
 
-  const pendingPayout = payoutRows.find((p) => p.status === "requested" || p.status === "processing");
+  const pendingPayout = payoutRows.find(
+    (p) => p.status === "requested" || p.status === "processing" || (p.status === "paid" && !p.transactionRef)
+  );
 
   useEffect(() => {
     setPayoutAmountInput(String(stats.available));
@@ -1024,16 +1026,40 @@ export default function VendorPortalPage() {
 
                     <div className="p-5 bg-surface rounded-2xl border border-border shadow-xs">
                       <span className="text-xs font-medium text-dark-500 block">
-                        Paid Out to Date
+                        Paid Out (Credited to Bank)
                       </span>
                       <span className="text-2xl font-bold font-heading text-dark-900 block mt-1.5">
                         {formatMoney(stats.paidOut)}
                       </span>
                       <span className="text-xs text-dark-400 mt-1 block">
-                        Direct to verified bank account
+                        Direct to verified bank account with UTR
                       </span>
                     </div>
                   </div>
+
+                  {/* PENDING WITHDRAWALS NOTICE */}
+                  {stats.pendingWithdrawals > 0 && (
+                    <div className="p-4 bg-amber-50/90 border border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200">
+                          <Clock className="w-5 h-5 text-amber-700" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-amber-950 text-sm">
+                              Unpaid Payout in Transfer Queue: {formatMoney(stats.pendingWithdrawals)}
+                            </span>
+                            <span className="inline-flex items-center gap-1 font-semibold text-[10px] text-amber-800 bg-amber-200/70 border border-amber-300 px-2 py-0.5 rounded-full">
+                              Unpaid
+                            </span>
+                          </div>
+                          <span className="text-amber-800 text-[11px] mt-0.5 block">
+                            Requested by you and awaiting manual bank transfer by our finance team. Money shows as &quot;Paid&quot; only once credited to your bank with a verified UTR number.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Payout Destination Details Card */}
                   <div className={`p-5 rounded-2xl border transition-all ${hasValidPayout ? "bg-surface border-border shadow-xs" : "bg-amber-50/70 border-amber-200"}`}>
@@ -1221,20 +1247,29 @@ export default function VendorPortalPage() {
                               <td className="p-4">
                                 {p.status === "paid" && (
                                   <div className="space-y-0.5">
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                                      <CheckCircle2 className="w-3 h-3" /> Paid
-                                    </span>
-                                    {p.transactionRef && (
-                                      <div className="text-[10px] text-dark-500 font-mono">
-                                        UTR: <span className="font-bold text-dark-800 select-all">{p.transactionRef}</span>
-                                      </div>
+                                    {p.transactionRef ? (
+                                      <>
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Paid (Credited to Bank)
+                                        </span>
+                                        <div className="text-[10px] text-dark-500 font-mono">
+                                          UTR: <span className="font-bold text-dark-800 select-all">{p.transactionRef}</span>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                                          <Clock className="w-3 h-3 text-amber-600" /> Unpaid (Pending Bank Transfer)
+                                        </span>
+                                        <div className="text-[10px] text-amber-700 font-medium">Awaiting bank credit confirmation</div>
+                                      </>
                                     )}
                                   </div>
                                 )}
                                 {p.status === "processing" && (
                                   <div className="space-y-0.5">
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">
-                                      <Clock className="w-3 h-3 animate-spin" /> Processing Transfer
+                                      <Clock className="w-3 h-3 animate-spin text-blue-600" /> Unpaid (Processing Transfer)
                                     </span>
                                     <div className="text-[10px] text-blue-600 font-medium">Bank transfer in progress</div>
                                   </div>
@@ -1242,28 +1277,30 @@ export default function VendorPortalPage() {
                                 {p.status === "requested" && (
                                   <div className="space-y-0.5">
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
-                                      <Clock className="w-3 h-3" /> Requested
+                                      <Clock className="w-3 h-3 text-amber-600" /> Unpaid (Payout Requested)
                                     </span>
-                                    <div className="text-[10px] text-amber-600 font-medium">Pending admin verification</div>
+                                    <div className="text-[10px] text-amber-600 font-medium">In queue for admin transfer</div>
                                   </div>
                                 )}
                                 {p.status === "failed" && (
                                   <div className="space-y-0.5">
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2.5 py-1 rounded-md border border-red-200">
-                                      <AlertCircle className="w-3 h-3" /> Transfer Failed
+                                      <AlertCircle className="w-3 h-3 text-red-600" /> Unpaid (Transfer Failed)
                                     </span>
+                                    <div className="text-[10px] text-red-600 font-medium">Funds refunded to available balance</div>
                                     {p.failureReason && (
-                                      <div className="text-[10px] text-red-600 max-w-xs">{p.failureReason}</div>
+                                      <div className="text-[10px] text-red-500 max-w-xs">{p.failureReason}</div>
                                     )}
                                   </div>
                                 )}
                                 {p.status === "rejected" && (
                                   <div className="space-y-0.5">
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200">
-                                      <X className="w-3 h-3" /> Rejected
+                                      <X className="w-3 h-3 text-rose-600" /> Unpaid (Request Rejected)
                                     </span>
+                                    <div className="text-[10px] text-rose-600 font-medium">Funds refunded to available balance</div>
                                     {p.rejectionReason && (
-                                      <div className="text-[10px] text-rose-600 max-w-xs">{p.rejectionReason}</div>
+                                      <div className="text-[10px] text-rose-500 max-w-xs">{p.rejectionReason}</div>
                                     )}
                                   </div>
                                 )}

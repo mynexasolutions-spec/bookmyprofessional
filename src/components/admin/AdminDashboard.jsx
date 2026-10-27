@@ -39,6 +39,8 @@ import {
   Eye,
   Search,
   Clock,
+  Info,
+  AlertCircle,
 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { parseInclusions, formatInclusions } from "@/lib/inclusions";
@@ -1237,6 +1239,21 @@ export default function AdminDashboard({
                 <h2 className="font-heading text-2xl font-bold text-dark-900">Withdrawals (Payouts)</h2>
                 <p className="text-sm text-muted mt-1">Withdrawal requests from professionals. Customer payments are visible in the Bookings tab.</p>
               </div>
+
+              {/* MANUAL BANK/UPI TRANSFER WORKFLOW NOTICE */}
+              <div className="p-4 bg-blue-50/90 border border-blue-200 rounded-2xl flex items-start gap-3.5 text-xs text-blue-900 shadow-xs">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 border border-blue-200">
+                  <Info className="w-4 h-4" />
+                </div>
+                <div className="space-y-1">
+                  <span className="font-bold text-blue-950 block text-sm">
+                    Manual Bank / UPI Transfer Workflow
+                  </span>
+                  <p className="text-blue-800 text-xs leading-relaxed">
+                    Customer payments collected via PayU stay in the platform bank account. Payouts to professionals are executed <strong>manually</strong> from your bank or UPI app to the destination details below. Once you send the money, click <strong>Confirm Transfer</strong> and record the Bank UTR / UPI Ref number. Until a verified UTR is saved, the payout displays as <strong>Unpaid</strong> to both the admin and the professional.
+                  </p>
+                </div>
+              </div>
               {payouts.length === 0 ? (
                 <EmptyState
                   icon={DollarSign}
@@ -1364,26 +1381,33 @@ export default function AdminDashboard({
                                 if (payout.status === "paid") {
                                   return (
                                     <div className="space-y-1">
-                                      <StatusPill value="paid" />
                                       {pd.transaction_ref ? (
-                                        <div className="text-[10px] font-mono font-bold text-dark-700 flex items-center gap-1">
-                                          <span>UTR: {pd.transaction_ref}</span>
-                                          <button
-                                            type="button"
-                                            title="Copy UTR"
-                                            onClick={() => {
-                                              navigator.clipboard?.writeText(pd.transaction_ref);
-                                              showToast("Copied UTR", "success");
-                                            }}
-                                            className="p-0.5 hover:bg-dark-100 rounded text-dark-400 hover:text-dark-700"
-                                          >
-                                            <Copy className="w-2.5 h-2.5" />
-                                          </button>
-                                        </div>
+                                        <>
+                                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Paid (Credited)
+                                          </span>
+                                          <div className="text-[10px] font-mono font-bold text-dark-700 flex items-center gap-1">
+                                            <span>UTR: {pd.transaction_ref}</span>
+                                            <button
+                                              type="button"
+                                              title="Copy UTR"
+                                              onClick={() => {
+                                                navigator.clipboard?.writeText(pd.transaction_ref);
+                                                showToast("Copied UTR", "success");
+                                              }}
+                                              className="p-0.5 hover:bg-dark-100 rounded text-dark-400 hover:text-dark-700"
+                                            >
+                                              <Copy className="w-2.5 h-2.5" />
+                                            </button>
+                                          </div>
+                                        </>
                                       ) : (
-                                        <span className="block text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                          ⚠️ No UTR recorded
-                                        </span>
+                                        <>
+                                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-md">
+                                            <AlertCircle className="w-3 h-3 text-amber-700" /> Unpaid (Pending Transfer)
+                                          </span>
+                                          <div className="text-[10px] text-amber-700 font-medium">Awaiting Bank UTR</div>
+                                        </>
                                       )}
                                     </div>
                                   );
@@ -1391,15 +1415,29 @@ export default function AdminDashboard({
                                 if (payout.status === "processing") {
                                   return (
                                     <div className="space-y-0.5">
-                                      <StatusPill value="processing" />
-                                      <span className="block text-[10px] text-blue-600 font-medium">In transfer process</span>
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md">
+                                        <Clock className="w-3 h-3 text-blue-600 animate-spin" /> Unpaid (Processing)
+                                      </span>
+                                      <div className="text-[10px] text-blue-600 font-medium">Transfer in progress</div>
+                                    </div>
+                                  );
+                                }
+                                if (payout.status === "requested") {
+                                  return (
+                                    <div className="space-y-0.5">
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md">
+                                        <Clock className="w-3 h-3 text-amber-600" /> Unpaid (Requested)
+                                      </span>
+                                      <div className="text-[10px] text-amber-600 font-medium">In payout queue</div>
                                     </div>
                                   );
                                 }
                                 if (payout.status === "failed") {
                                   return (
                                     <div className="space-y-0.5">
-                                      <StatusPill value="failed" />
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-800 bg-red-50 border border-red-200 px-2.5 py-1 rounded-md">
+                                        <AlertCircle className="w-3 h-3 text-red-600" /> Unpaid (Failed)
+                                      </span>
                                       {pd.failure_reason && (
                                         <span className="block text-[10px] text-red-600 max-w-xs truncate" title={pd.failure_reason}>
                                           {pd.failure_reason}
@@ -1411,7 +1449,9 @@ export default function AdminDashboard({
                                 if (payout.status === "rejected") {
                                   return (
                                     <div className="space-y-0.5">
-                                      <StatusPill value="rejected" />
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-800 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md">
+                                        <X className="w-3 h-3 text-rose-600" /> Unpaid (Rejected)
+                                      </span>
                                       {pd.rejection_reason && (
                                         <span className="block text-[10px] text-rose-600 max-w-xs truncate" title={pd.rejection_reason}>
                                           {pd.rejection_reason}

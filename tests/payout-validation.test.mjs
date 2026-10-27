@@ -187,3 +187,93 @@ test("earnings calculation treats both requested and processing as pending withd
   assert.equal(pendingWithdrawals, 400); // 300 + 100
   assert.equal(available, 300); // 900 - 200 - 400 = 300
 });
+
+test("payout without verified UTR is treated as unpaid pending withdrawal, not paidOut", () => {
+  const payouts = [
+    { amount: 200, status: "paid", payout_details: { transaction_ref: "UTR12345678" } },
+    { amount: 8.98, status: "paid", payout_details: null }, // no UTR -> must NOT count as paidOut!
+    { amount: 8.98, status: "paid", payout_details: { transaction_ref: "" } }, // empty UTR -> unpaid!
+    { amount: 5.00, status: "requested", payout_details: null }, // unpaid requested
+  ];
+
+  let released = 500;
+  let paidOut = 0;
+  let pendingWithdrawals = 0;
+
+  payouts.forEach((p) => {
+    const hasVerifiedRef = !!(
+      p.payout_details &&
+      typeof p.payout_details === "object" &&
+      p.payout_details.transaction_ref &&
+      String(p.payout_details.transaction_ref).trim()
+    );
+    if (p.status === "requested" || p.status === "processing") {
+      pendingWithdrawals += p.amount;
+    } else if (p.status === "paid") {
+      if (hasVerifiedRef) {
+        paidOut += p.amount;
+      } else {
+        // Unverified legacy record: money was not transferred, keep in unpaid pending withdrawals
+        pendingWithdrawals += p.amount;
+      }
+    }
+  });
+
+  assert.equal(paidOut, 200);
+  assert.equal(Math.round(pendingWithdrawals * 100) / 100, 22.96); // 8.98 + 8.98 + 5.00
+  assert.equal(Math.round((released - paidOut - pendingWithdrawals) * 100) / 100, 277.04);
+});
+
+test("UI payout badge classification accurately differentiates Paid vs Unpaid", () => {
+  function getPayoutDisplayState(status, transactionRef) {
+    if (status === "paid") {
+      if (transactionRef && String(transactionRef).trim()) {
+        return { isPaid: true, label: "Paid (Credited to Bank)" };
+      }
+      return { isPaid: false, label: "Unpaid (Pending Bank Transfer)" };
+    }
+    if (status === "processing") {
+      return { isPaid: false, label: "Unpaid (Processing Transfer)" };
+    }
+    if (status === "requested") {
+      return { isPaid: false, label: "Unpaid (Payout Requested)" };
+    }
+    if (status === "failed") {
+      return { isPaid: false, label: "Unpaid (Transfer Failed)" };
+    }
+    if (status === "rejected") {
+      return { isPaid: false, label: "Unpaid (Request Rejected)" };
+    }
+    return { isPaid: false, label: `Unpaid (${status})` };
+  }
+
+  // Verified bank transfer
+  assert.deepEqual(getPayoutDisplayState("paid", "UTR12345"), {
+    isPaid: true,
+    label: "Paid (Credited to Bank)",
+  });
+
+  // Unverified paid status (money not yet received)
+  assert.deepEqual(getPayoutDisplayState("paid", null), {
+    isPaid: false,
+    label: "Unpaid (Pending Bank Transfer)",
+  });
+  assert.deepEqual(getPayoutDisplayState("paid", ""), {
+    isPaid: false,
+    label: "Unpaid (Pending Bank Transfer)",
+  });
+
+  // Other pipeline states
+  assert.deepEqual(getPayoutDisplayState("requested", null), {
+    isPaid: false,
+    label: "Unpaid (Payout Requested)",
+  });
+  assert.deepEqual(getPayoutDisplayState("processing", null), {
+    isPaid: false,
+    label: "Unpaid (Processing Transfer)",
+  });
+  assert.deepEqual(getPayoutDisplayState("failed", null), {
+    isPaid: false,
+    label: "Unpaid (Transfer Failed)",
+  });
+});
